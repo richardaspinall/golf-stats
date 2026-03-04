@@ -22,7 +22,21 @@ const defaultDataFile = process.env.VERCEL
   : path.join(process.cwd(), 'data', 'stats.json');
 
 const DATA_FILE = process.env.DATA_FILE || defaultDataFile;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+
+const normalizeOrigin = (rawValue) => {
+  const trimmed = String(rawValue || '').trim();
+  if (!trimmed || trimmed === '*') {
+    return '*';
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/$/, '');
+  }
+
+  return `https://${trimmed.replace(/\/$/, '')}`;
+};
+
+const CORS_ORIGIN = normalizeOrigin(process.env.CORS_ORIGIN || '*');
 
 const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, key) => {
