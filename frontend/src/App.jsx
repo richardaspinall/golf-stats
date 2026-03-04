@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
 const API_ROUNDS_URL = `${API_BASE_URL}/api/rounds`;
 const sanitizeNoteText = (raw) => String(raw || '').trim().slice(0, 1000);
 const sanitizeNotesList = (raw) => {

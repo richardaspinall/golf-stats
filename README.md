@@ -1,45 +1,52 @@
 # Golf Stat Tracker
 
-React + Node.js app for tracking golf round stats by hole, including:
-- Inside 100
-- Out of position (OOP)
-- Fairway result (single selection)
-- GIR result (single selection)
+This repo is now split into two independent deployable projects:
 
-## Run locally
+- `frontend/` (React + Vite)
+- `backend/` (Node API, deployable as Vercel serverless function)
 
-```bash
-npm install
-npm run dev
-```
+## Local development
 
-This starts:
-- Frontend (Vite): `http://localhost:5173`
-- Backend API (Node): `http://localhost:3001`
-
-If you prefer separate terminals:
+Install dependencies per project:
 
 ```bash
-npm run dev:api
-npm run dev:app
+cd frontend && npm install
+cd ../backend && npm install
 ```
 
-## Rounds
+Run in two terminals:
 
-- You can create named rounds.
-- You can switch between rounds from the round selector.
-- Changes auto-save to the currently selected round.
+```bash
+npm --prefix backend run dev
+npm --prefix frontend run dev
+```
 
-## Backend persistence
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3001`
 
-Data is stored in:
-- `data/stats.json`
+The frontend uses:
+- `VITE_API_BASE_URL` (defaults to `http://localhost:3001`)
 
-API endpoints:
+## Deploy to Vercel (separate projects)
+
+1. Create one Vercel project rooted at `backend/`.
+1. Set backend env vars:
+   - `CORS_ORIGIN=https://<your-frontend-domain>`
+   - Optional: `DATA_FILE=/tmp/golf-stats.json` (default on Vercel)
+1. Deploy and copy backend URL (for example `https://golf-stats-api.vercel.app`).
+1. Create another Vercel project rooted at `frontend/`.
+1. Set frontend env var:
+   - `VITE_API_BASE_URL=https://<your-backend-domain>`
+1. Redeploy frontend.
+
+## Important persistence note
+
+`backend/` currently writes to a JSON file. On Vercel serverless this is ephemeral (`/tmp`) and not durable across cold starts or instance changes. For production persistence, move storage to a database (for example Postgres, Neon, Supabase, or Vercel KV).
+
+## API endpoints
+
 - `GET /api/health`
 - `GET /api/rounds`
 - `POST /api/rounds`
 - `GET /api/rounds/:id`
 - `PUT /api/rounds/:id`
-
-In development, Vite proxies `/api/*` to `http://localhost:3001`.

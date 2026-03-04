@@ -1,9 +1,6 @@
-import http from 'node:http';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const PORT = Number(process.env.PORT || 3001);
 const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
 
 const COUNTER_OPTIONS = [
@@ -20,9 +17,12 @@ const GIR_KEYS = ['girHit', 'girLeft', 'girRight', 'girLong', 'girShort'];
 const VALID_FAIRWAY_KEYS = new Set(FAIRWAY_KEYS);
 const VALID_GIR_KEYS = new Set(GIR_KEYS);
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DATA_FILE = path.join(DATA_DIR, 'stats.json');
+const defaultDataFile = process.env.VERCEL
+  ? '/tmp/golf-stats.json'
+  : path.join(process.cwd(), 'data', 'stats.json');
+
+const DATA_FILE = process.env.DATA_FILE || defaultDataFile;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, key) => {
@@ -121,9 +121,7 @@ const sanitizeDataStore = (raw) => {
 
   const legacyStats = raw?.statsByHole ?? raw;
   return {
-    rounds: [
-      createRound('Round 1', legacyStats),
-    ],
+    rounds: [createRound('Round 1', legacyStats)],
   };
 };
 
@@ -141,14 +139,38 @@ const readBody = (req) =>
   });
 
 const sendJson = (res, status, payload) => {
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,PUT,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  });
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+  res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.end(JSON.stringify(payload));
 };
+
+const parseBody = async (req) => {
+  if (req.body !== undefined) {
+    if (typeof req.body === 'string') {
+      return req.body ? JSON.parse(req.body) : {};
+    }
+
+    if (req.body && typeof req.body === 'object') {
+      return req.body;
+    }
+
+    return {};
+  }
+
+  const bodyRaw = await readBody(req);
+  return bodyRaw ? JSON.parse(bodyRaw) : {};
+};
+
+const getUrl = (req) => {
+  const host = req.headers?.host || 'localhost';
+  return new URL(req.url || '/', `http://${host}`);
+};
+
+let store = null;
+let loadPromise = null;
 
 const loadPersistedStore = async () => {
   try {
@@ -160,54 +182,70 @@ const loadPersistedStore = async () => {
   }
 };
 
-let store = await loadPersistedStore();
+const ensureStore = async () => {
+  if (store) {
+    return store;
+  }
+
+  if (!loadPromise) {
+    loadPromise = loadPersistedStore().then((loaded) => {
+      store = loaded;
+      return store;
+    });
+  }
+
+  return loadPromise;
+};
 
 const persistStore = async () => {
-  await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(
-    DATA_FILE,
-    JSON.stringify(
-      {
-        schemaVersion: 2,
-        rounds: store.rounds,
-        updatedAt: new Date().toISOString(),
-      },
-      null,
-      2,
-    ),
-  );
+  const dataDir = path.dirname(DATA_FILE);
+  try {
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(
+      DATA_FILE,
+      JSON.stringify(
+        {
+          schemaVersion: 2,
+          rounds: store.rounds,
+          updatedAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 const getRoundById = (roundId) => store.rounds.find((round) => round.id === roundId);
 
-const server = http.createServer(async (req, res) => {
-  const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  const pathname = requestUrl.pathname;
+export const handleRequest = async (req, res) => {
+  await ensureStore();
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,PUT,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    });
-    res.end();
+  const requestUrl = getUrl(req);
+  const pathname = requestUrl.pathname;
+  const method = req.method || 'GET';
+
+  if (method === 'OPTIONS') {
+    sendJson(res, 204, {});
     return;
   }
 
-  if (pathname === '/api/health' && req.method === 'GET') {
+  if (pathname === '/api/health' && method === 'GET') {
     sendJson(res, 200, { ok: true });
     return;
   }
 
-  if (pathname === '/api/rounds' && req.method === 'GET') {
+  if (pathname === '/api/rounds' && method === 'GET') {
     sendJson(res, 200, { rounds: store.rounds.map(toRoundSummary) });
     return;
   }
 
-  if (pathname === '/api/rounds' && req.method === 'POST') {
+  if (pathname === '/api/rounds' && method === 'POST') {
     try {
-      const bodyRaw = await readBody(req);
-      const body = bodyRaw ? JSON.parse(bodyRaw) : {};
+      const body = await parseBody(req);
       const roundName = sanitizeRoundName(body?.name, store.rounds.length + 1);
       const newRound = createRound(
         roundName,
@@ -233,15 +271,14 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === 'GET') {
+    if (method === 'GET') {
       sendJson(res, 200, { round });
       return;
     }
 
-    if (req.method === 'PUT') {
+    if (method === 'PUT') {
       try {
-        const bodyRaw = await readBody(req);
-        const body = bodyRaw ? JSON.parse(bodyRaw) : {};
+        const body = await parseBody(req);
 
         round.name = sanitizeRoundName(body?.name ?? round.name);
         round.statsByHole = sanitizeStats(body?.statsByHole ?? round.statsByHole);
@@ -258,8 +295,4 @@ const server = http.createServer(async (req, res) => {
   }
 
   sendJson(res, 404, { ok: false, error: 'Not found' });
-});
-
-server.listen(PORT, () => {
-  console.log(`API server running on http://localhost:${PORT}`);
-});
+};
