@@ -1,7 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+const normalizeApiBaseUrl = (rawValue) => {
+  const trimmed = String(rawValue || '').trim();
+  if (!trimmed) {
+    return 'http://localhost:3001';
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/$/, '');
+  }
+
+  return `https://${trimmed.replace(/\/$/, '')}`;
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 const API_ROUNDS_URL = `${API_BASE_URL}/api/rounds`;
 const sanitizeNoteText = (raw) => String(raw || '').trim().slice(0, 1000);
 const sanitizeNotesList = (raw) => {
