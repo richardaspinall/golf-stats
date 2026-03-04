@@ -236,77 +236,88 @@ const persistStore = async () => {
 const getRoundById = (roundId) => store.rounds.find((round) => round.id === roundId);
 
 export const handleRequest = async (req, res) => {
-  await ensureStore();
+  try {
+    await ensureStore();
 
-  const requestUrl = getUrl(req);
-  const pathname = requestUrl.pathname;
-  const method = req.method || 'GET';
+    const requestUrl = getUrl(req);
+    const pathname = requestUrl.pathname;
+    const method = req.method || 'GET';
 
-  if (method === 'OPTIONS') {
-    sendJson(res, 204, {});
-    return;
-  }
-
-  if (pathname === '/api/health' && method === 'GET') {
-    sendJson(res, 200, { ok: true });
-    return;
-  }
-
-  if (pathname === '/api/rounds' && method === 'GET') {
-    sendJson(res, 200, { rounds: store.rounds.map(toRoundSummary) });
-    return;
-  }
-
-  if (pathname === '/api/rounds' && method === 'POST') {
-    try {
-      const body = await parseBody(req);
-      const roundName = sanitizeRoundName(body?.name, store.rounds.length + 1);
-      const newRound = createRound(
-        roundName,
-        body?.statsByHole ?? buildInitialByHole(),
-        body?.notes ?? '',
-      );
-      store = { rounds: [newRound, ...store.rounds] };
-      await persistStore();
-      sendJson(res, 201, { round: newRound });
-    } catch (error) {
-      sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
-    }
-    return;
-  }
-
-  const roundMatch = pathname.match(/^\/api\/rounds\/([^/]+)$/);
-  if (roundMatch) {
-    const roundId = decodeURIComponent(roundMatch[1]);
-    const round = getRoundById(roundId);
-
-    if (!round) {
-      sendJson(res, 404, { ok: false, error: 'Round not found' });
+    if (method === 'OPTIONS') {
+      sendJson(res, 204, {});
       return;
     }
 
-    if (method === 'GET') {
-      sendJson(res, 200, { round });
+    if (pathname === '/api/health' && method === 'GET') {
+      sendJson(res, 200, { ok: true });
       return;
     }
 
-    if (method === 'PUT') {
+    if (pathname === '/api/rounds' && method === 'GET') {
+      sendJson(res, 200, { rounds: store.rounds.map(toRoundSummary) });
+      return;
+    }
+
+    if (pathname === '/api/rounds' && method === 'POST') {
       try {
         const body = await parseBody(req);
-
-        round.name = sanitizeRoundName(body?.name ?? round.name);
-        round.statsByHole = sanitizeStats(body?.statsByHole ?? round.statsByHole);
-        round.notes = sanitizeRoundNotes(body?.notes ?? round.notes);
-        round.updatedAt = new Date().toISOString();
-
+        const roundName = sanitizeRoundName(body?.name, store.rounds.length + 1);
+        const newRound = createRound(
+          roundName,
+          body?.statsByHole ?? buildInitialByHole(),
+          body?.notes ?? '',
+        );
+        store = { rounds: [newRound, ...store.rounds] };
         await persistStore();
-        sendJson(res, 200, { ok: true, round });
+        sendJson(res, 201, { round: newRound });
       } catch (error) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
       return;
     }
-  }
 
-  sendJson(res, 404, { ok: false, error: 'Not found' });
+    const roundMatch = pathname.match(/^\/api\/rounds\/([^/]+)$/);
+    if (roundMatch) {
+      const roundId = decodeURIComponent(roundMatch[1]);
+      const round = getRoundById(roundId);
+
+      if (!round) {
+        sendJson(res, 404, { ok: false, error: 'Round not found' });
+        return;
+      }
+
+      if (method === 'GET') {
+        sendJson(res, 200, { round });
+        return;
+      }
+
+      if (method === 'PUT') {
+        try {
+          const body = await parseBody(req);
+
+          round.name = sanitizeRoundName(body?.name ?? round.name);
+          round.statsByHole = sanitizeStats(body?.statsByHole ?? round.statsByHole);
+          round.notes = sanitizeRoundNotes(body?.notes ?? round.notes);
+          round.updatedAt = new Date().toISOString();
+
+          await persistStore();
+          sendJson(res, 200, { ok: true, round });
+        } catch (error) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
+        return;
+      }
+    }
+
+    sendJson(res, 404, { ok: false, error: 'Not found' });
+  } catch (error) {
+    if (!res.headersSent) {
+      sendJson(res, 500, {
+        ok: false,
+        error: 'Internal server error',
+        detail: error?.message || 'Unknown error',
+      });
+      return;
+    }
+  }
 };
