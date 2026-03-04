@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -22,6 +23,10 @@ const defaultDataFile = process.env.VERCEL
   : path.join(process.cwd(), 'data', 'stats.json');
 
 const DATA_FILE = process.env.DATA_FILE || defaultDataFile;
+const AUTH_USERNAME = String(process.env.AUTH_USERNAME || '').trim();
+const AUTH_PASSWORD = String(process.env.AUTH_PASSWORD || '');
+const JWT_SECRET = String(process.env.JWT_SECRET || '');
+const JWT_TTL_SECONDS = Number(process.env.JWT_TTL_SECONDS || 60 * 60 * 24 * 7);
 
 const normalizeOrigin = (rawValue) => {
   const trimmed = String(rawValue || '').trim();
@@ -37,6 +42,95 @@ const normalizeOrigin = (rawValue) => {
 };
 
 const CORS_ORIGIN = normalizeOrigin(process.env.CORS_ORIGIN || '*');
+const AUTH_CONFIGURED = Boolean(AUTH_USERNAME && AUTH_PASSWORD && JWT_SECRET);
+
+const toBase64Url = (value) =>
+  Buffer.from(value)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+
+const fromBase64Url = (value) => {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
+  return Buffer.from(padded, 'base64').toString('utf8');
+};
+
+const safeCompare = (a, b) => {
+  const hashA = crypto.createHash('sha256').update(String(a)).digest();
+  const hashB = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+};
+
+const signToken = (subject) => {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    sub: subject,
+    iat: now,
+    exp: now + Math.max(60, Math.floor(JWT_TTL_SECONDS)),
+  };
+
+  const encodedHeader = toBase64Url(JSON.stringify(header));
+  const encodedPayload = toBase64Url(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const signature = crypto
+    .createHmac('sha256', JWT_SECRET)
+    .update(signingInput)
+    .digest('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+
+  return `${signingInput}.${signature}`;
+};
+
+const verifyToken = (token) => {
+  try {
+    const [encodedHeader, encodedPayload, encodedSignature] = String(token || '').split('.');
+    if (!encodedHeader || !encodedPayload || !encodedSignature) {
+      return { ok: false, error: 'Malformed token' };
+    }
+
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    const expectedSignature = crypto
+      .createHmac('sha256', JWT_SECRET)
+      .update(signingInput)
+      .digest('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+
+    if (!safeCompare(encodedSignature, expectedSignature)) {
+      return { ok: false, error: 'Invalid token signature' };
+    }
+
+    const payload = JSON.parse(fromBase64Url(encodedPayload));
+    const now = Math.floor(Date.now() / 1000);
+    if (!payload?.sub || payload.sub !== AUTH_USERNAME) {
+      return { ok: false, error: 'Invalid subject' };
+    }
+
+    if (!payload?.exp || now >= payload.exp) {
+      return { ok: false, error: 'Token expired' };
+    }
+
+    return { ok: true, payload };
+  } catch {
+    return { ok: false, error: 'Invalid token' };
+  }
+};
+
+const getBearerToken = (req) => {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
+  const value = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+  if (!value || !value.startsWith('Bearer ')) {
+    return '';
+  }
+
+  return value.slice('Bearer '.length).trim();
+};
 
 const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, key) => {
@@ -157,7 +251,7 @@ const sendJson = (res, status, payload) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.end(JSON.stringify(payload));
 };
 
@@ -251,6 +345,44 @@ export const handleRequest = async (req, res) => {
     if (pathname === '/api/health' && method === 'GET') {
       sendJson(res, 200, { ok: true });
       return;
+    }
+
+    if (pathname === '/api/auth/login' && method === 'POST') {
+      if (!AUTH_CONFIGURED) {
+        sendJson(res, 500, { ok: false, error: 'Auth is not configured on the server' });
+        return;
+      }
+
+      try {
+        const body = await parseBody(req);
+        const username = String(body?.username || '').trim();
+        const password = String(body?.password || '');
+
+        if (!safeCompare(username, AUTH_USERNAME) || !safeCompare(password, AUTH_PASSWORD)) {
+          sendJson(res, 401, { ok: false, error: 'Invalid credentials' });
+          return;
+        }
+
+        const token = signToken(AUTH_USERNAME);
+        sendJson(res, 200, { ok: true, token, expiresIn: Math.max(60, Math.floor(JWT_TTL_SECONDS)) });
+      } catch (error) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    if (pathname.startsWith('/api/') && pathname !== '/api/health') {
+      if (!AUTH_CONFIGURED) {
+        sendJson(res, 500, { ok: false, error: 'Auth is not configured on the server' });
+        return;
+      }
+
+      const token = getBearerToken(req);
+      const tokenState = verifyToken(token);
+      if (!tokenState.ok) {
+        sendJson(res, 401, { ok: false, error: 'Unauthorized' });
+        return;
+      }
     }
 
     if (pathname === '/api/rounds' && method === 'GET') {

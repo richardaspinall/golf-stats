@@ -16,6 +16,8 @@ const normalizeApiBaseUrl = (rawValue) => {
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 const API_ROUNDS_URL = `${API_BASE_URL}/api/rounds`;
+const API_LOGIN_URL = `${API_BASE_URL}/api/auth/login`;
+const AUTH_TOKEN_STORAGE_KEY = 'golf_stats_auth_token';
 const sanitizeNoteText = (raw) => String(raw || '').trim().slice(0, 1000);
 const sanitizeNotesList = (raw) => {
   if (!Array.isArray(raw)) {
@@ -127,54 +129,127 @@ const sanitizeStats = (raw) => {
   return safe;
 };
 
-const loadRoundsFromApi = async () => {
-  const response = await fetch(API_ROUNDS_URL);
+const loadStoredAuthToken = () => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || '';
+};
+
+const saveAuthToken = (token) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+};
+
+const clearAuthToken = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+};
+
+class ApiError extends Error {
+  constructor(message, status, details = '') {
+    super(message);
+    this.status = status;
+    this.details = details;
+  }
+}
+
+const getErrorDetails = async (response) => {
+  try {
+    const data = await response.json();
+    return data?.error || '';
+  } catch {
+    return '';
+  }
+};
+
+const requestApi = async (url, { method = 'GET', body, token } = {}) => {
+  const headers = {};
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return fetch(url, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+};
+
+const loginToApi = async (username, password) => {
+  const response = await requestApi(API_LOGIN_URL, {
+    method: 'POST',
+    body: { username, password },
+  });
+
   if (!response.ok) {
-    throw new Error(`Failed to load rounds (${response.status})`);
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Login failed (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return String(data?.token || '');
+};
+
+const loadRoundsFromApi = async (token) => {
+  const response = await requestApi(API_ROUNDS_URL, { token });
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to load rounds (${response.status})`, response.status, details);
   }
 
   const data = await response.json();
   return Array.isArray(data?.rounds) ? data.rounds : [];
 };
 
-const loadRoundFromApi = async (roundId) => {
-  const response = await fetch(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`);
+const loadRoundFromApi = async (roundId, token) => {
+  const response = await requestApi(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, { token });
   if (!response.ok) {
-    throw new Error(`Failed to load round (${response.status})`);
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to load round (${response.status})`, response.status, details);
   }
 
   const data = await response.json();
   return data?.round;
 };
 
-const saveRoundToApi = async (roundId, statsByHole, notes) => {
-  const response = await fetch(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, {
+const saveRoundToApi = async (roundId, statsByHole, notes, token) => {
+  const response = await requestApi(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ statsByHole, notes }),
+    body: { statsByHole, notes },
+    token,
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to save round (${response.status})`);
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to save round (${response.status})`, response.status, details);
   }
 
   const data = await response.json();
   return data?.round;
 };
 
-const createRoundInApi = async (name) => {
-  const response = await fetch(API_ROUNDS_URL, {
+const createRoundInApi = async (name, token) => {
+  const response = await requestApi(API_ROUNDS_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ name }),
+    body: { name },
+    token,
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to create round (${response.status})`);
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to create round (${response.status})`, response.status, details);
   }
 
   const data = await response.json();
@@ -182,6 +257,11 @@ const createRoundInApi = async (name) => {
 };
 
 export default function App() {
+  const [authToken, setAuthToken] = useState(() => loadStoredAuthToken());
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [selectedHole, setSelectedHole] = useState(1);
   const [page, setPage] = useState('track');
   const [rounds, setRounds] = useState([]);
@@ -201,6 +281,26 @@ export default function App() {
   const holeStats = statsByHole[selectedHole];
   const activeRound = rounds.find((round) => round.id === selectedRoundId);
 
+  const handleAuthFailure = (message = 'Session expired. Log in again.') => {
+    clearAuthToken();
+    setAuthToken('');
+    setAuthError(message);
+    setRounds([]);
+    setSelectedRoundId('');
+    setStatsByHole(buildInitialByHole());
+    setRoundNotes([]);
+    setNoteDraft('');
+    setShowNewRoundForm(false);
+    setSaveState('loading');
+    hasLoadedRef.current = false;
+    skipNextSaveRef.current = false;
+  };
+
+  const logout = () => {
+    handleAuthFailure('');
+    setLoginPassword('');
+  };
+
   const applyRoundToState = (round) => {
     skipNextSaveRef.current = true;
     hasLoadedRef.current = true;
@@ -215,21 +315,37 @@ export default function App() {
     let isActive = true;
 
     const loadInitialData = async () => {
+      if (!authToken) {
+        return;
+      }
+
+      setSaveState('loading');
       try {
-        const list = await loadRoundsFromApi();
-        if (!isActive || list.length === 0) {
+        const list = await loadRoundsFromApi(authToken);
+        if (!isActive) {
           return;
         }
 
         setRounds(list);
-        const firstRound = await loadRoundFromApi(list[0].id);
+        if (list.length === 0) {
+          hasLoadedRef.current = true;
+          setSaveState('saved');
+          return;
+        }
+
+        const firstRound = await loadRoundFromApi(list[0].id, authToken);
         if (!isActive || !firstRound) {
           return;
         }
 
         applyRoundToState(firstRound);
-      } catch {
+      } catch (error) {
         if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
           return;
         }
 
@@ -243,10 +359,10 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [authToken]);
 
   useEffect(() => {
-    if (!hasLoadedRef.current || !selectedRoundId) {
+    if (!authToken || !hasLoadedRef.current || !selectedRoundId) {
       return;
     }
 
@@ -258,7 +374,7 @@ export default function App() {
     setSaveState('saving');
     const timeoutId = setTimeout(async () => {
       try {
-        const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes);
+        const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes, authToken);
         setSaveState('saved');
         setRounds((prev) =>
           prev.map((round) =>
@@ -271,7 +387,12 @@ export default function App() {
               : round,
           ),
         );
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
         setSaveState('error');
       }
     }, 180);
@@ -279,7 +400,7 @@ export default function App() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [selectedRoundId, statsByHole, roundNotes]);
+  }, [authToken, selectedRoundId, statsByHole, roundNotes]);
 
   const switchRound = async (roundId) => {
     if (!roundId || roundId === selectedRoundId) {
@@ -289,11 +410,16 @@ export default function App() {
     setIsSwitchingRound(true);
     setSaveState('loading');
     try {
-      const round = await loadRoundFromApi(roundId);
+      const round = await loadRoundFromApi(roundId, authToken);
       if (round) {
         applyRoundToState(round);
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
       setSaveState('error');
     } finally {
       setIsSwitchingRound(false);
@@ -309,7 +435,7 @@ export default function App() {
     setIsSwitchingRound(true);
     setSaveState('loading');
     try {
-      const round = await createRoundInApi(roundName);
+      const round = await createRoundInApi(roundName, authToken);
       if (round) {
         const summary = {
           id: round.id,
@@ -322,7 +448,12 @@ export default function App() {
         setShowNewRoundForm(false);
         applyRoundToState(round);
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
       setSaveState('error');
     } finally {
       setIsSwitchingRound(false);
@@ -400,6 +531,76 @@ export default function App() {
     setRoundNotes((prev) => prev.filter((_, index) => index !== indexToDelete));
   };
 
+  const login = async (event) => {
+    event?.preventDefault();
+    const username = loginUsername.trim();
+    const password = loginPassword;
+    if (!username || !password) {
+      setAuthError('Enter username and password.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setAuthError('');
+    try {
+      const token = await loginToApi(username, password);
+      if (!token) {
+        setAuthError('No token was returned.');
+        return;
+      }
+
+      saveAuthToken(token);
+      setAuthToken(token);
+      setLoginPassword('');
+      setSaveState('loading');
+      hasLoadedRef.current = false;
+      skipNextSaveRef.current = false;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setAuthError(error.details || 'Invalid credentials.');
+      } else {
+        setAuthError('Unable to log in right now.');
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  if (!authToken) {
+    return (
+      <main className="app">
+        <section className="card">
+          <h1>Golf Stat Tracker</h1>
+          <h2>Sign in</h2>
+          <form className="new-round-form" onSubmit={login}>
+            <div className="new-round-fields">
+              <input
+                type="text"
+                value={loginUsername}
+                onChange={(event) => setLoginUsername(event.target.value)}
+                placeholder="Username"
+                autoComplete="username"
+              />
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                placeholder="Password"
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="new-round-actions">
+              <button type="submit" disabled={isLoggingIn}>
+                {isLoggingIn ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
+            {authError ? <p className="hint">{authError}</p> : null}
+          </form>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="app">
       <header className="header">
@@ -423,6 +624,9 @@ export default function App() {
             </button>
             <button className="reset-btn" onClick={resetRound} disabled={!selectedRoundId || isSwitchingRound}>
               Reset round
+            </button>
+            <button onClick={logout} disabled={isSwitchingRound}>
+              Log out
             </button>
           </div>
         ) : null}

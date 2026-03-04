@@ -32,6 +32,10 @@ The frontend uses:
 1. Create one Vercel project rooted at `backend/`.
 1. Set backend env vars:
    - `CORS_ORIGIN=https://<your-frontend-domain>`
+   - `AUTH_USERNAME=<your-username>`
+   - `AUTH_PASSWORD=<your-strong-password>`
+   - `JWT_SECRET=<long-random-secret>`
+   - Optional: `JWT_TTL_SECONDS=604800`
    - Optional: `DATA_FILE=/tmp/golf-stats.json` (default on Vercel)
 1. Deploy and copy backend URL (for example `https://golf-stats-api.vercel.app`).
 1. Create another Vercel project rooted at `frontend/`.
@@ -46,6 +50,7 @@ The frontend uses:
 ## API endpoints
 
 - `GET /api/health`
+- `POST /api/auth/login`
 - `GET /api/rounds`
 - `POST /api/rounds`
 - `GET /api/rounds/:id`
