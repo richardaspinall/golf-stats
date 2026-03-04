@@ -6,3 +6,7 @@ frontend/dist/
 backend/.vercel/
 frontend/.vercel/
 .DS_Store
+*.env.local
+.env.local
+backend/.env.local
+frontend/.env.local

@@ -31,12 +31,12 @@ The frontend uses:
 
 1. Create one Vercel project rooted at `backend/`.
 1. Set backend env vars:
+   - `DATABASE_URL=<your-postgres-connection-string>`
    - `CORS_ORIGIN=https://<your-frontend-domain>`
    - `AUTH_USERNAME=<your-username>`
    - `AUTH_PASSWORD=<your-strong-password>`
    - `JWT_SECRET=<long-random-secret>`
    - Optional: `JWT_TTL_SECONDS=604800`
-   - Optional: `DATA_FILE=/tmp/golf-stats.json` (default on Vercel)
 1. Deploy and copy backend URL (for example `https://golf-stats-api.vercel.app`).
 1. Create another Vercel project rooted at `frontend/`.
 1. Set frontend env var:
@@ -45,7 +45,7 @@ The frontend uses:
 
 ## Important persistence note
 
-`backend/` currently writes to a JSON file. On Vercel serverless this is ephemeral (`/tmp`) and not durable across cold starts or instance changes. For production persistence, move storage to a database (for example Postgres, Neon, Supabase, or Vercel KV).
+`backend/` now stores rounds in Postgres via `DATABASE_URL`. This is durable and suitable for Vercel serverless deployments.
 
 ## API endpoints
 
