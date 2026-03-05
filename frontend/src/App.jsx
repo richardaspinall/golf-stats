@@ -89,6 +89,9 @@ const SHOT_SETUP_OPTIONS = [
   { key: 'closedStance', label: 'Closed stance' },
 ];
 const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'];
+const METERS_PER_PACE = 0.83;
+const metersToPaces = (meters) => Math.round(meters / METERS_PER_PACE);
+const pacesToMeters = (paces) => Math.round(paces * METERS_PER_PACE);
 const CLUB_GROUPS = [
   { label: 'Wedges', options: ['60', '56', '50', 'PW'] },
   { label: 'Irons + Hybrid', options: ['9i', '8i', '7i', '6i', '5i', '4i', '5Hy'] },
@@ -288,7 +291,7 @@ export default function App() {
   const [saveState, setSaveState] = useState('loading');
   const [isSwitchingRound, setIsSwitchingRound] = useState(false);
   const [targetDistanceMeters, setTargetDistanceMeters] = useState(120);
-  const [actualDistanceMeters, setActualDistanceMeters] = useState(120);
+  const [actualDistancePaces, setActualDistancePaces] = useState(() => metersToPaces(120));
   const [offlineMeters, setOfflineMeters] = useState(0);
   const [setupSelection, setSetupSelection] = useState('');
   const [swingClock, setSwingClock] = useState('9:00');
@@ -556,6 +559,7 @@ export default function App() {
   };
 
   const addShotPrototypeNote = () => {
+    const actualDistanceMeters = pacesToMeters(actualDistancePaces);
     const selectedSetup = SHOT_SETUP_OPTIONS.find((option) => option.key === setupSelection);
     const setupText = selectedSetup ? selectedSetup.label : 'No setup notes';
     const clubText = clubSelection || 'No club selected';
@@ -849,15 +853,15 @@ export default function App() {
               <div className="prototype-block">
                 <div className="distance-header">
                   <span>Actual distance</span>
-                  <strong>{actualDistanceMeters}m</strong>
+                  <strong>{actualDistancePaces} paces</strong>
                 </div>
                 <input
                   type="range"
-                  min={10}
-                  max={300}
+                  min={metersToPaces(10)}
+                  max={metersToPaces(300)}
                   step={1}
-                  value={actualDistanceMeters}
-                  onChange={(event) => setActualDistanceMeters(Number(event.target.value))}
+                  value={actualDistancePaces}
+                  onChange={(event) => setActualDistancePaces(Number(event.target.value))}
                 />
               </div>
 
