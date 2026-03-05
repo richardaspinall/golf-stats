@@ -90,6 +90,7 @@ const TOTAL_OPTIONS = [...COUNTER_OPTIONS, ...FAIRWAY_SECTION.options, ...GIR_SE
 const SHOT_SETUP_OPTIONS = [
   { key: 'openStance', label: 'Open stance' },
   { key: 'closedStance', label: 'Closed stance' },
+  { key: 'squareStance', label: 'Square' },
 ];
 const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'];
 const METERS_PER_PACE = 0.83;
@@ -407,11 +408,11 @@ export default function App() {
   const [noteDraft, setNoteDraft] = useState('');
   const [saveState, setSaveState] = useState('loading');
   const [isSwitchingRound, setIsSwitchingRound] = useState(false);
-  const [targetDistanceMeters, setTargetDistanceMeters] = useState(120);
+  const [targetDistanceMeters, setTargetDistanceMeters] = useState(0);
   const [actualDistancePaces, setActualDistancePaces] = useState(() => metersToPaces(120));
   const [offlineMeters, setOfflineMeters] = useState(0);
   const [setupSelection, setSetupSelection] = useState('');
-  const [swingClock, setSwingClock] = useState('9:00');
+  const [swingClock, setSwingClock] = useState('');
   const [clubSelection, setClubSelection] = useState('');
   const [lieSelection, setLieSelection] = useState('');
   const [clubAverages, setClubAverages] = useState([]);
@@ -785,13 +786,20 @@ export default function App() {
     const setupText = selectedSetup ? selectedSetup.label : 'No setup notes';
     const clubText = clubSelection || 'No club selected';
     const lieText = lieSelection || 'No lie selected';
+    const targetText = targetDistanceMeters > 0 ? `Target ${targetDistanceMeters}m` : null;
     const offlineText =
-      offlineMeters === 0
-        ? 'On line'
-        : `Offline ${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`;
-    const summary = sanitizeNoteText(
-      `Target ${targetDistanceMeters}m | Actual ${actualDistanceMeters}m | ${offlineText} | ${clubText} | Lie ${lieText} | ${setupText} | Swing ${swingClock}`,
-    );
+      offlineMeters === 0 ? null : `Offline ${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`;
+    const swingText = swingClock ? `Swing ${swingClock}` : 'No swing clock';
+    const summaryParts = [
+      targetText,
+      `Actual ${actualDistanceMeters}m`,
+      offlineText,
+      clubText,
+      `Lie ${lieText}`,
+      setupText,
+      swingText,
+    ].filter(Boolean);
+    const summary = sanitizeNoteText(summaryParts.join(' | '));
     if (!summary) {
       return;
     }
@@ -1112,7 +1120,7 @@ export default function App() {
               className={page === 'distance' ? 'tab-btn active' : 'tab-btn'}
               onClick={() => setPage('distance')}
             >
-              Distance setup
+              Distances
             </button>
             <button
               className={page === 'clubAverages' ? 'tab-btn active' : 'tab-btn'}
@@ -1298,17 +1306,17 @@ export default function App() {
             </section>
           ) : page === 'distance' ? (
             <section className="card" aria-label="distance setup prototype">
-              <h2>Distance setup prototype</h2>
+              <h2>Distances</h2>
               <p className="hint">Use this tab to capture distance, setup choices, and swing clock feel.</p>
 
               <div className="prototype-block">
                 <div className="distance-header">
                   <span>Target distance</span>
-                  <strong>{targetDistanceMeters}m</strong>
+                  <strong>{targetDistanceMeters === 0 ? 'Off' : `${targetDistanceMeters}m`}</strong>
                 </div>
                 <input
                   type="range"
-                  min={10}
+                  min={0}
                   max={300}
                   step={1}
                   value={targetDistanceMeters}
@@ -1336,7 +1344,7 @@ export default function App() {
                   <span>Offline</span>
                   <strong>
                     {offlineMeters === 0
-                      ? 'On line'
+                      ? 'Off'
                       : `${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`}
                   </strong>
                 </div>
@@ -1361,7 +1369,7 @@ export default function App() {
                           <button
                             key={club}
                             className={clubSelection === club ? 'club-btn active' : 'club-btn'}
-                            onClick={() => setClubSelection(club)}
+                            onClick={() => setClubSelection((prev) => (prev === club ? '' : club))}
                           >
                             {club}
                           </button>
@@ -1379,7 +1387,7 @@ export default function App() {
                     <button
                       key={lie}
                       className={lieSelection === lie ? 'club-btn active' : 'club-btn'}
-                      onClick={() => setLieSelection(lie)}
+                      onClick={() => setLieSelection((prev) => (prev === lie ? '' : lie))}
                     >
                       {lie}
                     </button>
@@ -1409,7 +1417,7 @@ export default function App() {
                     <button
                       key={clock}
                       className={swingClock === clock ? 'clock-btn active' : 'clock-btn'}
-                      onClick={() => setSwingClock(clock)}
+                      onClick={() => setSwingClock((prev) => (prev === clock ? '' : clock))}
                     >
                       {clock}
                     </button>
