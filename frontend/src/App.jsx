@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
+const HOLE_INDEX_OPTIONS = Array.from({ length: 18 }, (_, i) => i + 1);
 const normalizeApiBaseUrl = (rawValue) => {
   const trimmed = String(rawValue || '').trim();
   if (!trimmed) {
@@ -580,6 +581,18 @@ export default function App() {
     );
   }, [statsByHole]);
 
+  const holeIndexCounts = useMemo(() => {
+    return HOLES.reduce((acc, hole) => {
+      const indexValue = statsByHole[hole]?.holeIndex;
+      if (!Number.isFinite(indexValue)) {
+        return acc;
+      }
+
+      acc[indexValue] = (acc[indexValue] || 0) + 1;
+      return acc;
+    }, {});
+  }, [statsByHole]);
+
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => ({
       ...prev,
@@ -624,12 +637,13 @@ export default function App() {
     }));
   };
 
-  const updateHoleIndex = (hole, delta) => {
+  const setHoleIndexValue = (hole, value) => {
+    const nextValue = Math.min(18, Math.max(1, Math.floor(Number(value) || 1)));
     setStatsByHole((prev) => ({
       ...prev,
       [hole]: {
         ...prev[hole],
-        holeIndex: Math.min(18, Math.max(1, prev[hole].holeIndex + delta)),
+        holeIndex: nextValue,
       },
     }));
   };
@@ -1007,6 +1021,12 @@ export default function App() {
             >
               Club averages
             </button>
+            <button
+              className={page === 'courseSetup' ? 'tab-btn active' : 'tab-btn'}
+              onClick={() => setPage('courseSetup')}
+            >
+              Course setup
+            </button>
           </nav>
 
           {page === 'track' ? (
@@ -1053,9 +1073,7 @@ export default function App() {
                     <div className="stat-row">
                       <span>Hole index</span>
                       <div className="stat-actions">
-                        <button onClick={() => updateHoleIndex(selectedHole, -1)}>-</button>
                         <strong>{holeStats.holeIndex}</strong>
-                        <button onClick={() => updateHoleIndex(selectedHole, 1)}>+</button>
                       </div>
                     </div>
                   </div>
@@ -1119,6 +1137,46 @@ export default function App() {
                 </div>
               </section>
             </>
+          ) : page === 'courseSetup' ? (
+            <section className="card" aria-label="course setup">
+              <h2>Course setup</h2>
+              <p className="hint">Set hole indexes once for this round. Duplicate values are flagged.</p>
+              <div className="manual-save-row">
+                <button
+                  onClick={saveCurrentRound}
+                  disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
+                >
+                  {saveState === 'saving' ? 'Saving...' : 'Save course setup'}
+                </button>
+              </div>
+              <div className="course-setup-list">
+                {HOLES.map((hole) => {
+                  const indexValue = statsByHole[hole]?.holeIndex ?? hole;
+                  const isDuplicate = (holeIndexCounts[indexValue] || 0) > 1;
+                  return (
+                    <div key={hole} className="course-setup-row">
+                      <strong>Hole {hole}</strong>
+                      <label className="course-index-field">
+                        Index
+                        <select
+                          value={indexValue}
+                          onChange={(event) => setHoleIndexValue(hole, Number(event.target.value))}
+                        >
+                          {HOLE_INDEX_OPTIONS.map((indexOption) => (
+                            <option key={indexOption} value={indexOption}>
+                              {indexOption}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <span className={isDuplicate ? 'course-index-warning' : 'course-index-ok'}>
+                        {isDuplicate ? 'Duplicate index' : 'OK'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           ) : page === 'totals' ? (
             <section className="card" aria-label="round totals">
               <h2>Round totals: {activeRound?.name || '...'}</h2>

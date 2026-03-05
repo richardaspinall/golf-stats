@@ -71,7 +71,7 @@ body {
 
 .page-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
@@ -299,6 +299,50 @@ button:active {
   margin-bottom: 10px;
 }
 
+.course-setup-list {
+  display: grid;
+  gap: 8px;
+}
+
+.course-setup-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #d4decc;
+  padding: 6px 0;
+}
+
+.course-index-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #49614e;
+}
+
+.course-index-field select {
+  min-height: 34px;
+  border: 1px solid #9db08f;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 0.9rem;
+  color: #1d2a1f;
+  background: #fff;
+}
+
+.course-index-warning {
+  color: #7b2820;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.course-index-ok {
+  color: #1c5e2f;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
 .prototype-block {
   display: grid;
   gap: 8px;
@@ -423,6 +467,15 @@ button:active {
 
   .club-groups {
     grid-template-columns: 1fr;
+  }
+
+  .course-setup-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .course-index-field {
+    justify-content: flex-start;
   }
 
   .average-row {
