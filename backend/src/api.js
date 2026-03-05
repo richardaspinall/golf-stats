@@ -24,6 +24,25 @@ const FAIRWAY_KEYS = ['fairwayHit', 'fairwayLeft', 'fairwayRight'];
 const GIR_KEYS = ['girHit', 'girLeft', 'girRight', 'girLong', 'girShort'];
 const VALID_FAIRWAY_KEYS = new Set(FAIRWAY_KEYS);
 const VALID_GIR_KEYS = new Set(GIR_KEYS);
+const CLUB_OPTIONS = [
+  '60',
+  '56',
+  '50',
+  'PW',
+  '9i',
+  '8i',
+  '7i',
+  '6i',
+  '5i',
+  '4i',
+  '5Hy',
+  '5 wood',
+  '3 wood',
+  'Mini Driver',
+  'Driver',
+  'Putter',
+];
+const CLUB_OPTION_SET = new Set(CLUB_OPTIONS);
 
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
 const AUTH_USERNAME = String(process.env.AUTH_USERNAME || '').trim();
@@ -77,6 +96,11 @@ const ensureSchema = async () => {
         stats_by_hole JSONB NOT NULL,
         notes JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS club_carry (
+        club TEXT PRIMARY KEY,
+        carry_meters INTEGER NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
       );
     `);
@@ -177,11 +201,14 @@ const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, key) => {
     acc[key] = 0;
     return acc;
-  }, { fairwaySelection: null, girSelection: null });
+  }, { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null });
 
 const buildInitialByHole = () =>
   HOLES.reduce((acc, hole) => {
-    acc[hole] = emptyHoleStats();
+    acc[hole] = {
+      ...emptyHoleStats(),
+      holeIndex: hole,
+    };
     return acc;
   }, {});
 
@@ -201,6 +228,12 @@ const sanitizeStats = (raw) => {
       const value = Number(holeRaw[key]);
       safe[hole][key] = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
     });
+
+    const score = Number(holeRaw.score);
+    safe[hole].score = Number.isFinite(score) && score > 0 ? Math.floor(score) : 0;
+
+    const holeIndex = Number(holeRaw.holeIndex);
+    safe[hole].holeIndex = Number.isFinite(holeIndex) ? Math.min(18, Math.max(1, Math.floor(holeIndex))) : hole;
 
     safe[hole].fairwaySelection = VALID_FAIRWAY_KEYS.has(holeRaw.fairwaySelection)
       ? holeRaw.fairwaySelection
@@ -226,6 +259,35 @@ const sanitizeRoundNotes = (raw) => {
 
   const legacy = String(raw || '').trim();
   return legacy ? [legacy.slice(0, 1000)] : [];
+};
+
+const sanitizeCarryMeters = (raw) => {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    return null;
+  }
+
+  return Math.min(400, Math.round(value));
+};
+
+const sanitizeClubCarryPayload = (raw) => {
+  if (!raw || typeof raw !== 'object') {
+    return {};
+  }
+
+  return Object.entries(raw).reduce((acc, [club, carryValue]) => {
+    if (!CLUB_OPTION_SET.has(club)) {
+      return acc;
+    }
+
+    const sanitizedCarry = sanitizeCarryMeters(carryValue);
+    if (sanitizedCarry === null) {
+      return acc;
+    }
+
+    acc[club] = sanitizedCarry;
+    return acc;
+  }, {});
 };
 
 const createRound = (name, statsByHole, notes = '') => {
@@ -386,6 +448,65 @@ const updateRound = async (roundId, updates) => {
   return mapDbRound(result.rows[0]);
 };
 
+const listClubCarry = async () => {
+  const db = getPool();
+  const result = await db.query(
+    'SELECT club, carry_meters FROM club_carry ORDER BY updated_at DESC, club ASC',
+  );
+
+  return result.rows.reduce((acc, row) => {
+    if (CLUB_OPTION_SET.has(String(row.club))) {
+      const sanitizedCarry = sanitizeCarryMeters(row.carry_meters);
+      if (sanitizedCarry !== null) {
+        acc[String(row.club)] = sanitizedCarry;
+      }
+    }
+    return acc;
+  }, {});
+};
+
+const saveClubCarry = async (carryByClub) => {
+  const db = getPool();
+  const entries = Object.entries(sanitizeClubCarryPayload(carryByClub));
+  const now = new Date().toISOString();
+  const clubs = entries.map(([club]) => club);
+
+  await db.query('BEGIN');
+  try {
+    if (clubs.length > 0) {
+      await db.query(
+        `
+          DELETE FROM club_carry
+          WHERE club <> ALL($1::text[])
+        `,
+        [clubs],
+      );
+    } else {
+      await db.query('DELETE FROM club_carry');
+    }
+
+    for (const [club, carryMeters] of entries) {
+      await db.query(
+        `
+          INSERT INTO club_carry (club, carry_meters, updated_at)
+          VALUES ($1, $2, $3::timestamptz)
+          ON CONFLICT (club)
+          DO UPDATE SET carry_meters = EXCLUDED.carry_meters,
+                        updated_at = EXCLUDED.updated_at
+        `,
+        [club, carryMeters, now],
+      );
+    }
+
+    await db.query('COMMIT');
+  } catch (error) {
+    await db.query('ROLLBACK');
+    throw error;
+  }
+
+  return listClubCarry();
+};
+
 const getDbDebugStatus = async () => {
   if (!DB_CONFIGURED) {
     return {
@@ -474,7 +595,11 @@ export const handleRequest = async (req, res) => {
       return;
     }
 
-    if (pathname === '/api/rounds' || pathname.startsWith('/api/rounds/')) {
+    if (
+      pathname === '/api/rounds' ||
+      pathname.startsWith('/api/rounds/') ||
+      pathname === '/api/club-carry'
+    ) {
       await ensureSchema();
     }
 
@@ -538,6 +663,22 @@ export const handleRequest = async (req, res) => {
         }
         return;
       }
+    }
+
+    if (pathname === '/api/club-carry' && method === 'GET') {
+      sendJson(res, 200, { carryByClub: await listClubCarry() });
+      return;
+    }
+
+    if (pathname === '/api/club-carry' && method === 'PUT') {
+      try {
+        const body = await parseBody(req);
+        const saved = await saveClubCarry(body?.carryByClub);
+        sendJson(res, 200, { ok: true, carryByClub: saved });
+      } catch (error) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
     }
 
     sendJson(res, 404, { ok: false, error: 'Not found' });

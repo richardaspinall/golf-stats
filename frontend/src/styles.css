@@ -57,6 +57,12 @@ body {
   color: #1c5e2f;
 }
 
+.save-pill.unsaved {
+  background: #eef1f6;
+  border-color: #9ba8bc;
+  color: #2c3f5f;
+}
+
 .save-pill.error {
   background: #fbe9e7;
   border-color: #d99187;
@@ -65,7 +71,7 @@ body {
 
 .page-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
@@ -289,6 +295,10 @@ button:active {
   padding: 0 12px;
 }
 
+.manual-save-row {
+  margin-bottom: 10px;
+}
+
 .prototype-block {
   display: grid;
   gap: 8px;
@@ -343,6 +353,47 @@ button:active {
   border-color: #2d7d46;
 }
 
+.average-list {
+  display: grid;
+  gap: 8px;
+}
+
+.average-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #d4decc;
+  padding: 6px 0;
+}
+
+.average-club {
+  font-weight: 600;
+}
+
+.average-metrics {
+  text-align: left;
+}
+
+.carry-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #49614e;
+}
+
+.carry-field input {
+  width: 74px;
+  min-height: 34px;
+  border: 1px solid #9db08f;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 0.9rem;
+  color: #1d2a1f;
+  background: #fff;
+}
+
 @media (max-width: 520px) {
   .header-controls {
     width: 100%;
@@ -372,5 +423,14 @@ button:active {
 
   .club-groups {
     grid-template-columns: 1fr;
+  }
+
+  .average-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .carry-field {
+    justify-content: flex-start;
   }
 }
