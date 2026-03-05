@@ -777,30 +777,33 @@ export default function App() {
       return;
     }
 
-    setClubCarrySaveState('saving');
-    const timeoutId = setTimeout(async () => {
-      try {
-        const saved = await saveClubCarryToApi(clubCarryByClub, authToken);
-        setClubCarryByClub((prev) => {
-          const prevSerialized = JSON.stringify(prev);
-          const savedSerialized = JSON.stringify(saved);
-          return prevSerialized === savedSerialized ? prev : saved;
-        });
-        setClubCarrySaveState('saved');
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          handleAuthFailure('Session expired. Log in again.');
-          return;
-        }
-
-        setClubCarrySaveState('error');
-      }
-    }, 200);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
+    setClubCarrySaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
   }, [authToken, clubCarryByClub]);
+
+  const saveClubCarry = async () => {
+    if (!authToken) {
+      return;
+    }
+
+    setClubCarrySaveState('saving');
+    try {
+      const saved = await saveClubCarryToApi(clubCarryByClub, authToken);
+      skipNextClubCarrySaveRef.current = true;
+      setClubCarryByClub((prev) => {
+        const prevSerialized = JSON.stringify(prev);
+        const savedSerialized = JSON.stringify(saved);
+        return prevSerialized === savedSerialized ? prev : saved;
+      });
+      setClubCarrySaveState('saved');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setClubCarrySaveState('error');
+    }
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -1325,6 +1328,14 @@ export default function App() {
               <h2>Club distance averages</h2>
               <p className="hint">Averages are based on Actual distance from saved shot notes across all rounds.</p>
               <p className="hint">Carry save: {clubCarrySaveState}</p>
+              <div className="manual-save-row">
+                <button
+                  onClick={saveClubCarry}
+                  disabled={clubCarrySaveState === 'saving' || clubCarrySaveState === 'loading'}
+                >
+                  {clubCarrySaveState === 'saving' ? 'Saving...' : 'Save carry'}
+                </button>
+              </div>
               {isLoadingClubAverages ? <p className="hint">Loading averages...</p> : null}
               {!isLoadingClubAverages && clubAveragesError ? <p className="hint">{clubAveragesError}</p> : null}
               {!isLoadingClubAverages && !clubAveragesError ? (
