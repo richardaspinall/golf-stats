@@ -18,6 +18,9 @@ const COUNTER_OPTIONS = [
   'inside100ChipShots',
   'oopLook',
   'oopNoLook',
+  'penalties',
+  'onePutts',
+  'threePutts',
 ];
 
 const FAIRWAY_KEYS = ['fairwayHit', 'fairwayLeft', 'fairwayRight'];

@@ -32,6 +32,13 @@ const sanitizeNotesList = (raw) => {
 
 const COUNTER_SECTIONS = [
   {
+    title: 'Out of Position (OOP)',
+    options: [
+      { key: 'oopLook', label: 'Look' },
+      { key: 'oopNoLook', label: 'No look' },
+    ],
+  },
+  {
     title: 'Inside 100 (Over 3 within 100m score)',
     options: [
       { key: 'inside100Over3', label: 'Over 3' },
@@ -41,10 +48,16 @@ const COUNTER_SECTIONS = [
     ],
   },
   {
-    title: 'Out of Position (OOP)',
+    title: 'Putting',
     options: [
-      { key: 'oopLook', label: 'Look' },
-      { key: 'oopNoLook', label: 'No look' },
+      { key: 'onePutts', label: '1 putts' },
+      { key: 'threePutts', label: '3 putts' },
+    ],
+  },
+  {
+    title: 'Penalties',
+    options: [
+      { key: 'penalties', label: 'Penalties' },
     ],
   },
 ];
@@ -69,16 +82,42 @@ const GIR_SECTION = {
   ],
 };
 
+const getStatSectionOrder = (counterSections) => {
+  const byTitle = new Map(counterSections.map((section) => [section.title, section]));
+  const ordered = [];
+  const addIfFound = (title) => {
+    const section = byTitle.get(title);
+    if (section) {
+      ordered.push(section);
+      byTitle.delete(title);
+    }
+  };
+
+  addIfFound('Out of Position (OOP)');
+  addIfFound('Inside 100 (Over 3 within 100m score)');
+  addIfFound('Putting');
+  addIfFound('Penalties');
+
+  return [...ordered, ...Array.from(byTitle.values())];
+};
+
+const ORDERED_COUNTER_SECTIONS = getStatSectionOrder(COUNTER_SECTIONS);
+const OOP_COUNTER_SECTION = ORDERED_COUNTER_SECTIONS.find((section) => section.title === 'Out of Position (OOP)');
+const NON_OOP_COUNTER_SECTIONS = ORDERED_COUNTER_SECTIONS.filter(
+  (section) => section.title !== 'Out of Position (OOP)',
+);
+
 const STAT_SECTIONS = [
-  ...COUNTER_SECTIONS,
   {
     title: FAIRWAY_SECTION.title,
     options: FAIRWAY_SECTION.options.map(({ key, label }) => ({ key, label })),
   },
+  ...(OOP_COUNTER_SECTION ? [OOP_COUNTER_SECTION] : []),
   {
     title: GIR_SECTION.title,
     options: GIR_SECTION.options.map(({ key, label }) => ({ key, label })),
   },
+  ...NON_OOP_COUNTER_SECTIONS,
 ];
 
 const COUNTER_OPTIONS = COUNTER_SECTIONS.flatMap((section) => section.options);
@@ -1186,24 +1225,6 @@ export default function App() {
                   </div>
                 </div>
                 <div className="stat-section-list">
-                  {COUNTER_SECTIONS.map((section) => (
-                    <div key={section.title} className="stat-section">
-                      <h3 className="section-title">{section.title}</h3>
-                      <div className="stat-list">
-                        {section.options.map((stat) => (
-                          <div key={stat.key} className="stat-row">
-                            <span>{stat.label}</span>
-                            <div className="stat-actions">
-                              <button onClick={() => updateStats(selectedHole, stat.key, -1)}>-</button>
-                              <strong>{holeStats[stat.key]}</strong>
-                              <button onClick={() => updateStats(selectedHole, stat.key, 1)}>+</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-
                   <div className="stat-section">
                     <h3 className="section-title">{FAIRWAY_SECTION.title}</h3>
                     <div className="fairway-menu" role="group" aria-label="Fairway direction">
@@ -1223,6 +1244,24 @@ export default function App() {
                     </div>
                   </div>
 
+                  {OOP_COUNTER_SECTION ? (
+                    <div className="stat-section">
+                      <h3 className="section-title">{OOP_COUNTER_SECTION.title}</h3>
+                      <div className="stat-list">
+                        {OOP_COUNTER_SECTION.options.map((stat) => (
+                          <div key={stat.key} className="stat-row">
+                            <span>{stat.label}</span>
+                            <div className="stat-actions">
+                              <button onClick={() => updateStats(selectedHole, stat.key, -1)}>-</button>
+                              <strong>{holeStats[stat.key]}</strong>
+                              <button onClick={() => updateStats(selectedHole, stat.key, 1)}>+</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="stat-section">
                     <h3 className="section-title">{GIR_SECTION.title}</h3>
                     <div className="gir-menu" role="group" aria-label="GIR direction">
@@ -1241,6 +1280,28 @@ export default function App() {
                       ))}
                     </div>
                   </div>
+
+                  {NON_OOP_COUNTER_SECTIONS.filter((section) =>
+                    section.title === 'Inside 100 (Over 3 within 100m score)'
+                      ? ['girLeft', 'girRight', 'girLong', 'girShort'].includes(holeStats.girSelection)
+                      : true,
+                  ).map((section) => (
+                    <div key={section.title} className="stat-section">
+                      <h3 className="section-title">{section.title}</h3>
+                      <div className="stat-list">
+                        {section.options.map((stat) => (
+                          <div key={stat.key} className="stat-row">
+                            <span>{stat.label}</span>
+                            <div className="stat-actions">
+                              <button onClick={() => updateStats(selectedHole, stat.key, -1)}>-</button>
+                              <strong>{holeStats[stat.key]}</strong>
+                              <button onClick={() => updateStats(selectedHole, stat.key, 1)}>+</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
             </>
