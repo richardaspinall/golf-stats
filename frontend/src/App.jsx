@@ -84,6 +84,19 @@ const VALID_FAIRWAY_KEYS = new Set(FAIRWAY_KEYS);
 const GIR_KEYS = GIR_SECTION.options.map((option) => option.key);
 const VALID_GIR_KEYS = new Set(GIR_KEYS);
 const TOTAL_OPTIONS = [...COUNTER_OPTIONS, ...FAIRWAY_SECTION.options, ...GIR_SECTION.options];
+const SHOT_SETUP_OPTIONS = [
+  { key: 'openStance', label: 'Open stance' },
+  { key: 'closedStance', label: 'Closed stance' },
+];
+const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'];
+const CLUB_GROUPS = [
+  { label: 'Wedges', options: ['60', '56', '50', 'PW'] },
+  { label: 'Irons + Hybrid', options: ['9i', '8i', '7i', '6i', '5i', '4i', '5Hy'] },
+  { label: 'Woods', options: ['5 wood', '3 wood'] },
+  { label: 'Drivers', options: ['Mini Driver', 'Driver'] },
+  { label: 'Putter', options: ['Putter'] },
+];
+const LIE_OPTIONS = ['Tee', 'Fairway', 'First cut', 'Rough', 'Bunker', 'Recovery'];
 
 const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, option) => {
@@ -274,6 +287,13 @@ export default function App() {
   const [noteDraft, setNoteDraft] = useState('');
   const [saveState, setSaveState] = useState('loading');
   const [isSwitchingRound, setIsSwitchingRound] = useState(false);
+  const [targetDistanceMeters, setTargetDistanceMeters] = useState(120);
+  const [actualDistanceMeters, setActualDistanceMeters] = useState(120);
+  const [offlineMeters, setOfflineMeters] = useState(0);
+  const [setupSelection, setSetupSelection] = useState('');
+  const [swingClock, setSwingClock] = useState('9:00');
+  const [clubSelection, setClubSelection] = useState('');
+  const [lieSelection, setLieSelection] = useState('');
 
   const hasLoadedRef = useRef(false);
   const skipNextSaveRef = useRef(false);
@@ -531,6 +551,29 @@ export default function App() {
     setRoundNotes((prev) => prev.filter((_, index) => index !== indexToDelete));
   };
 
+  const toggleSetupSelection = (setupKey) => {
+    setSetupSelection((prev) => (prev === setupKey ? '' : setupKey));
+  };
+
+  const addShotPrototypeNote = () => {
+    const selectedSetup = SHOT_SETUP_OPTIONS.find((option) => option.key === setupSelection);
+    const setupText = selectedSetup ? selectedSetup.label : 'No setup notes';
+    const clubText = clubSelection || 'No club selected';
+    const lieText = lieSelection || 'No lie selected';
+    const offlineText =
+      offlineMeters === 0
+        ? 'On line'
+        : `Offline ${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`;
+    const summary = sanitizeNoteText(
+      `Target ${targetDistanceMeters}m | Actual ${actualDistanceMeters}m | ${offlineText} | ${clubText} | Lie ${lieText} | ${setupText} | Swing ${swingClock}`,
+    );
+    if (!summary) {
+      return;
+    }
+
+    setRoundNotes((prev) => [...prev, summary]);
+  };
+
   const login = async (event) => {
     event?.preventDefault();
     const username = loginUsername.trim();
@@ -675,6 +718,12 @@ export default function App() {
             >
               Round totals
             </button>
+            <button
+              className={page === 'distance' ? 'tab-btn active' : 'tab-btn'}
+              onClick={() => setPage('distance')}
+            >
+              Distance setup
+            </button>
           </nav>
 
           {page === 'track' ? (
@@ -758,7 +807,7 @@ export default function App() {
                 </div>
               </section>
             </>
-          ) : (
+          ) : page === 'totals' ? (
             <section className="card" aria-label="round totals">
               <h2>Round totals: {activeRound?.name || '...'}</h2>
               <div className="stat-section-list">
@@ -776,6 +825,129 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            </section>
+          ) : (
+            <section className="card" aria-label="distance setup prototype">
+              <h2>Distance setup prototype</h2>
+              <p className="hint">Use this tab to capture distance, setup choices, and swing clock feel.</p>
+
+              <div className="prototype-block">
+                <div className="distance-header">
+                  <span>Target distance</span>
+                  <strong>{targetDistanceMeters}m</strong>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={300}
+                  step={1}
+                  value={targetDistanceMeters}
+                  onChange={(event) => setTargetDistanceMeters(Number(event.target.value))}
+                />
+              </div>
+
+              <div className="prototype-block">
+                <div className="distance-header">
+                  <span>Actual distance</span>
+                  <strong>{actualDistanceMeters}m</strong>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={300}
+                  step={1}
+                  value={actualDistanceMeters}
+                  onChange={(event) => setActualDistanceMeters(Number(event.target.value))}
+                />
+              </div>
+
+              <div className="prototype-block">
+                <div className="distance-header">
+                  <span>Offline</span>
+                  <strong>
+                    {offlineMeters === 0
+                      ? 'On line'
+                      : `${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`}
+                  </strong>
+                </div>
+                <input
+                  type="range"
+                  min={-50}
+                  max={50}
+                  step={1}
+                  value={offlineMeters}
+                  onChange={(event) => setOfflineMeters(Number(event.target.value))}
+                />
+              </div>
+
+              <div className="prototype-block">
+                <h3 className="section-title">Club</h3>
+                <div className="club-groups" role="group" aria-label="Club selection">
+                  {CLUB_GROUPS.map((group) => (
+                    <div key={group.label} className="club-group">
+                      <h4 className="club-group-title">{group.label}</h4>
+                      <div className="club-row">
+                        {group.options.map((club) => (
+                          <button
+                            key={club}
+                            className={clubSelection === club ? 'club-btn active' : 'club-btn'}
+                            onClick={() => setClubSelection(club)}
+                          >
+                            {club}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="prototype-block">
+                <h3 className="section-title">Lie</h3>
+                <div className="club-row" role="group" aria-label="Lie selection">
+                  {LIE_OPTIONS.map((lie) => (
+                    <button
+                      key={lie}
+                      className={lieSelection === lie ? 'club-btn active' : 'club-btn'}
+                      onClick={() => setLieSelection(lie)}
+                    >
+                      {lie}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="prototype-block">
+                <h3 className="section-title">Setup notes</h3>
+                <div className="quick-notes-row" role="group" aria-label="Setup note buttons">
+                  {SHOT_SETUP_OPTIONS.map((option) => (
+                    <button
+                      key={option.key}
+                      className={setupSelection === option.key ? 'quick-note-btn active' : 'quick-note-btn'}
+                      onClick={() => toggleSetupSelection(option.key)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="prototype-block">
+                <h3 className="section-title">Clock system</h3>
+                <div className="clock-row" role="group" aria-label="Swing clock">
+                  {SWING_CLOCK_OPTIONS.map((clock) => (
+                    <button
+                      key={clock}
+                      className={swingClock === clock ? 'clock-btn active' : 'clock-btn'}
+                      onClick={() => setSwingClock(clock)}
+                    >
+                      {clock}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={addShotPrototypeNote}>Add to round notes</button>
             </section>
           )}
 

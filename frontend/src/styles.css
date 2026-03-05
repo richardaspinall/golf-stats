@@ -65,7 +65,7 @@ body {
 
 .page-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
@@ -289,6 +289,60 @@ button:active {
   padding: 0 12px;
 }
 
+.prototype-block {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.distance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.distance-header strong {
+  font-size: 1.2rem;
+}
+
+.club-row,
+.quick-notes-row,
+.clock-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.club-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 12px;
+}
+
+.club-group {
+  margin-bottom: 0;
+}
+
+.club-group-title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: #49614e;
+}
+
+.club-btn,
+.quick-note-btn,
+.clock-btn {
+  padding: 0 12px;
+}
+
+.club-btn.active,
+.quick-note-btn.active,
+.clock-btn.active {
+  background: #2d7d46;
+  color: #fff;
+  border-color: #2d7d46;
+}
+
 @media (max-width: 520px) {
   .header-controls {
     width: 100%;
@@ -310,5 +364,13 @@ button:active {
   .stat-row span,
   .total-row span {
     font-size: 0.95rem;
+  }
+
+  .page-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .club-groups {
+    grid-template-columns: 1fr;
   }
 }
