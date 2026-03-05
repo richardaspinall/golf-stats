@@ -57,6 +57,12 @@ body {
   color: #1c5e2f;
 }
 
+.save-pill.unsaved {
+  background: #eef1f6;
+  border-color: #9ba8bc;
+  color: #2c3f5f;
+}
+
 .save-pill.error {
   background: #fbe9e7;
   border-color: #d99187;
@@ -65,7 +71,7 @@ body {
 
 .page-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
@@ -289,6 +295,149 @@ button:active {
   padding: 0 12px;
 }
 
+.manual-save-row {
+  margin-bottom: 10px;
+}
+
+.course-setup-list {
+  display: grid;
+  gap: 8px;
+}
+
+.course-setup-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #d4decc;
+  padding: 6px 0;
+}
+
+.course-index-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #49614e;
+}
+
+.course-index-field select {
+  min-height: 34px;
+  border: 1px solid #9db08f;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 0.9rem;
+  color: #1d2a1f;
+  background: #fff;
+}
+
+.course-index-warning {
+  color: #7b2820;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.course-index-ok {
+  color: #1c5e2f;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.prototype-block {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.distance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.distance-header strong {
+  font-size: 1.2rem;
+}
+
+.club-row,
+.quick-notes-row,
+.clock-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.club-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 12px;
+}
+
+.club-group {
+  margin-bottom: 0;
+}
+
+.club-group-title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: #49614e;
+}
+
+.club-btn,
+.quick-note-btn,
+.clock-btn {
+  padding: 0 12px;
+}
+
+.club-btn.active,
+.quick-note-btn.active,
+.clock-btn.active {
+  background: #2d7d46;
+  color: #fff;
+  border-color: #2d7d46;
+}
+
+.average-list {
+  display: grid;
+  gap: 8px;
+}
+
+.average-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #d4decc;
+  padding: 6px 0;
+}
+
+.average-club {
+  font-weight: 600;
+}
+
+.average-metrics {
+  text-align: left;
+}
+
+.carry-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #49614e;
+}
+
+.carry-field input {
+  width: 74px;
+  min-height: 34px;
+  border: 1px solid #9db08f;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 0.9rem;
+  color: #1d2a1f;
+  background: #fff;
+}
+
 @media (max-width: 520px) {
   .header-controls {
     width: 100%;
@@ -310,5 +459,31 @@ button:active {
   .stat-row span,
   .total-row span {
     font-size: 0.95rem;
+  }
+
+  .page-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .club-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .course-setup-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .course-index-field {
+    justify-content: flex-start;
+  }
+
+  .average-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .carry-field {
+    justify-content: flex-start;
   }
 }
