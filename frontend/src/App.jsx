@@ -296,6 +296,18 @@ const createRoundInApi = async (name, token) => {
   return data?.round;
 };
 
+const deleteRoundInApi = async (roundId, token) => {
+  const response = await requestApi(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, {
+    method: 'DELETE',
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to delete round (${response.status})`, response.status, details);
+  }
+};
+
 const loadClubCarryFromApi = async (token) => {
   const response = await requestApi(API_CLUB_CARRY_URL, { token });
   if (!response.ok) {
@@ -558,6 +570,59 @@ export default function App() {
     }
   };
 
+  const deleteRound = async () => {
+    if (!authToken || !selectedRoundId || isSwitchingRound) {
+      return;
+    }
+
+    const roundName = activeRound?.name || 'this round';
+    const firstPrompt = window.confirm(`Delete "${roundName}"? This cannot be undone.`);
+    if (!firstPrompt) {
+      return;
+    }
+
+    const secondPrompt = window.confirm(`Final confirmation: permanently delete "${roundName}"?`);
+    if (!secondPrompt) {
+      return;
+    }
+
+    setIsSwitchingRound(true);
+    setSaveState('loading');
+    try {
+      await deleteRoundInApi(selectedRoundId, authToken);
+
+      const updatedRounds = rounds.filter((round) => round.id !== selectedRoundId);
+      setRounds(updatedRounds);
+
+      if (updatedRounds.length === 0) {
+        skipNextSaveRef.current = true;
+        hasLoadedRef.current = true;
+        setSelectedRoundId('');
+        setStatsByHole(buildInitialByHole());
+        setRoundNotes([]);
+        setNoteDraft('');
+        setSaveState('saved');
+        return;
+      }
+
+      const nextRound = await loadRoundFromApi(updatedRounds[0].id, authToken);
+      if (nextRound) {
+        applyRoundToState(nextRound);
+      } else {
+        setSaveState('error');
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setSaveState('error');
+    } finally {
+      setIsSwitchingRound(false);
+    }
+  };
+
   const totals = useMemo(() => {
     return HOLES.reduce(
       (acc, hole) => {
@@ -621,10 +686,6 @@ export default function App() {
         fairwaySelection: prev[hole].fairwaySelection === fairwayKey ? null : fairwayKey,
       },
     }));
-  };
-
-  const resetRound = () => {
-    setStatsByHole(buildInitialByHole());
   };
 
   const updateHoleScore = (hole, delta) => {
@@ -959,8 +1020,8 @@ export default function App() {
             <button onClick={() => setShowNewRoundForm(true)} disabled={isSwitchingRound}>
               New round
             </button>
-            <button className="reset-btn" onClick={resetRound} disabled={!selectedRoundId || isSwitchingRound}>
-              Reset round
+            <button className="reset-btn" onClick={deleteRound} disabled={!selectedRoundId || isSwitchingRound}>
+              Delete round
             </button>
             <button onClick={logout} disabled={isSwitchingRound}>
               Log out

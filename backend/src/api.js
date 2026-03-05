@@ -326,7 +326,7 @@ const sendJson = (res, status, payload) => {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
-  res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.end(JSON.stringify(payload));
 };
@@ -446,6 +446,12 @@ const updateRound = async (roundId, updates) => {
   }
 
   return mapDbRound(result.rows[0]);
+};
+
+const deleteRoundById = async (roundId) => {
+  const db = getPool();
+  const result = await db.query('DELETE FROM rounds WHERE id = $1 RETURNING id', [roundId]);
+  return result.rows.length > 0;
 };
 
 const listClubCarry = async () => {
@@ -661,6 +667,17 @@ export const handleRequest = async (req, res) => {
         } catch (error) {
           sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
         }
+        return;
+      }
+
+      if (method === 'DELETE') {
+        const deleted = await deleteRoundById(roundId);
+        if (!deleted) {
+          sendJson(res, 404, { ok: false, error: 'Round not found' });
+          return;
+        }
+
+        sendJson(res, 200, { ok: true });
         return;
       }
     }
