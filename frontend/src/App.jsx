@@ -18,6 +18,7 @@ const normalizeApiBaseUrl = (rawValue) => {
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 const API_ROUNDS_URL = `${API_BASE_URL}/api/rounds`;
 const API_CLUB_CARRY_URL = `${API_BASE_URL}/api/club-carry`;
+const API_CLUB_ACTUALS_URL = `${API_BASE_URL}/api/club-actuals`;
 const API_LOGIN_URL = `${API_BASE_URL}/api/auth/login`;
 const AUTH_TOKEN_STORAGE_KEY = 'golf_stats_auth_token';
 const sanitizeNoteText = (raw) => String(raw || '').trim().slice(0, 1000);
@@ -346,6 +347,48 @@ const saveClubCarryToApi = async (carryByClub, token) => {
   return data?.carryByClub || {};
 };
 
+const saveClubActualToApi = async ({ club, actualMeters }, token) => {
+  const response = await requestApi(API_CLUB_ACTUALS_URL, {
+    method: 'POST',
+    body: { club, actualMeters },
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to save shot actual (${response.status})`, response.status, details);
+  }
+};
+
+const loadClubActualAveragesFromApi = async (token) => {
+  const response = await requestApi(API_CLUB_ACTUALS_URL, { token });
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to load club averages (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  const averagesByClubRaw = data?.averagesByClub;
+  if (!averagesByClubRaw || typeof averagesByClubRaw !== 'object') {
+    return CLUB_OPTIONS.map((club) => ({ club, avgMeters: null, shots: 0 }));
+  }
+
+  return CLUB_OPTIONS.map((club) => {
+    const row = averagesByClubRaw[club];
+    const avgMeters = Number(row?.avgMeters);
+    const shots = Number(row?.shots);
+    if (!Number.isFinite(avgMeters) || avgMeters <= 0 || !Number.isFinite(shots) || shots <= 0) {
+      return { club, avgMeters: null, shots: 0 };
+    }
+
+    return {
+      club,
+      avgMeters: Math.round(avgMeters),
+      shots: Math.floor(shots),
+    };
+  });
+};
+
 export default function App() {
   const [authToken, setAuthToken] = useState(() => loadStoredAuthToken());
   const [loginUsername, setLoginUsername] = useState('');
@@ -374,6 +417,8 @@ export default function App() {
   const [clubAverages, setClubAverages] = useState([]);
   const [isLoadingClubAverages, setIsLoadingClubAverages] = useState(false);
   const [clubAveragesError, setClubAveragesError] = useState('');
+  const [clubAveragesDirty, setClubAveragesDirty] = useState(true);
+  const [shotLogSaveState, setShotLogSaveState] = useState('idle');
   const [clubCarryByClub, setClubCarryByClub] = useState({});
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
 
@@ -381,6 +426,7 @@ export default function App() {
   const skipNextSaveRef = useRef(false);
   const hasLoadedClubCarryRef = useRef(false);
   const skipNextClubCarrySaveRef = useRef(false);
+  const hasLoadedClubAveragesRef = useRef(false);
 
   const holeStats = statsByHole[selectedHole];
   const activeRound = rounds.find((round) => round.id === selectedRoundId);
@@ -394,6 +440,10 @@ export default function App() {
     setStatsByHole(buildInitialByHole());
     setRoundNotes([]);
     setNoteDraft('');
+    setClubAverages([]);
+    setClubAveragesError('');
+    setClubAveragesDirty(true);
+    setShotLogSaveState('idle');
     setShowNewRoundForm(false);
     setSaveState('loading');
     setClubCarryByClub({});
@@ -402,6 +452,7 @@ export default function App() {
     skipNextSaveRef.current = false;
     hasLoadedClubCarryRef.current = false;
     skipNextClubCarrySaveRef.current = false;
+    hasLoadedClubAveragesRef.current = false;
   };
 
   const logout = () => {
@@ -728,7 +779,7 @@ export default function App() {
     setSetupSelection((prev) => (prev === setupKey ? '' : setupKey));
   };
 
-  const addShotPrototypeNote = () => {
+  const addShotPrototypeNote = async () => {
     const actualDistanceMeters = pacesToMeters(actualDistancePaces);
     const selectedSetup = SHOT_SETUP_OPTIONS.find((option) => option.key === setupSelection);
     const setupText = selectedSetup ? selectedSetup.label : 'No setup notes';
@@ -746,6 +797,24 @@ export default function App() {
     }
 
     setRoundNotes((prev) => [...prev, summary]);
+
+    if (!authToken || !CLUB_OPTION_SET.has(clubSelection) || actualDistanceMeters <= 0) {
+      return;
+    }
+
+    setShotLogSaveState('saving');
+    try {
+      await saveClubActualToApi({ club: clubSelection, actualMeters: actualDistanceMeters }, authToken);
+      setClubAveragesDirty(true);
+      setShotLogSaveState('saved');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setShotLogSaveState('error');
+    }
   };
 
   const login = async (event) => {
@@ -770,11 +839,13 @@ export default function App() {
       setAuthToken(token);
       setLoginPassword('');
       setSaveState('loading');
+      setClubAveragesDirty(true);
       setClubCarrySaveState('saved');
       hasLoadedRef.current = false;
       skipNextSaveRef.current = false;
       hasLoadedClubCarryRef.current = false;
       skipNextClubCarrySaveRef.current = false;
+      hasLoadedClubAveragesRef.current = false;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setAuthError(error.details || 'Invalid credentials.');
@@ -870,61 +941,25 @@ export default function App() {
     let isActive = true;
 
     const loadClubAverages = async () => {
-      if (!authToken || page !== 'clubAverages' || rounds.length === 0) {
-        if (isActive && page === 'clubAverages') {
-          setClubAverages([]);
-          setClubAveragesError('');
-        }
+      if (!authToken || page !== 'clubAverages') {
+        return;
+      }
+
+      if (!clubAveragesDirty && hasLoadedClubAveragesRef.current) {
         return;
       }
 
       setIsLoadingClubAverages(true);
       setClubAveragesError('');
       try {
-        const detailedRounds = await Promise.all(
-          rounds.map((round) => loadRoundFromApi(round.id, authToken).catch(() => null)),
-        );
-
+        const averages = await loadClubActualAveragesFromApi(authToken);
         if (!isActive) {
           return;
         }
 
-        const aggregate = new Map();
-        detailedRounds.forEach((round) => {
-          const notes = Array.isArray(round?.notes) ? round.notes : [];
-          notes.forEach((note) => {
-            const segments = String(note)
-              .split('|')
-              .map((part) => part.trim())
-              .filter(Boolean);
-            const actualSegment = segments.find((part) => /^Actual\s+\d+m$/i.test(part));
-            const clubSegment = segments.find((part) => CLUB_OPTION_SET.has(part));
-            if (!actualSegment || !clubSegment) {
-              return;
-            }
-
-            const actualMeters = Number(actualSegment.replace(/[^\d]/g, ''));
-            if (!Number.isFinite(actualMeters) || actualMeters <= 0) {
-              return;
-            }
-
-            const current = aggregate.get(clubSegment) || { totalMeters: 0, shots: 0 };
-            current.totalMeters += actualMeters;
-            current.shots += 1;
-            aggregate.set(clubSegment, current);
-          });
-        });
-
-        const averages = CLUB_OPTIONS.map((club) => {
-          const stats = aggregate.get(club);
-          return {
-            club,
-            avgMeters: stats && stats.shots > 0 ? Math.round(stats.totalMeters / stats.shots) : null,
-            shots: stats?.shots || 0,
-          };
-        });
-
         setClubAverages(averages);
+        setClubAveragesDirty(false);
+        hasLoadedClubAveragesRef.current = true;
       } catch (error) {
         if (!isActive) {
           return;
@@ -949,7 +984,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [authToken, page, rounds]);
+  }, [authToken, page, clubAveragesDirty]);
 
   const setCarryForClub = (club, rawValue) => {
     const sanitized = sanitizeCarryMeters(rawValue);
@@ -1383,11 +1418,12 @@ export default function App() {
               </div>
 
               <button onClick={addShotPrototypeNote}>Add to round notes</button>
+              {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
             </section>
           ) : (
             <section className="card" aria-label="club distance averages">
               <h2>Club distance averages</h2>
-              <p className="hint">Averages are based on Actual distance from saved shot notes across all rounds.</p>
+              <p className="hint">Averages are based on your independent shot log and are not deleted with rounds.</p>
               <p className="hint">Carry save: {clubCarrySaveState}</p>
               <div className="manual-save-row">
                 <button

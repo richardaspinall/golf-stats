@@ -103,6 +103,12 @@ const ensureSchema = async () => {
         carry_meters INTEGER NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS club_actual_distances (
+        id BIGSERIAL PRIMARY KEY,
+        club TEXT NOT NULL,
+        actual_meters INTEGER NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL
+      );
     `);
   }
 
@@ -288,6 +294,15 @@ const sanitizeClubCarryPayload = (raw) => {
     acc[club] = sanitizedCarry;
     return acc;
   }, {});
+};
+
+const sanitizeActualMeters = (raw) => {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return Math.min(500, Math.round(value));
 };
 
 const createRound = (name, statsByHole, notes = '') => {
@@ -513,6 +528,58 @@ const saveClubCarry = async (carryByClub) => {
   return listClubCarry();
 };
 
+const insertClubActualDistance = async ({ club, actualMeters }) => {
+  if (!CLUB_OPTION_SET.has(club)) {
+    throw new Error('Invalid club');
+  }
+
+  const sanitizedActual = sanitizeActualMeters(actualMeters);
+  if (sanitizedActual === null) {
+    throw new Error('Invalid actual distance');
+  }
+
+  const db = getPool();
+  await db.query(
+    `
+      INSERT INTO club_actual_distances (club, actual_meters, created_at)
+      VALUES ($1, $2, $3::timestamptz)
+    `,
+    [club, sanitizedActual, new Date().toISOString()],
+  );
+};
+
+const listClubActualAverages = async () => {
+  const db = getPool();
+  const result = await db.query(
+    `
+      SELECT club,
+             COUNT(*)::int AS shots,
+             ROUND(AVG(actual_meters))::int AS avg_meters
+      FROM club_actual_distances
+      GROUP BY club
+    `,
+  );
+
+  return result.rows.reduce((acc, row) => {
+    const club = String(row.club || '');
+    if (!CLUB_OPTION_SET.has(club)) {
+      return acc;
+    }
+
+    const shots = Number(row.shots);
+    const avgMeters = Number(row.avg_meters);
+    if (!Number.isFinite(shots) || shots <= 0 || !Number.isFinite(avgMeters) || avgMeters <= 0) {
+      return acc;
+    }
+
+    acc[club] = {
+      shots: Math.floor(shots),
+      avgMeters: Math.floor(avgMeters),
+    };
+    return acc;
+  }, {});
+};
+
 const getDbDebugStatus = async () => {
   if (!DB_CONFIGURED) {
     return {
@@ -604,7 +671,8 @@ export const handleRequest = async (req, res) => {
     if (
       pathname === '/api/rounds' ||
       pathname.startsWith('/api/rounds/') ||
-      pathname === '/api/club-carry'
+      pathname === '/api/club-carry' ||
+      pathname === '/api/club-actuals'
     ) {
       await ensureSchema();
     }
@@ -692,6 +760,25 @@ export const handleRequest = async (req, res) => {
         const body = await parseBody(req);
         const saved = await saveClubCarry(body?.carryByClub);
         sendJson(res, 200, { ok: true, carryByClub: saved });
+      } catch (error) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/club-actuals' && method === 'GET') {
+      sendJson(res, 200, { averagesByClub: await listClubActualAverages() });
+      return;
+    }
+
+    if (pathname === '/api/club-actuals' && method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        await insertClubActualDistance({
+          club: String(body?.club || '').trim(),
+          actualMeters: body?.actualMeters,
+        });
+        sendJson(res, 201, { ok: true });
       } catch (error) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
