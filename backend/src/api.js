@@ -232,7 +232,7 @@ const buildInitialByHole = () =>
 
 const buildInitialCourseMarkers = () =>
   HOLES.reduce((acc, hole) => {
-    acc[hole] = { teePosition: null, greenPosition: null };
+    acc[hole] = { teePosition: null, greenPosition: null, holeIndex: hole };
     return acc;
   }, {});
 
@@ -299,6 +299,10 @@ const sanitizeCourseMarkers = (raw) => {
 
     safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
+    const holeIndex = Number(holeRaw.holeIndex);
+    safe[hole].holeIndex = Number.isFinite(holeIndex)
+      ? Math.min(18, Math.max(1, Math.floor(holeIndex)))
+      : hole;
   });
 
   return safe;

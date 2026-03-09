@@ -210,7 +210,7 @@ const buildInitialByHole = () =>
 
 const buildInitialCourseMarkers = () =>
   HOLES.reduce((acc, hole) => {
-    acc[hole] = { teePosition: null, greenPosition: null };
+    acc[hole] = { teePosition: null, greenPosition: null, holeIndex: hole };
     return acc;
   }, {});
 
@@ -280,6 +280,10 @@ const sanitizeCourseMarkers = (raw) => {
 
     safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
+    const holeIndex = Number(holeRaw.holeIndex);
+    safe[hole].holeIndex = Number.isFinite(holeIndex)
+      ? Math.min(18, Math.max(1, Math.floor(holeIndex)))
+      : hole;
   });
 
   return safe;
@@ -626,6 +630,8 @@ export default function App() {
   const courseEditor = courses.find((course) => course.id === courseEditorId);
   const mapCourse = page === 'courses' ? courseEditor : activeCourse;
   const mapHoleStats = mapCourse?.markers?.[mapHole] ?? null;
+  const displayHoleIndex =
+    activeCourse?.markers?.[selectedHole]?.holeIndex ?? holeStats?.holeIndex ?? selectedHole;
   const teePosition = mapHoleStats?.teePosition ?? null;
   const greenPosition = mapHoleStats?.greenPosition ?? null;
   const mapStatusLabel = {
@@ -1373,18 +1379,6 @@ export default function App() {
     );
   }, [statsByHole]);
 
-  const holeIndexCounts = useMemo(() => {
-    return HOLES.reduce((acc, hole) => {
-      const indexValue = statsByHole[hole]?.holeIndex;
-      if (!Number.isFinite(indexValue)) {
-        return acc;
-      }
-
-      acc[indexValue] = (acc[indexValue] || 0) + 1;
-      return acc;
-    }, {});
-  }, [statsByHole]);
-
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => ({
       ...prev,
@@ -1425,16 +1419,21 @@ export default function App() {
     }));
   };
 
-  const setHoleIndexValue = (hole, value) => {
-    const nextValue = Math.min(18, Math.max(1, Math.floor(Number(value) || 1)));
-    setStatsByHole((prev) => ({
-      ...prev,
-      [hole]: {
-        ...prev[hole],
-        holeIndex: nextValue,
-      },
-    }));
-  };
+  const courseHoleIndexCounts = useMemo(() => {
+    if (!courseEditor?.markers) {
+      return {};
+    }
+
+    return HOLES.reduce((acc, hole) => {
+      const indexValue = Number(courseEditor.markers?.[hole]?.holeIndex);
+      if (!Number.isFinite(indexValue)) {
+        return acc;
+      }
+
+      acc[indexValue] = (acc[indexValue] || 0) + 1;
+      return acc;
+    }, {});
+  }, [courseEditor]);
 
   const addNote = (event) => {
     event?.preventDefault();
@@ -1829,12 +1828,6 @@ export default function App() {
               Club averages
             </button>
             <button
-              className={page === 'courseSetup' ? 'tab-btn active' : 'tab-btn'}
-              onClick={() => setPage('courseSetup')}
-            >
-              Course setup
-            </button>
-            <button
               className={page === 'courses' ? 'tab-btn active' : 'tab-btn'}
               onClick={() => setPage('courses')}
             >
@@ -1925,7 +1918,7 @@ export default function App() {
                     <div className="stat-row">
                       <span>Hole index</span>
                       <div className="stat-actions">
-                        <strong>{holeStats.holeIndex}</strong>
+                        <strong>{displayHoleIndex}</strong>
                       </div>
                     </div>
                   </div>
@@ -2011,46 +2004,6 @@ export default function App() {
                 </div>
               </section>
             </>
-          ) : page === 'courseSetup' ? (
-            <section className="card" aria-label="course setup">
-              <h2>Course setup</h2>
-              <p className="hint">Set hole indexes once for this round. Duplicate values are flagged.</p>
-              <div className="manual-save-row">
-                <button
-                  onClick={saveCurrentRound}
-                  disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
-                >
-                  {saveState === 'saving' ? 'Saving...' : 'Save course setup'}
-                </button>
-              </div>
-              <div className="course-setup-list">
-                {HOLES.map((hole) => {
-                  const indexValue = statsByHole[hole]?.holeIndex ?? hole;
-                  const isDuplicate = (holeIndexCounts[indexValue] || 0) > 1;
-                  return (
-                    <div key={hole} className="course-setup-row course-index-row">
-                      <strong>Hole {hole}</strong>
-                      <label className="course-index-field">
-                        Index
-                        <select
-                          value={indexValue}
-                          onChange={(event) => setHoleIndexValue(hole, Number(event.target.value))}
-                        >
-                          {HOLE_INDEX_OPTIONS.map((indexOption) => (
-                            <option key={indexOption} value={indexOption}>
-                              {indexOption}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <span className={isDuplicate ? 'course-index-warning' : 'course-index-ok'}>
-                        {isDuplicate ? 'Duplicate index' : 'OK'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
           ) : page === 'courses' ? (
             <section className="card" aria-label="course management">
               <h2>Courses</h2>
@@ -2128,9 +2081,46 @@ export default function App() {
                       <div className="course-setup-list">
                         {HOLES.map((hole) => {
                           const holeMarkers = courseEditor.markers?.[hole];
+                          const indexValue = holeMarkers?.holeIndex ?? hole;
+                          const isDuplicate = (courseHoleIndexCounts[indexValue] || 0) > 1;
                           return (
                             <div key={hole} className="course-setup-row">
                               <strong>Hole {hole}</strong>
+                              <label className="course-index-field">
+                                Index
+                                <select
+                                  value={indexValue}
+                                  onChange={(event) => {
+                                    const nextValue = Math.min(18, Math.max(1, Math.floor(Number(event.target.value))));
+                                    setCourses((prev) =>
+                                      prev.map((entry) =>
+                                        entry.id === courseEditor.id
+                                          ? {
+                                              ...entry,
+                                              markers: {
+                                                ...entry.markers,
+                                                [hole]: {
+                                                  ...(entry.markers?.[hole] || {}),
+                                                  holeIndex: nextValue,
+                                                },
+                                              },
+                                            }
+                                          : entry,
+                                      ),
+                                    );
+                                    setCourseSaveState('unsaved');
+                                  }}
+                                >
+                                  {HOLE_INDEX_OPTIONS.map((indexOption) => (
+                                    <option key={indexOption} value={indexOption}>
+                                      {indexOption}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <span className={isDuplicate ? 'course-index-warning' : 'course-index-ok'}>
+                                {isDuplicate ? 'Duplicate index' : 'OK'}
+                              </span>
                               <span className="course-marker-status">
                                 {holeMarkers?.teePosition ? 'Tee ✓' : 'Tee —'}
                               </span>

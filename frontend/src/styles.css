@@ -494,16 +494,13 @@ button:active {
 
 .course-setup-row {
   display: grid;
-  grid-template-columns: 70px 1fr auto auto;
+  grid-template-columns: 70px 1fr auto auto auto auto;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid #d4decc;
   padding: 6px 0;
 }
 
-.course-setup-row.course-index-row {
-  grid-template-columns: 70px 1fr auto;
-}
 
 .course-index-field {
   display: inline-flex;
