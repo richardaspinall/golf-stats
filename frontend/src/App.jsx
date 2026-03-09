@@ -17,6 +17,7 @@ const normalizeApiBaseUrl = (rawValue) => {
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
 const API_ROUNDS_URL = `${API_BASE_URL}/api/rounds`;
+const API_COURSES_URL = `${API_BASE_URL}/api/courses`;
 const API_CLUB_CARRY_URL = `${API_BASE_URL}/api/club-carry`;
 const API_CLUB_ACTUALS_URL = `${API_BASE_URL}/api/club-actuals`;
 const API_LOGIN_URL = `${API_BASE_URL}/api/auth/login`;
@@ -190,7 +191,7 @@ const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, option) => {
     acc[option.key] = 0;
     return acc;
-  }, { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null });
+  }, { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null, teePosition: null, greenPosition: null });
 
 const emptyTotals = () =>
   TOTAL_OPTIONS.reduce((acc, option) => {
@@ -206,6 +207,27 @@ const buildInitialByHole = () =>
     };
     return acc;
   }, {});
+
+const buildInitialCourseMarkers = () =>
+  HOLES.reduce((acc, hole) => {
+    acc[hole] = { teePosition: null, greenPosition: null };
+    return acc;
+  }, {});
+
+const sanitizeLatLng = (value) => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const lat = Number(value.lat);
+  const lng = Number(value.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return null;
+  }
+  return { lat, lng };
+};
 
 const sanitizeStats = (raw) => {
   const safe = buildInitialByHole();
@@ -236,6 +258,28 @@ const sanitizeStats = (raw) => {
 
     const girSelection = raw[hole].girSelection;
     safe[hole].girSelection = VALID_GIR_KEYS.has(girSelection) ? girSelection : null;
+
+    safe[hole].teePosition = sanitizeLatLng(raw[hole].teePosition);
+    safe[hole].greenPosition = sanitizeLatLng(raw[hole].greenPosition);
+  });
+
+  return safe;
+};
+
+const sanitizeCourseMarkers = (raw) => {
+  const safe = buildInitialCourseMarkers();
+  if (!raw || typeof raw !== 'object') {
+    return safe;
+  }
+
+  HOLES.forEach((hole) => {
+    const holeRaw = raw[hole];
+    if (!holeRaw || typeof holeRaw !== 'object') {
+      return;
+    }
+
+    safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
+    safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
   });
 
   return safe;
@@ -334,6 +378,49 @@ const loadRoundsFromApi = async (token) => {
   return Array.isArray(data?.rounds) ? data.rounds : [];
 };
 
+const loadCoursesFromApi = async (token) => {
+  const response = await requestApi(API_COURSES_URL, { token });
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to load courses (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.courses) ? data.courses : [];
+};
+
+const createCourseInApi = async (name, token) => {
+  const response = await requestApi(API_COURSES_URL, {
+    method: 'POST',
+    body: { name },
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to create course (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return data?.course;
+};
+
+const updateCourseInApi = async (courseId, name, markers, token) => {
+  const response = await requestApi(`${API_COURSES_URL}/${encodeURIComponent(courseId)}`, {
+    method: 'PUT',
+    body: { name, markers },
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to save course (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return data?.course;
+};
+
 const loadRoundFromApi = async (roundId, token) => {
   const response = await requestApi(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, { token });
   if (!response.ok) {
@@ -345,10 +432,10 @@ const loadRoundFromApi = async (roundId, token) => {
   return data?.round;
 };
 
-const saveRoundToApi = async (roundId, statsByHole, notes, token) => {
+const saveRoundToApi = async (roundId, statsByHole, notes, courseId, token) => {
   const response = await requestApi(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, {
     method: 'PUT',
-    body: { statsByHole, notes },
+    body: { statsByHole, notes, courseId },
     token,
   });
 
@@ -361,10 +448,10 @@ const saveRoundToApi = async (roundId, statsByHole, notes, token) => {
   return data?.round;
 };
 
-const createRoundInApi = async (name, token) => {
+const createRoundInApi = async (name, courseId, token) => {
   const response = await requestApi(API_ROUNDS_URL, {
     method: 'POST',
-    body: { name },
+    body: { name, courseId },
     token,
   });
 
@@ -478,6 +565,14 @@ export default function App() {
   const [selectedHole, setSelectedHole] = useState(1);
   const [page, setPage] = useState('track');
   const [rounds, setRounds] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [newRoundCourseId, setNewRoundCourseId] = useState('');
+  const [courseEditorId, setCourseEditorId] = useState('');
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [coursesError, setCoursesError] = useState('');
+  const [newRoundTitle, setNewRoundTitle] = useState('');
+  const [courseSaveState, setCourseSaveState] = useState('saved');
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
   const [newRoundDate, setNewRoundDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -503,16 +598,17 @@ export default function App() {
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
   const [mapStatus, setMapStatus] = useState('idle');
   const [mapPlacementMode, setMapPlacementMode] = useState('idle');
-  const [teePosition, setTeePosition] = useState(null);
-  const [greenPosition, setGreenPosition] = useState(null);
   const [mapRotationSupport, setMapRotationSupport] = useState('unknown');
   const [teeToGreenMeters, setTeeToGreenMeters] = useState(null);
+  const [mapSetupHole, setMapSetupHole] = useState(1);
+  const [isMapSetupOpen, setIsMapSetupOpen] = useState(false);
 
   const hasLoadedRef = useRef(false);
   const skipNextSaveRef = useRef(false);
   const hasLoadedClubCarryRef = useRef(false);
   const skipNextClubCarrySaveRef = useRef(false);
   const hasLoadedClubAveragesRef = useRef(false);
+  const selectedHoleRef = useRef(1);
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const mapPlacementModeRef = useRef('idle');
@@ -521,9 +617,17 @@ export default function App() {
   const distanceLineRef = useRef(null);
   const distanceLabelRef = useRef(null);
   const lastAutoHeadingRef = useRef(null);
+  const mapInteractiveRef = useRef(false);
 
+  const mapHole = page === 'courses' ? mapSetupHole : selectedHole;
   const holeStats = statsByHole[selectedHole];
   const activeRound = rounds.find((round) => round.id === selectedRoundId);
+  const activeCourse = courses.find((course) => course.id === (activeRound?.courseId || selectedCourseId));
+  const courseEditor = courses.find((course) => course.id === courseEditorId);
+  const mapCourse = page === 'courses' ? courseEditor : activeCourse;
+  const mapHoleStats = mapCourse?.markers?.[mapHole] ?? null;
+  const teePosition = mapHoleStats?.teePosition ?? null;
+  const greenPosition = mapHoleStats?.greenPosition ?? null;
   const mapStatusLabel = {
     idle: 'Idle',
     loading: 'Loading',
@@ -549,6 +653,10 @@ export default function App() {
     setAuthToken('');
     setAuthError(message);
     setRounds([]);
+    setCourses([]);
+    setSelectedCourseId('');
+    setNewRoundCourseId('');
+    setCourseEditorId('');
     setSelectedRoundId('');
     setStatsByHole(buildInitialByHole());
     setRoundNotes([]);
@@ -579,6 +687,7 @@ export default function App() {
     setSelectedRoundId(round.id);
     setStatsByHole(sanitizeStats(round.statsByHole));
     setRoundNotes(sanitizeNotesList(round.notes));
+    setSelectedCourseId(round.courseId || '');
     setNoteDraft('');
     setSaveState('saved');
   };
@@ -592,16 +701,33 @@ export default function App() {
       }
 
       setSaveState('loading');
+      setIsLoadingCourses(true);
+      setCoursesError('');
       try {
-        const list = await loadRoundsFromApi(authToken);
+        const [list, coursesList] = await Promise.all([
+          loadRoundsFromApi(authToken),
+          loadCoursesFromApi(authToken),
+        ]);
         if (!isActive) {
           return;
         }
 
         setRounds(list);
+        const sanitizedCourses = coursesList.map((course) => ({
+          id: String(course.id),
+          name: String(course.name || ''),
+          markers: sanitizeCourseMarkers(course.markers),
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+        }));
+        setCourses(sanitizedCourses);
+        if (sanitizedCourses.length > 0 && !courseEditorId) {
+          setCourseEditorId(sanitizedCourses[0].id);
+        }
         if (list.length === 0) {
           hasLoadedRef.current = true;
           setSaveState('saved');
+          setIsLoadingCourses(false);
           return;
         }
 
@@ -611,6 +737,7 @@ export default function App() {
         }
 
         applyRoundToState(firstRound);
+        setIsLoadingCourses(false);
       } catch (error) {
         if (!isActive) {
           return;
@@ -623,6 +750,8 @@ export default function App() {
 
         hasLoadedRef.current = true;
         setSaveState('error');
+        setIsLoadingCourses(false);
+        setCoursesError(error?.message || 'Failed to load courses');
       }
     };
 
@@ -634,7 +763,8 @@ export default function App() {
   }, [authToken]);
 
   useEffect(() => {
-    if (page !== 'track') {
+    const shouldShowMap = page === 'track' || (page === 'courses' && isMapSetupOpen);
+    if (!shouldShowMap) {
       return;
     }
 
@@ -671,6 +801,7 @@ export default function App() {
           disableDefaultUI: false,
           clickableIcons: false,
         });
+        lastAutoHeadingRef.current = null;
         const enforceTiltZero = () => {
           const map = mapInstanceRef.current;
           if (!map || typeof map.getTilt !== 'function') {
@@ -690,16 +821,56 @@ export default function App() {
           }
         }
         mapInstanceRef.current.addListener('click', (event) => {
+          if (!mapInteractiveRef.current) {
+            return;
+          }
           if (!event?.latLng) {
             return;
           }
           const mode = mapPlacementModeRef.current;
           const next = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+          const hole = selectedHoleRef.current;
+          const courseId = courseEditorId;
+          if (!courseId) {
+            return;
+          }
           if (mode === 'tee') {
-            setTeePosition(next);
+            setCourses((prev) =>
+              prev.map((course) =>
+                course.id === courseId
+                  ? {
+                      ...course,
+                      markers: {
+                        ...course.markers,
+                        [hole]: {
+                          ...(course.markers?.[hole] || {}),
+                          teePosition: next,
+                        },
+                      },
+                    }
+                  : course,
+              ),
+            );
+            setCourseSaveState('unsaved');
             setMapPlacementMode('idle');
           } else if (mode === 'green') {
-            setGreenPosition(next);
+            setCourses((prev) =>
+              prev.map((course) =>
+                course.id === courseId
+                  ? {
+                      ...course,
+                      markers: {
+                        ...course.markers,
+                        [hole]: {
+                          ...(course.markers?.[hole] || {}),
+                          greenPosition: next,
+                        },
+                      },
+                    }
+                  : course,
+              ),
+            );
+            setCourseSaveState('unsaved');
             setMapPlacementMode('idle');
           }
         });
@@ -745,11 +916,54 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, isMapSetupOpen, courseEditorId]);
+
+  useEffect(() => {
+    const shouldShowMap = page === 'track' || (page === 'courses' && isMapSetupOpen);
+    if (shouldShowMap) {
+      return;
+    }
+    if (teeMarkerRef.current) {
+      teeMarkerRef.current.setMap(null);
+      teeMarkerRef.current = null;
+    }
+    if (greenMarkerRef.current) {
+      greenMarkerRef.current.setMap(null);
+      greenMarkerRef.current = null;
+    }
+    if (distanceLineRef.current) {
+      distanceLineRef.current.setMap(null);
+      distanceLineRef.current = null;
+    }
+    if (distanceLabelRef.current) {
+      distanceLabelRef.current.setMap(null);
+      distanceLabelRef.current = null;
+    }
+    mapInstanceRef.current = null;
+    setMapStatus('idle');
+  }, [page, isMapSetupOpen]);
 
   useEffect(() => {
     mapPlacementModeRef.current = mapPlacementMode;
   }, [mapPlacementMode]);
+
+  useEffect(() => {
+    selectedHoleRef.current = selectedHole;
+  }, [selectedHole]);
+
+  useEffect(() => {
+    if (page === 'courses') {
+      selectedHoleRef.current = mapSetupHole;
+    }
+  }, [page, mapSetupHole]);
+
+  useEffect(() => {
+    lastAutoHeadingRef.current = null;
+  }, [mapHole, isMapSetupOpen]);
+
+  useEffect(() => {
+    mapInteractiveRef.current = page === 'courses' && isMapSetupOpen;
+  }, [page, isMapSetupOpen]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps) {
@@ -763,6 +977,8 @@ export default function App() {
           title: 'Tee marker',
           label: { text: 'T', color: '#1b5e33', fontWeight: '700' },
         });
+      } else if (teeMarkerRef.current.getMap() !== mapInstanceRef.current) {
+        teeMarkerRef.current.setMap(mapInstanceRef.current);
       }
       teeMarkerRef.current.setPosition(teePosition);
     } else if (teeMarkerRef.current) {
@@ -777,6 +993,8 @@ export default function App() {
           title: 'Green marker',
           label: { text: 'G', color: '#1b5e33', fontWeight: '700' },
         });
+      } else if (greenMarkerRef.current.getMap() !== mapInstanceRef.current) {
+        greenMarkerRef.current.setMap(mapInstanceRef.current);
       }
       greenMarkerRef.current.setPosition(greenPosition);
     } else if (greenMarkerRef.current) {
@@ -834,6 +1052,8 @@ export default function App() {
             strokeOpacity: 0.9,
             strokeWeight: 3,
           });
+        } else if (distanceLineRef.current.getMap() !== mapInstanceRef.current) {
+          distanceLineRef.current.setMap(mapInstanceRef.current);
         }
         distanceLineRef.current.setPath([teeLatLng, greenLatLng]);
 
@@ -857,6 +1077,8 @@ export default function App() {
               fontSize: '13px',
             },
           });
+        } else if (distanceLabelRef.current.getMap() !== mapInstanceRef.current) {
+          distanceLabelRef.current.setMap(mapInstanceRef.current);
         }
         distanceLabelRef.current.setPosition(midpoint);
         distanceLabelRef.current.setLabel({
@@ -887,7 +1109,7 @@ export default function App() {
         distanceLabelRef.current = null;
       }
     }
-  }, [teePosition, greenPosition]);
+  }, [teePosition, greenPosition, mapStatus, mapHole]);
 
   useEffect(() => {
     if (!authToken || !hasLoadedRef.current || !selectedRoundId) {
@@ -900,7 +1122,7 @@ export default function App() {
     }
 
     setSaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
-  }, [authToken, selectedRoundId, statsByHole, roundNotes]);
+  }, [authToken, selectedRoundId, statsByHole, roundNotes, selectedCourseId]);
 
   const saveCurrentRound = async () => {
     if (!authToken || !selectedRoundId) {
@@ -909,7 +1131,13 @@ export default function App() {
 
     setSaveState('saving');
     try {
-      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes, authToken);
+      const savedRound = await saveRoundToApi(
+        selectedRoundId,
+        statsByHole,
+        roundNotes,
+        selectedCourseId,
+        authToken,
+      );
       setSaveState('saved');
       setRounds((prev) =>
         prev.map((round) =>
@@ -917,6 +1145,7 @@ export default function App() {
             ? {
                 ...round,
                 name: savedRound?.name ?? round.name,
+                courseId: savedRound?.courseId ?? round.courseId,
                 updatedAt: savedRound?.updatedAt ?? round.updatedAt,
               }
             : round,
@@ -958,23 +1187,25 @@ export default function App() {
 
   const createRound = async (event) => {
     event?.preventDefault();
-    const courseName = newCourseName.trim();
+    const roundTitle = newRoundTitle.trim();
     const roundDate = newRoundDate || new Date().toISOString().slice(0, 10);
-    const roundName = courseName ? `${courseName} - ${roundDate}` : `Round ${roundDate}`;
+    const roundName = roundTitle ? `${roundTitle} - ${roundDate}` : `Round ${roundDate}`;
 
     setIsSwitchingRound(true);
     setSaveState('loading');
     try {
-      const round = await createRoundInApi(roundName, authToken);
+      const round = await createRoundInApi(roundName, newRoundCourseId, authToken);
       if (round) {
         const summary = {
           id: round.id,
           name: round.name,
+          courseId: round.courseId || '',
           createdAt: round.createdAt,
           updatedAt: round.updatedAt,
         };
         setRounds((prev) => [summary, ...prev]);
-        setNewCourseName('');
+        setNewRoundTitle('');
+        setNewRoundCourseId('');
         setShowNewRoundForm(false);
         applyRoundToState(round);
       }
@@ -987,6 +1218,82 @@ export default function App() {
       setSaveState('error');
     } finally {
       setIsSwitchingRound(false);
+    }
+  };
+
+  const createCourse = async (event) => {
+    event?.preventDefault();
+    if (!authToken) {
+      return;
+    }
+    const courseName = newCourseName.trim();
+    if (!courseName) {
+      return;
+    }
+
+    setIsLoadingCourses(true);
+    setCoursesError('');
+    try {
+      const course = await createCourseInApi(courseName, authToken);
+      if (course) {
+        const sanitizedCourse = {
+          id: String(course.id),
+          name: String(course.name || ''),
+          markers: sanitizeCourseMarkers(course.markers),
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+        };
+        setCourses((prev) => [sanitizedCourse, ...prev]);
+        setCourseEditorId(sanitizedCourse.id);
+        setSelectedCourseId(sanitizedCourse.id);
+        setNewCourseName('');
+        setCourseSaveState('saved');
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+      setCoursesError(error?.message || 'Failed to create course');
+    } finally {
+      setIsLoadingCourses(false);
+    }
+  };
+
+  const saveCurrentCourse = async () => {
+    if (!authToken || !courseEditorId) {
+      return;
+    }
+
+    const course = courses.find((entry) => entry.id === courseEditorId);
+    if (!course) {
+      return;
+    }
+
+    setCourseSaveState('saving');
+    try {
+      const savedCourse = await updateCourseInApi(course.id, course.name, course.markers, authToken);
+      if (savedCourse) {
+        setCourses((prev) =>
+          prev.map((entry) =>
+            entry.id === course.id
+              ? {
+                  ...entry,
+                  name: savedCourse.name || entry.name,
+                  markers: sanitizeCourseMarkers(savedCourse.markers),
+                  updatedAt: savedCourse.updatedAt || entry.updatedAt,
+                }
+              : entry,
+          ),
+        );
+      }
+      setCourseSaveState('saved');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+      setCourseSaveState('error');
     }
   };
 
@@ -1428,7 +1735,13 @@ export default function App() {
                 </option>
               ))}
             </select>
-            <button onClick={() => setShowNewRoundForm(true)} disabled={isSwitchingRound}>
+            <button
+              onClick={() => {
+                setNewRoundCourseId(selectedCourseId);
+                setShowNewRoundForm(true);
+              }}
+              disabled={isSwitchingRound}
+            >
               New round
             </button>
             <button className="reset-btn" onClick={deleteRound} disabled={!selectedRoundId || isSwitchingRound}>
@@ -1446,11 +1759,23 @@ export default function App() {
           <div className="new-round-fields">
             <input
               type="text"
-              value={newCourseName}
-              onChange={(event) => setNewCourseName(event.target.value)}
-              placeholder="Course name"
+              value={newRoundTitle}
+              onChange={(event) => setNewRoundTitle(event.target.value)}
+              placeholder="Round name"
               maxLength={80}
             />
+            <select
+              value={newRoundCourseId}
+              onChange={(event) => setNewRoundCourseId(event.target.value)}
+              disabled={isSwitchingRound || isLoadingCourses}
+            >
+              <option value="">No course</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
             <input
               type="date"
               value={newRoundDate}
@@ -1461,7 +1786,14 @@ export default function App() {
             <button type="submit" disabled={isSwitchingRound}>
               Create
             </button>
-            <button type="button" onClick={() => setShowNewRoundForm(false)} disabled={isSwitchingRound}>
+            <button
+              type="button"
+              onClick={() => {
+                setNewRoundCourseId('');
+                setShowNewRoundForm(false);
+              }}
+              disabled={isSwitchingRound}
+            >
               Cancel
             </button>
           </div>
@@ -1502,6 +1834,12 @@ export default function App() {
             >
               Course setup
             </button>
+            <button
+              className={page === 'courses' ? 'tab-btn active' : 'tab-btn'}
+              onClick={() => setPage('courses')}
+            >
+              Courses
+            </button>
           </nav>
 
           {page === 'track' ? (
@@ -1521,18 +1859,17 @@ export default function App() {
                 </div>
               </section>
 
-              <section className="card map-card" aria-label="course map">
+              <section className="card map-card" aria-label="hole map">
                 <div className="map-header">
-                  <h2>Course map (prototype)</h2>
+                  <h2>
+                    Hole {selectedHole} map {activeCourse?.name ? `- ${activeCourse.name}` : ''}
+                  </h2>
                   <div className="map-header-meta">
                     <span className={`map-status ${mapStatus}`}>{mapStatusLabel}</span>
                     <span className="map-status neutral">{rotationSupportLabel}</span>
                   </div>
                 </div>
-                <p className="hint">
-                  Loads the Google Maps JS API and centers on your current location. Place a tee and green to auto
-                  rotate.
-                </p>
+                <p className="hint">Markers are set in Courses. This view is read-only.</p>
                 {!GOOGLE_MAPS_MAP_ID ? (
                   <p className="map-warning">Rotation needs a Google Maps Map ID (VITE_GOOGLE_MAPS_MAP_ID).</p>
                 ) : null}
@@ -1540,34 +1877,13 @@ export default function App() {
                   <p className="map-warning">Set VITE_GOOGLE_MAPS_API_KEY to render the map.</p>
                 ) : null}
                 <div className="map-controls">
-                  <button
-                    type="button"
-                    className={mapPlacementMode === 'tee' ? 'active' : ''}
-                    onClick={() => setMapPlacementMode(mapPlacementMode === 'tee' ? 'idle' : 'tee')}
-                    disabled={!GOOGLE_MAPS_API_KEY}
-                  >
-                    Place tee
-                  </button>
-                  <button
-                    type="button"
-                    className={mapPlacementMode === 'green' ? 'active' : ''}
-                    onClick={() => setMapPlacementMode(mapPlacementMode === 'green' ? 'idle' : 'green')}
-                    disabled={!GOOGLE_MAPS_API_KEY}
-                  >
-                    Place green
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTeePosition(null);
-                      setGreenPosition(null);
-                      setTeeToGreenMeters(null);
-                    }}
-                    disabled={!GOOGLE_MAPS_API_KEY}
-                  >
-                    Clear markers
-                  </button>
-                  <span className="map-placement-status">{mapPlacementLabel}</span>
+                  <span className="map-placement-status">
+                    {!activeCourse
+                      ? 'No course selected for this round'
+                      : teePosition && greenPosition
+                        ? 'Tee + green set'
+                        : 'No markers for this hole yet'}
+                  </span>
                   {teeToGreenMeters != null ? (
                     <span className="map-distance">{teeToGreenMeters} m</span>
                   ) : null}
@@ -1712,7 +2028,7 @@ export default function App() {
                   const indexValue = statsByHole[hole]?.holeIndex ?? hole;
                   const isDuplicate = (holeIndexCounts[indexValue] || 0) > 1;
                   return (
-                    <div key={hole} className="course-setup-row">
+                    <div key={hole} className="course-setup-row course-index-row">
                       <strong>Hole {hole}</strong>
                       <label className="course-index-field">
                         Index
@@ -1734,6 +2050,199 @@ export default function App() {
                   );
                 })}
               </div>
+            </section>
+          ) : page === 'courses' ? (
+            <section className="card" aria-label="course management">
+              <h2>Courses</h2>
+              <p className="hint">Manage course markers and reuse them for new rounds.</p>
+              <div className="course-management-grid">
+                <section className="card" aria-label="course list">
+                  <h3 className="section-title">Course list</h3>
+                  <div className="course-form">
+                    <input
+                      type="text"
+                      value={newCourseName}
+                      onChange={(event) => setNewCourseName(event.target.value)}
+                      placeholder="New course name"
+                      maxLength={80}
+                    />
+                    <button type="button" onClick={createCourse} disabled={!newCourseName.trim() || isLoadingCourses}>
+                      Create course
+                    </button>
+                  </div>
+                  {coursesError ? <p className="hint">{coursesError}</p> : null}
+                  <div className="course-list">
+                    {courses.length === 0 ? (
+                      <p className="hint">No courses yet.</p>
+                    ) : (
+                      courses.map((course) => (
+                        <button
+                          key={course.id}
+                          type="button"
+                          className={courseEditorId === course.id ? 'course-btn active' : 'course-btn'}
+                          onClick={() => {
+                            setCourseEditorId(course.id);
+                            setIsMapSetupOpen(false);
+                            setMapPlacementMode('idle');
+                            setMapSetupHole(1);
+                            setCourseSaveState('saved');
+                          }}
+                        >
+                          {course.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                <section className="card" aria-label="course editor">
+                  <div className="map-header">
+                    <h3 className="section-title">Course details</h3>
+                    <span className={`save-pill ${courseSaveState}`}>Save: {courseSaveState}</span>
+                  </div>
+                  {!courseEditor ? (
+                    <p className="hint">Select a course to edit markers.</p>
+                  ) : (
+                    <>
+                      <label className="course-name-field">
+                        Course name
+                        <input
+                          type="text"
+                          value={courseEditor.name}
+                          onChange={(event) => {
+                            const nextName = event.target.value;
+                            setCourses((prev) =>
+                              prev.map((entry) =>
+                                entry.id === courseEditor.id ? { ...entry, name: nextName } : entry,
+                              ),
+                            );
+                            setCourseSaveState('unsaved');
+                          }}
+                        />
+                      </label>
+                      <div className="manual-save-row">
+                        <button type="button" onClick={saveCurrentCourse} disabled={courseSaveState === 'saving'}>
+                          {courseSaveState === 'saving' ? 'Saving...' : 'Save course'}
+                        </button>
+                      </div>
+                      <div className="course-setup-list">
+                        {HOLES.map((hole) => {
+                          const holeMarkers = courseEditor.markers?.[hole];
+                          return (
+                            <div key={hole} className="course-setup-row">
+                              <strong>Hole {hole}</strong>
+                              <span className="course-marker-status">
+                                {holeMarkers?.teePosition ? 'Tee ✓' : 'Tee —'}
+                              </span>
+                              <span className="course-marker-status">
+                                {holeMarkers?.greenPosition ? 'Green ✓' : 'Green —'}
+                              </span>
+                              <button
+                                type="button"
+                                className={isMapSetupOpen && mapSetupHole === hole ? 'active' : ''}
+                                onClick={() => {
+                                  setMapSetupHole(hole);
+                                  setIsMapSetupOpen(true);
+                                }}
+                              >
+                                {isMapSetupOpen && mapSetupHole === hole ? 'Map open' : 'Open map'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </section>
+              </div>
+
+              {courseEditor && isMapSetupOpen ? (
+                <section className="card map-card" aria-label="course setup map">
+                  <div className="map-header">
+                    <h2>{courseEditor.name} - Hole {mapSetupHole}</h2>
+                    <div className="map-header-meta">
+                      <span className={`map-status ${mapStatus}`}>{mapStatusLabel}</span>
+                      <span className="map-status neutral">{rotationSupportLabel}</span>
+                    </div>
+                  </div>
+                  <p className="hint">
+                    Place tee and green markers for this hole. The map auto-rotates and stores coordinates.
+                  </p>
+                  {!GOOGLE_MAPS_MAP_ID ? (
+                    <p className="map-warning">Rotation needs a Google Maps Map ID (VITE_GOOGLE_MAPS_MAP_ID).</p>
+                  ) : null}
+                  {!GOOGLE_MAPS_API_KEY ? (
+                    <p className="map-warning">Set VITE_GOOGLE_MAPS_API_KEY to render the map.</p>
+                  ) : null}
+                  <div className="map-controls">
+                    <button
+                      type="button"
+                      className={mapPlacementMode === 'tee' ? 'active' : ''}
+                      onClick={() => setMapPlacementMode(mapPlacementMode === 'tee' ? 'idle' : 'tee')}
+                      disabled={!GOOGLE_MAPS_API_KEY}
+                    >
+                      Place tee
+                    </button>
+                    <button
+                      type="button"
+                      className={mapPlacementMode === 'green' ? 'active' : ''}
+                      onClick={() => setMapPlacementMode(mapPlacementMode === 'green' ? 'idle' : 'green')}
+                      disabled={!GOOGLE_MAPS_API_KEY}
+                    >
+                      Place green
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const hole = selectedHoleRef.current;
+                        setCourses((prev) =>
+                          prev.map((entry) =>
+                            entry.id === courseEditor.id
+                              ? {
+                                  ...entry,
+                                  markers: {
+                                    ...entry.markers,
+                                    [hole]: {
+                                      ...(entry.markers?.[hole] || {}),
+                                      teePosition: null,
+                                      greenPosition: null,
+                                    },
+                                  },
+                                }
+                              : entry,
+                          ),
+                        );
+                        setCourseSaveState('unsaved');
+                        setTeeToGreenMeters(null);
+                      }}
+                      disabled={!GOOGLE_MAPS_API_KEY}
+                    >
+                      Clear markers
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMapSetupOpen(false);
+                        setMapPlacementMode('idle');
+                      }}
+                    >
+                      Close map
+                    </button>
+                    <span className="map-placement-status">{mapPlacementLabel}</span>
+                    {teeToGreenMeters != null ? (
+                      <span className="map-distance">{teeToGreenMeters} m</span>
+                    ) : null}
+                  </div>
+                  <div className="map-shell">
+                    <div ref={mapContainerRef} className="map-canvas" role="presentation" aria-hidden="true" />
+                    {mapStatus === 'loading' ? <div className="map-overlay">Loading map...</div> : null}
+                    {mapStatus === 'locating' ? <div className="map-overlay">Locating you...</div> : null}
+                    {mapStatus === 'error' ? (
+                      <div className="map-overlay error">Map failed to load or location denied.</div>
+                    ) : null}
+                  </div>
+                </section>
+              ) : null}
             </section>
           ) : page === 'totals' ? (
             <section className="card" aria-label="round totals">

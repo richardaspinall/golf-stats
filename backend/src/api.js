@@ -96,8 +96,16 @@ const ensureSchema = async () => {
       CREATE TABLE IF NOT EXISTS rounds (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        course_id TEXT,
         stats_by_hole JSONB NOT NULL,
         notes JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS courses (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        markers JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL
       );
@@ -112,6 +120,7 @@ const ensureSchema = async () => {
         actual_meters INTEGER NOT NULL,
         created_at TIMESTAMPTZ NOT NULL
       );
+      ALTER TABLE rounds ADD COLUMN IF NOT EXISTS course_id TEXT;
     `);
   }
 
@@ -210,7 +219,7 @@ const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, key) => {
     acc[key] = 0;
     return acc;
-  }, { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null });
+  }, { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null, teePosition: null, greenPosition: null });
 
 const buildInitialByHole = () =>
   HOLES.reduce((acc, hole) => {
@@ -220,6 +229,27 @@ const buildInitialByHole = () =>
     };
     return acc;
   }, {});
+
+const buildInitialCourseMarkers = () =>
+  HOLES.reduce((acc, hole) => {
+    acc[hole] = { teePosition: null, greenPosition: null };
+    return acc;
+  }, {});
+
+const sanitizeLatLng = (value) => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const lat = Number(value.lat);
+  const lng = Number(value.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return null;
+  }
+  return { lat, lng };
+};
 
 const sanitizeStats = (raw) => {
   const safe = buildInitialByHole();
@@ -248,6 +278,27 @@ const sanitizeStats = (raw) => {
       ? holeRaw.fairwaySelection
       : null;
     safe[hole].girSelection = VALID_GIR_KEYS.has(holeRaw.girSelection) ? holeRaw.girSelection : null;
+    safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
+    safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
+  });
+
+  return safe;
+};
+
+const sanitizeCourseMarkers = (raw) => {
+  const safe = buildInitialCourseMarkers();
+  if (!raw || typeof raw !== 'object') {
+    return safe;
+  }
+
+  HOLES.forEach((hole) => {
+    const holeRaw = raw[hole];
+    if (!holeRaw || typeof holeRaw !== 'object') {
+      return;
+    }
+
+    safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
+    safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
   });
 
   return safe;
@@ -256,6 +307,11 @@ const sanitizeStats = (raw) => {
 const sanitizeRoundName = (raw, fallbackIndex = 1) => {
   const value = String(raw || '').trim();
   return value ? value.slice(0, 80) : `Round ${fallbackIndex}`;
+};
+
+const sanitizeCourseName = (raw, fallbackIndex = 1) => {
+  const value = String(raw || '').trim();
+  return value ? value.slice(0, 80) : `Course ${fallbackIndex}`;
 };
 
 const sanitizeRoundNotes = (raw) => {
@@ -313,8 +369,20 @@ const createRound = (name, statsByHole, notes = '') => {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     name,
+    courseId: null,
     statsByHole: sanitizeStats(statsByHole),
     notes: sanitizeRoundNotes(notes),
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+const createCourse = (name, markers) => {
+  const now = new Date().toISOString();
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    name,
+    markers: sanitizeCourseMarkers(markers),
     createdAt: now,
     updatedAt: now,
   };
@@ -383,8 +451,17 @@ const toIso = (value) => {
 const mapDbRound = (row) => ({
   id: String(row.id),
   name: sanitizeRoundName(row.name),
+  courseId: row.course_id ? String(row.course_id) : '',
   statsByHole: sanitizeStats(row.stats_by_hole),
   notes: sanitizeRoundNotes(row.notes),
+  createdAt: toIso(row.created_at),
+  updatedAt: toIso(row.updated_at),
+});
+
+const mapDbCourse = (row) => ({
+  id: String(row.id),
+  name: sanitizeCourseName(row.name),
+  markers: sanitizeCourseMarkers(row.markers),
   createdAt: toIso(row.created_at),
   updatedAt: toIso(row.updated_at),
 });
@@ -392,12 +469,13 @@ const mapDbRound = (row) => ({
 const listRounds = async () => {
   const db = getPool();
   const result = await db.query(
-    'SELECT id, name, created_at, updated_at FROM rounds ORDER BY updated_at DESC, created_at DESC',
+    'SELECT id, name, course_id, created_at, updated_at FROM rounds ORDER BY updated_at DESC, created_at DESC',
   );
 
   return result.rows.map((row) => ({
     id: String(row.id),
     name: sanitizeRoundName(row.name),
+    courseId: row.course_id ? String(row.course_id) : '',
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }));
@@ -406,7 +484,7 @@ const listRounds = async () => {
 const getRoundById = async (roundId) => {
   const db = getPool();
   const result = await db.query(
-    'SELECT id, name, stats_by_hole, notes, created_at, updated_at FROM rounds WHERE id = $1 LIMIT 1',
+    'SELECT id, name, course_id, stats_by_hole, notes, created_at, updated_at FROM rounds WHERE id = $1 LIMIT 1',
     [roundId],
   );
 
@@ -421,13 +499,14 @@ const insertRound = async (round) => {
   const db = getPool();
   const result = await db.query(
     `
-      INSERT INTO rounds (id, name, stats_by_hole, notes, created_at, updated_at)
-      VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::timestamptz, $6::timestamptz)
-      RETURNING id, name, stats_by_hole, notes, created_at, updated_at
+      INSERT INTO rounds (id, name, course_id, stats_by_hole, notes, created_at, updated_at)
+      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::timestamptz, $7::timestamptz)
+      RETURNING id, name, course_id, stats_by_hole, notes, created_at, updated_at
     `,
     [
       round.id,
       round.name,
+      round.courseId || null,
       JSON.stringify(round.statsByHole),
       JSON.stringify(round.notes),
       round.createdAt,
@@ -444,15 +523,17 @@ const updateRound = async (roundId, updates) => {
     `
       UPDATE rounds
       SET name = $2,
-          stats_by_hole = $3::jsonb,
-          notes = $4::jsonb,
-          updated_at = $5::timestamptz
+          course_id = $3,
+          stats_by_hole = $4::jsonb,
+          notes = $5::jsonb,
+          updated_at = $6::timestamptz
       WHERE id = $1
-      RETURNING id, name, stats_by_hole, notes, created_at, updated_at
+      RETURNING id, name, course_id, stats_by_hole, notes, created_at, updated_at
     `,
     [
       roundId,
       updates.name,
+      updates.courseId || null,
       JSON.stringify(updates.statsByHole),
       JSON.stringify(updates.notes),
       updates.updatedAt,
@@ -470,6 +551,64 @@ const deleteRoundById = async (roundId) => {
   const db = getPool();
   const result = await db.query('DELETE FROM rounds WHERE id = $1 RETURNING id', [roundId]);
   return result.rows.length > 0;
+};
+
+const listCourses = async () => {
+  const db = getPool();
+  const result = await db.query(
+    'SELECT id, name, markers, created_at, updated_at FROM courses ORDER BY updated_at DESC, created_at DESC',
+  );
+
+  return result.rows.map(mapDbCourse);
+};
+
+const getCourseById = async (courseId) => {
+  const db = getPool();
+  const result = await db.query(
+    'SELECT id, name, markers, created_at, updated_at FROM courses WHERE id = $1 LIMIT 1',
+    [courseId],
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return mapDbCourse(result.rows[0]);
+};
+
+const insertCourse = async (course) => {
+  const db = getPool();
+  const result = await db.query(
+    `
+      INSERT INTO courses (id, name, markers, created_at, updated_at)
+      VALUES ($1, $2, $3::jsonb, $4::timestamptz, $5::timestamptz)
+      RETURNING id, name, markers, created_at, updated_at
+    `,
+    [course.id, course.name, JSON.stringify(course.markers), course.createdAt, course.updatedAt],
+  );
+
+  return mapDbCourse(result.rows[0]);
+};
+
+const updateCourse = async (courseId, updates) => {
+  const db = getPool();
+  const result = await db.query(
+    `
+      UPDATE courses
+      SET name = $2,
+          markers = $3::jsonb,
+          updated_at = $4::timestamptz
+      WHERE id = $1
+      RETURNING id, name, markers, created_at, updated_at
+    `,
+    [courseId, updates.name, JSON.stringify(updates.markers), updates.updatedAt],
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return mapDbCourse(result.rows[0]);
 };
 
 const listClubCarry = async () => {
@@ -674,10 +813,69 @@ export const handleRequest = async (req, res) => {
     if (
       pathname === '/api/rounds' ||
       pathname.startsWith('/api/rounds/') ||
+      pathname === '/api/courses' ||
+      pathname.startsWith('/api/courses/') ||
       pathname === '/api/club-carry' ||
       pathname === '/api/club-actuals'
     ) {
       await ensureSchema();
+    }
+
+    if (pathname === '/api/courses' && method === 'GET') {
+      sendJson(res, 200, { courses: await listCourses() });
+      return;
+    }
+
+    if (pathname === '/api/courses' && method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        const existingCourses = await listCourses();
+        const courseName = sanitizeCourseName(body?.name, existingCourses.length + 1);
+        const newCourse = createCourse(courseName, body?.markers ?? buildInitialCourseMarkers());
+        const inserted = await insertCourse(newCourse);
+        sendJson(res, 201, { course: inserted });
+      } catch (error) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    const courseMatch = pathname.match(/^\/api\/courses\/([^/]+)$/);
+    if (courseMatch) {
+      const courseId = decodeURIComponent(courseMatch[1]);
+
+      if (method === 'GET') {
+        const course = await getCourseById(courseId);
+        if (!course) {
+          sendJson(res, 404, { ok: false, error: 'Course not found' });
+          return;
+        }
+
+        sendJson(res, 200, { course });
+        return;
+      }
+
+      if (method === 'PUT') {
+        try {
+          const current = await getCourseById(courseId);
+          if (!current) {
+            sendJson(res, 404, { ok: false, error: 'Course not found' });
+            return;
+          }
+
+          const body = await parseBody(req);
+          const updated = await updateCourse(courseId, {
+            name: sanitizeCourseName(body?.name ?? current.name),
+            markers: sanitizeCourseMarkers(body?.markers ?? current.markers),
+            updatedAt: new Date().toISOString(),
+          });
+
+          sendJson(res, 200, { ok: true, course: updated });
+        } catch (error) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
+        return;
+      }
     }
 
     if (pathname === '/api/rounds' && method === 'GET') {
@@ -690,11 +888,20 @@ export const handleRequest = async (req, res) => {
         const body = await parseBody(req);
         const existingRounds = await listRounds();
         const roundName = sanitizeRoundName(body?.name, existingRounds.length + 1);
+        const rawCourseId = String(body?.courseId || '').trim();
+        if (rawCourseId) {
+          const course = await getCourseById(rawCourseId);
+          if (!course) {
+            sendJson(res, 400, { ok: false, error: 'Course not found' });
+            return;
+          }
+        }
         const newRound = createRound(
           roundName,
           body?.statsByHole ?? buildInitialByHole(),
           body?.notes ?? '',
         );
+        newRound.courseId = rawCourseId || null;
         const inserted = await insertRound(newRound);
         sendJson(res, 201, { round: inserted });
       } catch (error) {
@@ -727,8 +934,24 @@ export const handleRequest = async (req, res) => {
           }
 
           const body = await parseBody(req);
+          const hasCourseId = Object.prototype.hasOwnProperty.call(body || {}, 'courseId');
+          let courseId = current.courseId || null;
+          if (hasCourseId) {
+            const rawCourseId = String(body?.courseId || '').trim();
+            if (rawCourseId) {
+              const course = await getCourseById(rawCourseId);
+              if (!course) {
+                sendJson(res, 400, { ok: false, error: 'Course not found' });
+                return;
+              }
+              courseId = rawCourseId;
+            } else {
+              courseId = null;
+            }
+          }
           const updated = await updateRound(roundId, {
             name: sanitizeRoundName(body?.name ?? current.name),
+            courseId,
             statsByHole: sanitizeStats(body?.statsByHole ?? current.statsByHole),
             notes: sanitizeRoundNotes(body?.notes ?? current.notes),
             updatedAt: new Date().toISOString(),

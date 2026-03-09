@@ -55,6 +55,10 @@ The frontend uses:
 
 - `GET /api/health`
 - `POST /api/auth/login`
+- `GET /api/courses`
+- `POST /api/courses`
+- `GET /api/courses/:id`
+- `PUT /api/courses/:id`
 - `GET /api/rounds`
 - `POST /api/rounds`
 - `GET /api/rounds/:id`

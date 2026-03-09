@@ -265,6 +265,22 @@ h2 {
   align-items: center;
 }
 
+.map-hole-select {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #35543f;
+}
+
+.map-hole-select select {
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1px solid #c7d6c3;
+  background: #fff;
+  padding: 4px 8px;
+}
+
 .map-controls .active {
   background: #2d7d46;
   color: #fff;
@@ -419,13 +435,74 @@ button:active {
   gap: 8px;
 }
 
+.course-management-grid {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 900px) {
+  .course-management-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.course-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.course-form input {
+  flex: 1 1 200px;
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid #c7d6c3;
+  padding: 0 10px;
+}
+
+.course-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.course-btn {
+  text-align: left;
+}
+
+.course-btn.active {
+  background: #2d7d46;
+  color: #fff;
+  border-color: #2d7d46;
+}
+
+.course-name-field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #35543f;
+  margin-bottom: 8px;
+}
+
+.course-name-field input {
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid #c7d6c3;
+  padding: 0 10px;
+}
+
 .course-setup-row {
   display: grid;
-  grid-template-columns: 70px 1fr auto;
+  grid-template-columns: 70px 1fr auto auto;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid #d4decc;
   padding: 6px 0;
+}
+
+.course-setup-row.course-index-row {
+  grid-template-columns: 70px 1fr auto;
 }
 
 .course-index-field {
@@ -450,6 +527,12 @@ button:active {
   color: #7b2820;
   font-weight: 600;
   font-size: 0.85rem;
+}
+
+.course-marker-status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #35543f;
 }
 
 .course-index-ok {
