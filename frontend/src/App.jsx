@@ -20,6 +20,9 @@ const API_ROUNDS_URL = `${API_BASE_URL}/api/rounds`;
 const API_CLUB_CARRY_URL = `${API_BASE_URL}/api/club-carry`;
 const API_CLUB_ACTUALS_URL = `${API_BASE_URL}/api/club-actuals`;
 const API_LOGIN_URL = `${API_BASE_URL}/api/auth/login`;
+const GOOGLE_MAPS_API_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
+const GOOGLE_MAPS_MAP_ID = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || '').trim();
+const DEFAULT_MAP_CENTER = { lat: -37.815, lng: 144.963 };
 const AUTH_TOKEN_STORAGE_KEY = 'golf_stats_auth_token';
 const sanitizeNoteText = (raw) => String(raw || '').trim().slice(0, 1000);
 const sanitizeNotesList = (raw) => {
@@ -145,6 +148,43 @@ const CLUB_GROUPS = [
 const CLUB_OPTIONS = CLUB_GROUPS.flatMap((group) => group.options);
 const CLUB_OPTION_SET = new Set(CLUB_OPTIONS);
 const LIE_OPTIONS = ['Tee', 'Fairway', 'First cut', 'Rough', 'Bunker', 'Recovery'];
+
+let googleMapsLoaderPromise;
+const loadGoogleMapsScript = (apiKey) => {
+  if (!apiKey) {
+    return Promise.reject(new Error('Missing Google Maps API key'));
+  }
+
+  if (window.google?.maps) {
+    return Promise.resolve(window.google);
+  }
+
+  if (googleMapsLoaderPromise) {
+    return googleMapsLoaderPromise;
+  }
+
+  googleMapsLoaderPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector('script[data-google-maps-loader]');
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(window.google));
+      existingScript.addEventListener('error', () => reject(new Error('Failed to load Google Maps script')));
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+      apiKey,
+    )}&v=weekly&libraries=geometry`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleMapsLoader = 'true';
+    script.onload = () => resolve(window.google);
+    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsLoaderPromise;
+};
 
 const emptyHoleStats = () =>
   COUNTER_OPTIONS.reduce((acc, option) => {
@@ -461,15 +501,48 @@ export default function App() {
   const [shotLogSaveState, setShotLogSaveState] = useState('idle');
   const [clubCarryByClub, setClubCarryByClub] = useState({});
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
+  const [mapStatus, setMapStatus] = useState('idle');
+  const [mapPlacementMode, setMapPlacementMode] = useState('idle');
+  const [teePosition, setTeePosition] = useState(null);
+  const [greenPosition, setGreenPosition] = useState(null);
+  const [mapRotationSupport, setMapRotationSupport] = useState('unknown');
+  const [teeToGreenMeters, setTeeToGreenMeters] = useState(null);
 
   const hasLoadedRef = useRef(false);
   const skipNextSaveRef = useRef(false);
   const hasLoadedClubCarryRef = useRef(false);
   const skipNextClubCarrySaveRef = useRef(false);
   const hasLoadedClubAveragesRef = useRef(false);
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const mapPlacementModeRef = useRef('idle');
+  const teeMarkerRef = useRef(null);
+  const greenMarkerRef = useRef(null);
+  const distanceLineRef = useRef(null);
+  const distanceLabelRef = useRef(null);
+  const lastAutoHeadingRef = useRef(null);
 
   const holeStats = statsByHole[selectedHole];
   const activeRound = rounds.find((round) => round.id === selectedRoundId);
+  const mapStatusLabel = {
+    idle: 'Idle',
+    loading: 'Loading',
+    locating: 'Locating',
+    ready: 'Ready',
+    error: 'Error',
+    'missing-key': 'Missing key',
+  }[mapStatus] || 'Idle';
+  const mapPlacementLabel = {
+    idle: 'Click to place',
+    tee: 'Placing tee',
+    green: 'Placing green',
+  }[mapPlacementMode] || 'Click to place';
+  const rotationSupportLabel =
+    mapRotationSupport === 'supported'
+      ? 'Rotation supported'
+      : mapRotationSupport === 'unsupported'
+        ? 'Rotation unsupported'
+        : 'Rotation unknown';
 
   const handleAuthFailure = (message = 'Session expired. Log in again.') => {
     clearAuthToken();
@@ -559,6 +632,262 @@ export default function App() {
       isActive = false;
     };
   }, [authToken]);
+
+  useEffect(() => {
+    if (page !== 'track') {
+      return;
+    }
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      setMapStatus('missing-key');
+      return;
+    }
+
+    if (!mapContainerRef.current) {
+      return;
+    }
+
+    if (mapInstanceRef.current) {
+      setMapStatus('ready');
+      return;
+    }
+
+    let cancelled = false;
+    setMapStatus('loading');
+
+    loadGoogleMapsScript(GOOGLE_MAPS_API_KEY)
+      .then((google) => {
+        if (cancelled || !mapContainerRef.current) {
+          return;
+        }
+
+        mapInstanceRef.current = new google.maps.Map(mapContainerRef.current, {
+          center: DEFAULT_MAP_CENTER,
+          zoom: 16,
+          mapTypeId: 'satellite',
+          mapId: GOOGLE_MAPS_MAP_ID || undefined,
+          tilt: 0,
+          rotateControl: true,
+          disableDefaultUI: false,
+          clickableIcons: false,
+        });
+        const enforceTiltZero = () => {
+          const map = mapInstanceRef.current;
+          if (!map || typeof map.getTilt !== 'function') {
+            return;
+          }
+          if (map.getTilt() !== 0) {
+            map.setTilt(0);
+          }
+        };
+        enforceTiltZero();
+        mapInstanceRef.current.addListener('tilt_changed', enforceTiltZero);
+        mapInstanceRef.current.addListener('zoom_changed', enforceTiltZero);
+        if (typeof mapInstanceRef.current.getMapCapabilities === 'function') {
+          const caps = mapInstanceRef.current.getMapCapabilities();
+          if (caps && typeof caps.isHeadingSupported === 'boolean') {
+            setMapRotationSupport(caps.isHeadingSupported ? 'supported' : 'unsupported');
+          }
+        }
+        mapInstanceRef.current.addListener('click', (event) => {
+          if (!event?.latLng) {
+            return;
+          }
+          const mode = mapPlacementModeRef.current;
+          const next = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+          if (mode === 'tee') {
+            setTeePosition(next);
+            setMapPlacementMode('idle');
+          } else if (mode === 'green') {
+            setGreenPosition(next);
+            setMapPlacementMode('idle');
+          }
+        });
+
+        setMapStatus('locating');
+        if (!navigator.geolocation) {
+          setMapStatus('error');
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (cancelled || !mapInstanceRef.current) {
+              return;
+            }
+
+            const current = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+            };
+            mapInstanceRef.current.setCenter(current);
+            new google.maps.Marker({
+              position: current,
+              map: mapInstanceRef.current,
+              title: 'Your location',
+            });
+            setMapStatus('ready');
+          },
+          () => {
+            if (!cancelled) {
+              setMapStatus('error');
+            }
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMapStatus('error');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [page]);
+
+  useEffect(() => {
+    mapPlacementModeRef.current = mapPlacementMode;
+  }, [mapPlacementMode]);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.google?.maps) {
+      return;
+    }
+
+    if (teePosition) {
+      if (!teeMarkerRef.current) {
+        teeMarkerRef.current = new window.google.maps.Marker({
+          map: mapInstanceRef.current,
+          title: 'Tee marker',
+          label: { text: 'T', color: '#1b5e33', fontWeight: '700' },
+        });
+      }
+      teeMarkerRef.current.setPosition(teePosition);
+    } else if (teeMarkerRef.current) {
+      teeMarkerRef.current.setMap(null);
+      teeMarkerRef.current = null;
+    }
+
+    if (greenPosition) {
+      if (!greenMarkerRef.current) {
+        greenMarkerRef.current = new window.google.maps.Marker({
+          map: mapInstanceRef.current,
+          title: 'Green marker',
+          label: { text: 'G', color: '#1b5e33', fontWeight: '700' },
+        });
+      }
+      greenMarkerRef.current.setPosition(greenPosition);
+    } else if (greenMarkerRef.current) {
+      greenMarkerRef.current.setMap(null);
+      greenMarkerRef.current = null;
+    }
+
+    if (teePosition && greenPosition) {
+      const toRadians = (deg) => (deg * Math.PI) / 180;
+      const toDegrees = (rad) => (rad * 180) / Math.PI;
+      const lat1 = toRadians(teePosition.lat);
+      const lat2 = toRadians(greenPosition.lat);
+      const dLng = toRadians(greenPosition.lng - teePosition.lng);
+      const y = Math.sin(dLng) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+      const bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
+
+      const bounds = new window.google.maps.LatLngBounds();
+      bounds.extend(teePosition);
+      bounds.extend(greenPosition);
+      mapInstanceRef.current.fitBounds(bounds, { top: 40, bottom: 40, left: 40, right: 40 });
+
+      if (lastAutoHeadingRef.current !== bearing) {
+        lastAutoHeadingRef.current = bearing;
+        const applyHeading = () => {
+          const map = mapInstanceRef.current;
+          if (!map || typeof map.setHeading !== 'function') {
+            return;
+          }
+          if (mapRotationSupport === 'unsupported') {
+            return;
+          }
+          map.setOptions({ heading: bearing, tilt: 0 });
+          map.setHeading(bearing);
+          map.setTilt(0);
+        };
+
+        window.google.maps.event.addListenerOnce(mapInstanceRef.current, 'idle', () => {
+          applyHeading();
+          window.setTimeout(applyHeading, 0);
+        });
+      }
+
+      const geometry = window.google.maps.geometry;
+      if (geometry?.spherical?.computeDistanceBetween) {
+        const teeLatLng = new window.google.maps.LatLng(teePosition);
+        const greenLatLng = new window.google.maps.LatLng(greenPosition);
+        const meters = Math.round(geometry.spherical.computeDistanceBetween(teeLatLng, greenLatLng));
+        setTeeToGreenMeters(Number.isFinite(meters) ? meters : null);
+
+        if (!distanceLineRef.current) {
+          distanceLineRef.current = new window.google.maps.Polyline({
+            map: mapInstanceRef.current,
+            strokeColor: '#1b5e33',
+            strokeOpacity: 0.9,
+            strokeWeight: 3,
+          });
+        }
+        distanceLineRef.current.setPath([teeLatLng, greenLatLng]);
+
+        const midpoint = {
+          lat: (teePosition.lat + greenPosition.lat) / 2,
+          lng: (teePosition.lng + greenPosition.lng) / 2,
+        };
+        if (!distanceLabelRef.current) {
+          distanceLabelRef.current = new window.google.maps.Marker({
+            map: mapInstanceRef.current,
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 0,
+              strokeOpacity: 0,
+              fillOpacity: 0,
+            },
+            label: {
+              text: `${meters} m`,
+              color: '#1d3557',
+              fontWeight: '700',
+              fontSize: '13px',
+            },
+          });
+        }
+        distanceLabelRef.current.setPosition(midpoint);
+        distanceLabelRef.current.setLabel({
+          text: `${meters} m`,
+          color: '#1d3557',
+          fontWeight: '700',
+          fontSize: '13px',
+        });
+      } else {
+        setTeeToGreenMeters(null);
+        if (distanceLineRef.current) {
+          distanceLineRef.current.setMap(null);
+          distanceLineRef.current = null;
+        }
+        if (distanceLabelRef.current) {
+          distanceLabelRef.current.setMap(null);
+          distanceLabelRef.current = null;
+        }
+      }
+    } else {
+      setTeeToGreenMeters(null);
+      if (distanceLineRef.current) {
+        distanceLineRef.current.setMap(null);
+        distanceLineRef.current = null;
+      }
+      if (distanceLabelRef.current) {
+        distanceLabelRef.current.setMap(null);
+        distanceLabelRef.current = null;
+      }
+    }
+  }, [teePosition, greenPosition]);
 
   useEffect(() => {
     if (!authToken || !hasLoadedRef.current || !selectedRoundId) {
@@ -1189,6 +1518,67 @@ export default function App() {
                       {hole}
                     </button>
                   ))}
+                </div>
+              </section>
+
+              <section className="card map-card" aria-label="course map">
+                <div className="map-header">
+                  <h2>Course map (prototype)</h2>
+                  <div className="map-header-meta">
+                    <span className={`map-status ${mapStatus}`}>{mapStatusLabel}</span>
+                    <span className="map-status neutral">{rotationSupportLabel}</span>
+                  </div>
+                </div>
+                <p className="hint">
+                  Loads the Google Maps JS API and centers on your current location. Place a tee and green to auto
+                  rotate.
+                </p>
+                {!GOOGLE_MAPS_MAP_ID ? (
+                  <p className="map-warning">Rotation needs a Google Maps Map ID (VITE_GOOGLE_MAPS_MAP_ID).</p>
+                ) : null}
+                {!GOOGLE_MAPS_API_KEY ? (
+                  <p className="map-warning">Set VITE_GOOGLE_MAPS_API_KEY to render the map.</p>
+                ) : null}
+                <div className="map-controls">
+                  <button
+                    type="button"
+                    className={mapPlacementMode === 'tee' ? 'active' : ''}
+                    onClick={() => setMapPlacementMode(mapPlacementMode === 'tee' ? 'idle' : 'tee')}
+                    disabled={!GOOGLE_MAPS_API_KEY}
+                  >
+                    Place tee
+                  </button>
+                  <button
+                    type="button"
+                    className={mapPlacementMode === 'green' ? 'active' : ''}
+                    onClick={() => setMapPlacementMode(mapPlacementMode === 'green' ? 'idle' : 'green')}
+                    disabled={!GOOGLE_MAPS_API_KEY}
+                  >
+                    Place green
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTeePosition(null);
+                      setGreenPosition(null);
+                      setTeeToGreenMeters(null);
+                    }}
+                    disabled={!GOOGLE_MAPS_API_KEY}
+                  >
+                    Clear markers
+                  </button>
+                  <span className="map-placement-status">{mapPlacementLabel}</span>
+                  {teeToGreenMeters != null ? (
+                    <span className="map-distance">{teeToGreenMeters} m</span>
+                  ) : null}
+                </div>
+                <div className="map-shell">
+                  <div ref={mapContainerRef} className="map-canvas" role="presentation" aria-hidden="true" />
+                  {mapStatus === 'loading' ? <div className="map-overlay">Loading map...</div> : null}
+                  {mapStatus === 'locating' ? <div className="map-overlay">Locating you...</div> : null}
+                  {mapStatus === 'error' ? (
+                    <div className="map-overlay error">Map failed to load or location denied.</div>
+                  ) : null}
                 </div>
               </section>
 

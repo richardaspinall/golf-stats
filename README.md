@@ -26,6 +26,8 @@ npm --prefix frontend run dev
 
 The frontend uses:
 - `VITE_API_BASE_URL` (defaults to `http://localhost:3001`)
+- `VITE_GOOGLE_MAPS_API_KEY` (required to render the Google Maps prototype)
+- `VITE_GOOGLE_MAPS_MAP_ID` (required for map rotation)
 
 ## Deploy to Vercel (separate projects)
 
@@ -41,6 +43,8 @@ The frontend uses:
 1. Create another Vercel project rooted at `frontend/`.
 1. Set frontend env var:
    - `VITE_API_BASE_URL=https://<your-backend-domain>`
+   - `VITE_GOOGLE_MAPS_API_KEY=<your-google-maps-js-api-key>`
+   - `VITE_GOOGLE_MAPS_MAP_ID=<your-google-maps-map-id>`
 1. Redeploy frontend.
 
 ## Important persistence note
