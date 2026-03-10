@@ -773,6 +773,7 @@ export default function App() {
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
   const [isWedgeFormOpen, setIsWedgeFormOpen] = useState(false);
   const [activeWedgeMatrixId, setActiveWedgeMatrixId] = useState(null);
+  const [wedgeMatrixMode, setWedgeMatrixMode] = useState('setup');
   const [isWedgeMatrixFormOpen, setIsWedgeMatrixFormOpen] = useState(false);
   const [wedgeMatrixName, setWedgeMatrixName] = useState('');
   const [wedgeMatrixStanceWidth, setWedgeMatrixStanceWidth] = useState('');
@@ -873,6 +874,7 @@ export default function App() {
     setClubCarrySaveState('saved');
     setIsWedgeFormOpen(false);
     setActiveWedgeMatrixId(null);
+    setWedgeMatrixMode('setup');
     setIsWedgeMatrixFormOpen(false);
     setWedgeMatrixName('');
     setWedgeMatrixStanceWidth('');
@@ -3090,17 +3092,39 @@ export default function App() {
             <section className="card" aria-label="wedge matrix">
               <h2>Wedge matrix</h2>
               <p className="hint">Capture wedge distances by clock system and compare setups.</p>
-              <div className="manual-save-row">
+              <div className="wedge-mode-toggle">
                 <button
+                  type="button"
+                  className={wedgeMatrixMode === 'setup' ? 'tab-btn active' : 'tab-btn'}
+                  onClick={() => setWedgeMatrixMode('setup')}
+                >
+                  Setup
+                </button>
+                <button
+                  type="button"
+                  className={wedgeMatrixMode === 'view' ? 'tab-btn active' : 'tab-btn'}
                   onClick={() => {
-                    setIsWedgeMatrixFormOpen((prev) => !prev);
-                    setWedgeMatricesError('');
+                    setWedgeMatrixMode('view');
+                    setIsWedgeFormOpen(false);
+                    setEditingWedgeEntryId(null);
                   }}
                 >
-                  {isWedgeMatrixFormOpen ? 'Close new matrix' : 'Create new matrix'}
+                  View only
                 </button>
               </div>
-              {isWedgeMatrixFormOpen ? (
+              {wedgeMatrixMode === 'setup' ? (
+                <div className="manual-save-row">
+                  <button
+                    onClick={() => {
+                      setIsWedgeMatrixFormOpen((prev) => !prev);
+                      setWedgeMatricesError('');
+                    }}
+                  >
+                    {isWedgeMatrixFormOpen ? 'Close new matrix' : 'Create new matrix'}
+                  </button>
+                </div>
+              ) : null}
+              {wedgeMatrixMode === 'setup' && isWedgeMatrixFormOpen ? (
                 <form className="wedge-form" onSubmit={createWedgeMatrix}>
                   <div className="prototype-block">
                     <label className="wedge-distance-field">
@@ -3216,24 +3240,26 @@ export default function App() {
                         </p>
                         {matrix.notes ? <p className="hint">Notes: {matrix.notes}</p> : null}
                       </div>
-                      <div className="wedge-matrix-actions">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveWedgeMatrixId(matrix.id);
-                            setIsWedgeFormOpen(true);
-                            setEditingWedgeEntryId(null);
-                            setWedgeEntryError('');
-                          }}
-                        >
-                          Add wedge result
-                        </button>
-                        <button type="button" className="reset-btn" onClick={() => deleteWedgeMatrix(matrix.id)}>
-                          Delete matrix
-                        </button>
-                      </div>
+                      {wedgeMatrixMode === 'setup' ? (
+                        <div className="wedge-matrix-actions">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveWedgeMatrixId(matrix.id);
+                              setIsWedgeFormOpen(true);
+                              setEditingWedgeEntryId(null);
+                              setWedgeEntryError('');
+                            }}
+                          >
+                            Add wedge result
+                          </button>
+                          <button type="button" className="reset-btn" onClick={() => deleteWedgeMatrix(matrix.id)}>
+                            Delete matrix
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
-                    {isWedgeFormOpen && isActiveMatrix ? (
+                    {wedgeMatrixMode === 'setup' && isWedgeFormOpen && isActiveMatrix ? (
                       <form className="wedge-form" onSubmit={addWedgeEntry}>
                         <div className="prototype-block">
                           <h3 className="section-title">Club</h3>
@@ -3305,7 +3331,7 @@ export default function App() {
                       <table className="wedge-matrix-table">
                         <thead>
                           <tr>
-                            <th>Wedge</th>
+                            <th>Club</th>
                             {SWING_CLOCK_OPTIONS.map((clock) => (
                               <th key={clock}>{clock}</th>
                             ))}
@@ -3332,11 +3358,11 @@ export default function App() {
                       {!isLoadingWedgeEntries && !wedgeEntriesError && entries.length === 0 ? (
                         <p className="hint">No wedge results yet.</p>
                       ) : null}
-                      {wedgeEntrySaveState !== 'idle' ? (
+                      {wedgeMatrixMode === 'setup' && wedgeEntrySaveState !== 'idle' ? (
                         <p className="hint">Wedge save: {wedgeEntrySaveState}</p>
                       ) : null}
                     </div>
-                    {recentEntries.length > 0 ? (
+                    {wedgeMatrixMode === 'setup' && recentEntries.length > 0 ? (
                       <div className="wedge-recent">
                         <h3 className="section-title">Recent entries</h3>
                         <div className="wedge-recent-list">

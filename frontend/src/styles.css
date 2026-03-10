@@ -809,17 +809,18 @@ button:active {
 }
 
 .wedge-matrix-table {
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
   border-collapse: collapse;
-  min-width: 420px;
+  table-layout: fixed;
 }
 
 .wedge-matrix-table th,
 .wedge-matrix-table td {
   border-bottom: 1px solid #d4decc;
-  padding: 8px 10px;
+  padding: 8px 6px;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .wedge-matrix-table th {
@@ -857,11 +858,22 @@ button:active {
   overflow: hidden;
 }
 
+.wedge-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 16px;
+}
+
 .wedge-matrix-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.wedge-matrix-header > div {
+  min-width: 0;
 }
 
 .wedge-matrix-actions {
@@ -963,5 +975,11 @@ button:active {
 
   .carry-field {
     justify-content: flex-start;
+  }
+
+  .wedge-matrix-table th,
+  .wedge-matrix-table td {
+    padding: 6px 4px;
+    font-size: 0.85rem;
   }
 }
