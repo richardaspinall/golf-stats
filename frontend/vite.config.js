@@ -4,6 +4,7 @@ const apiProxyTarget = process.env.VITE_DEV_API_PROXY_TARGET || 'http://localhos
 
 export default defineConfig({
   server: {
+    port: 5174,
     proxy: {
       '/api': apiProxyTarget,
     },
