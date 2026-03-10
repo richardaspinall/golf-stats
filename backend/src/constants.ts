@@ -40,3 +40,9 @@ export const CLUB_OPTIONS = [
   'Putter',
 ] as const;
 export const CLUB_OPTION_SET = new Set(CLUB_OPTIONS);
+
+export const WEDGE_OPTIONS = ['60', '56', '50', 'PW'] as const;
+export const WEDGE_OPTION_SET = new Set(WEDGE_OPTIONS);
+
+export const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'] as const;
+export const SWING_CLOCK_OPTION_SET = new Set(SWING_CLOCK_OPTIONS);

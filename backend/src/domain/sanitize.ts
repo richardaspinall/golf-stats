@@ -1,7 +1,14 @@
 import { COUNTER_OPTIONS, HOLES } from '../constants.js';
 import type { ClubCarryByClub, CourseMarkersByHole, LatLng, StatsByHole } from './types.js';
 import { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
-import { isBunkerSelection, isClubOption, isFairwaySelection, isGirSelection } from './guards.js';
+import {
+  isBunkerSelection,
+  isClubOption,
+  isFairwaySelection,
+  isGirSelection,
+  isSwingClockOption,
+  isWedgeOption,
+} from './guards.js';
 
 export const sanitizeLatLng = (value: unknown): LatLng | null => {
   if (!value || typeof value !== 'object') {
@@ -134,4 +141,32 @@ export const sanitizeActualMeters = (raw: unknown) => {
   }
 
   return Math.min(500, Math.round(value));
+};
+
+export const sanitizeWedgeDistanceMeters = (raw: unknown) => {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return Math.min(200, Math.round(value));
+};
+
+export const sanitizeWedgeEntryPayload = (raw: unknown) => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const club = (raw as any).club;
+  const swingClock = (raw as any).swingClock;
+  if (!isWedgeOption(club) || !isSwingClockOption(swingClock)) {
+    return null;
+  }
+
+  const distanceMeters = sanitizeWedgeDistanceMeters((raw as any).distanceMeters);
+  if (distanceMeters === null) {
+    return null;
+  }
+
+  return { club, swingClock, distanceMeters };
 };
