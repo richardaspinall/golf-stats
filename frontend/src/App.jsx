@@ -20,6 +20,7 @@ const API_ROUNDS_URL = `${API_BASE_URL}/api/rounds`;
 const API_COURSES_URL = `${API_BASE_URL}/api/courses`;
 const API_CLUB_CARRY_URL = `${API_BASE_URL}/api/club-carry`;
 const API_CLUB_ACTUALS_URL = `${API_BASE_URL}/api/club-actuals`;
+const API_WEDGE_ENTRIES_URL = `${API_BASE_URL}/api/wedge-entries`;
 const API_LOGIN_URL = `${API_BASE_URL}/api/auth/login`;
 const GOOGLE_MAPS_API_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
 const GOOGLE_MAPS_MAP_ID = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || '').trim();
@@ -166,6 +167,7 @@ const CLUB_GROUPS = [
 ];
 const CLUB_OPTIONS = CLUB_GROUPS.flatMap((group) => group.options);
 const CLUB_OPTION_SET = new Set(CLUB_OPTIONS);
+const WEDGE_OPTIONS = CLUB_GROUPS.find((group) => group.label === 'Wedges')?.options ?? ['60', '56', '50', 'PW'];
 const LIE_OPTIONS = ['Tee', 'Fairway', 'First cut', 'Rough', 'Bunker', 'Recovery'];
 
 let googleMapsLoaderPromise;
@@ -577,6 +579,101 @@ const loadClubActualAveragesFromApi = async (token) => {
   });
 };
 
+const sanitizeWedgeEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+
+  const club = entry.club;
+  const swingClock = entry.swingClock;
+  const distanceMeters = Number(entry.distanceMeters);
+  const id = Number(entry.id);
+  const createdAt = String(entry.createdAt || '');
+
+  if (!WEDGE_OPTIONS.includes(club)) {
+    return null;
+  }
+
+  if (!SWING_CLOCK_OPTIONS.includes(swingClock)) {
+    return null;
+  }
+
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(id)) {
+    return null;
+  }
+
+  return {
+    id: Math.floor(id),
+    club,
+    swingClock,
+    distanceMeters: Math.round(distanceMeters),
+    createdAt,
+  };
+};
+
+const loadWedgeEntriesFromApi = async (token) => {
+  const response = await requestApi(API_WEDGE_ENTRIES_URL, { token });
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to load wedge entries (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  if (!Array.isArray(data?.entries)) {
+    return [];
+  }
+
+  return data.entries.map((entry) => sanitizeWedgeEntry(entry)).filter(Boolean);
+};
+
+const saveWedgeEntryToApi = async ({ club, swingClock, distanceMeters }, token) => {
+  const response = await requestApi(API_WEDGE_ENTRIES_URL, {
+    method: 'POST',
+    body: { club, swingClock, distanceMeters },
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to save wedge entry (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return sanitizeWedgeEntry(data?.entry);
+};
+
+const updateWedgeEntryInApi = async ({ id, club, swingClock, distanceMeters }, token) => {
+  const response = await requestApi(`${API_WEDGE_ENTRIES_URL}/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: { club, swingClock, distanceMeters },
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to update wedge entry (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return sanitizeWedgeEntry(data?.entry);
+};
+
+const deleteWedgeEntryInApi = async (id, token) => {
+  const response = await requestApi(`${API_WEDGE_ENTRIES_URL}/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to delete wedge entry (${response.status})`, response.status, details);
+  }
+};
+
 export default function App() {
   const [authToken, setAuthToken] = useState(() => loadStoredAuthToken());
   const [loginUsername, setLoginUsername] = useState('');
@@ -617,6 +714,16 @@ export default function App() {
   const [shotLogSaveState, setShotLogSaveState] = useState('idle');
   const [clubCarryByClub, setClubCarryByClub] = useState({});
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
+  const [isWedgeFormOpen, setIsWedgeFormOpen] = useState(false);
+  const [wedgeClubSelection, setWedgeClubSelection] = useState('');
+  const [wedgeSwingClock, setWedgeSwingClock] = useState('');
+  const [wedgeDistanceMeters, setWedgeDistanceMeters] = useState(60);
+  const [wedgeEntryError, setWedgeEntryError] = useState('');
+  const [wedgeEntrySaveState, setWedgeEntrySaveState] = useState('idle');
+  const [wedgeEntriesError, setWedgeEntriesError] = useState('');
+  const [isLoadingWedgeEntries, setIsLoadingWedgeEntries] = useState(false);
+  const [wedgeEntries, setWedgeEntries] = useState([]);
+  const [editingWedgeEntryId, setEditingWedgeEntryId] = useState(null);
   const [mapStatus, setMapStatus] = useState('idle');
   const [mapPlacementMode, setMapPlacementMode] = useState('idle');
   const [mapRotationSupport, setMapRotationSupport] = useState('unknown');
@@ -695,6 +802,16 @@ export default function App() {
     setSaveState('loading');
     setClubCarryByClub({});
     setClubCarrySaveState('saved');
+    setIsWedgeFormOpen(false);
+    setWedgeClubSelection('');
+    setWedgeSwingClock('');
+    setWedgeDistanceMeters(60);
+    setWedgeEntryError('');
+    setWedgeEntrySaveState('idle');
+    setWedgeEntriesError('');
+    setIsLoadingWedgeEntries(false);
+    setWedgeEntries([]);
+    setEditingWedgeEntryId(null);
     hasLoadedRef.current = false;
     skipNextSaveRef.current = false;
     hasLoadedClubCarryRef.current = false;
@@ -1502,6 +1619,45 @@ export default function App() {
     );
   }, [statsByHole]);
 
+  const wedgeMatrixRows = useMemo(() => {
+    const buckets = WEDGE_OPTIONS.reduce((acc, club) => {
+      acc[club] = SWING_CLOCK_OPTIONS.reduce((clockAcc, clock) => {
+        clockAcc[clock] = { total: 0, count: 0 };
+        return clockAcc;
+      }, {});
+      return acc;
+    }, {});
+
+    wedgeEntries.forEach((entry) => {
+      if (!WEDGE_OPTIONS.includes(entry.club) || !SWING_CLOCK_OPTIONS.includes(entry.swingClock)) {
+        return;
+      }
+      if (!Number.isFinite(entry.distanceMeters) || entry.distanceMeters <= 0) {
+        return;
+      }
+      const bucket = buckets[entry.club][entry.swingClock];
+      bucket.total += entry.distanceMeters;
+      bucket.count += 1;
+    });
+
+    return WEDGE_OPTIONS.map((club) => ({
+      club,
+      cells: SWING_CLOCK_OPTIONS.map((clock) => {
+        const bucket = buckets[club][clock];
+        if (!bucket || bucket.count === 0) {
+          return { clock, avgMeters: null, count: 0 };
+        }
+        return {
+          clock,
+          avgMeters: Math.round(bucket.total / bucket.count),
+          count: bucket.count,
+        };
+      }),
+    }));
+  }, [wedgeEntries]);
+
+  const wedgeRecentEntries = useMemo(() => wedgeEntries.slice(0, 12), [wedgeEntries]);
+
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => ({
       ...prev,
@@ -1575,6 +1731,168 @@ export default function App() {
 
   const toggleSetupSelection = (setupKey) => {
     setSetupSelection((prev) => (prev === setupKey ? '' : setupKey));
+  };
+
+  const toggleWedgeSelection = (club) => {
+    setWedgeClubSelection((prev) => (prev === club ? '' : club));
+  };
+
+  const toggleWedgeSwingClock = (clock) => {
+    setWedgeSwingClock((prev) => (prev === clock ? '' : clock));
+  };
+
+  const startWedgeEdit = (entry) => {
+    if (!entry) {
+      return;
+    }
+    setEditingWedgeEntryId(entry.id);
+    setWedgeClubSelection(entry.club);
+    setWedgeSwingClock(entry.swingClock);
+    setWedgeDistanceMeters(entry.distanceMeters);
+    setWedgeEntryError('');
+    setWedgeEntrySaveState('idle');
+    setIsWedgeFormOpen(true);
+  };
+
+  const cancelWedgeEdit = () => {
+    setEditingWedgeEntryId(null);
+    setWedgeEntryError('');
+    setIsWedgeFormOpen(false);
+  };
+
+  const deleteWedgeEntry = (entryId) => {
+    if (!authToken || !Number.isFinite(entryId)) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this wedge entry?');
+    if (!confirmed) {
+      return;
+    }
+
+    setWedgeEntrySaveState('saving');
+    let previousEntries = [];
+    setWedgeEntries((prev) => {
+      previousEntries = prev;
+      return prev.filter((entry) => entry.id !== entryId);
+    });
+    deleteWedgeEntryInApi(entryId, authToken)
+      .then(() => {
+        setWedgeEntrySaveState('saved');
+      })
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeEntrySaveState('error');
+        setWedgeEntries(previousEntries);
+        setWedgeEntriesError('Unable to delete wedge entry right now.');
+      });
+  };
+
+  const addWedgeEntry = (event) => {
+    event?.preventDefault();
+    setWedgeEntryError('');
+
+    if (!WEDGE_OPTIONS.includes(wedgeClubSelection)) {
+      setWedgeEntryError('Select a wedge.');
+      return;
+    }
+
+    if (!SWING_CLOCK_OPTIONS.includes(wedgeSwingClock)) {
+      setWedgeEntryError('Select a swing clock.');
+      return;
+    }
+
+    const distanceMeters = Math.round(Number(wedgeDistanceMeters));
+    if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+      setWedgeEntryError('Enter a distance in meters.');
+      return;
+    }
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const entry = {
+      id: tempId,
+      club: wedgeClubSelection,
+      swingClock: wedgeSwingClock,
+      distanceMeters,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (editingWedgeEntryId) {
+      if (!authToken) {
+        return;
+      }
+
+      setWedgeEntrySaveState('saving');
+      updateWedgeEntryInApi(
+        { id: editingWedgeEntryId, club: wedgeClubSelection, swingClock: wedgeSwingClock, distanceMeters },
+        authToken,
+      )
+        .then((saved) => {
+          if (!saved) {
+            setWedgeEntrySaveState('error');
+            setWedgeEntryError('Unable to save wedge entry.');
+            return;
+          }
+
+          setWedgeEntries((prev) => {
+            const withoutOld = prev.filter((item) => item.id !== editingWedgeEntryId);
+            return [saved, ...withoutOld];
+          });
+          setEditingWedgeEntryId(null);
+          setIsWedgeFormOpen(false);
+          setWedgeEntrySaveState('saved');
+        })
+        .catch((error) => {
+          if (error instanceof ApiError && error.status === 401) {
+            handleAuthFailure('Session expired. Log in again.');
+            return;
+          }
+
+          setWedgeEntrySaveState('error');
+          setWedgeEntryError('Unable to save wedge entry.');
+        });
+      return;
+    }
+
+    setWedgeEntries((prev) => [entry, ...prev]);
+    setWedgeEntryError('');
+    setIsWedgeFormOpen(false);
+    setWedgeEntrySaveState('idle');
+
+    if (!authToken) {
+      return;
+    }
+
+    setWedgeEntrySaveState('saving');
+    saveWedgeEntryToApi({ club: wedgeClubSelection, swingClock: wedgeSwingClock, distanceMeters }, authToken)
+      .then((saved) => {
+        if (!saved) {
+          setWedgeEntrySaveState('error');
+          setWedgeEntries((prev) => prev.filter((item) => item.id !== tempId));
+          setWedgeEntryError('Unable to save wedge entry.');
+          return;
+        }
+
+        setWedgeEntries((prev) => {
+          const withoutTemp = prev.filter((item) => item.id !== tempId);
+          return [saved, ...withoutTemp];
+        });
+        setWedgeEntrySaveState('saved');
+      })
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeEntrySaveState('error');
+        setWedgeEntries((prev) => prev.filter((item) => item.id !== tempId));
+        setWedgeEntryError('Unable to save wedge entry.');
+      });
   };
 
   const addShotPrototypeNote = async () => {
@@ -1698,6 +2016,49 @@ export default function App() {
     };
 
     loadClubCarry();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadWedgeEntries = async () => {
+      if (!authToken) {
+        return;
+      }
+
+      setIsLoadingWedgeEntries(true);
+      setWedgeEntriesError('');
+      try {
+        const entries = await loadWedgeEntriesFromApi(authToken);
+        if (!isActive) {
+          return;
+        }
+
+        setWedgeEntries(entries);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeEntries([]);
+        setWedgeEntriesError('Unable to load wedge entries right now.');
+      } finally {
+        if (isActive) {
+          setIsLoadingWedgeEntries(false);
+        }
+      }
+    };
+
+    loadWedgeEntries();
 
     return () => {
       isActive = false;
@@ -1927,6 +2288,12 @@ export default function App() {
             </button>
             <button className={page === 'distance' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('distance')}>
               Distances
+            </button>
+            <button
+              className={page === 'wedgeMatrix' ? 'tab-btn active' : 'tab-btn'}
+              onClick={() => setPage('wedgeMatrix')}
+            >
+              Wedge matrix
             </button>
             <button
               className={page === 'clubAverages' ? 'tab-btn active' : 'tab-btn'}
@@ -2455,6 +2822,148 @@ export default function App() {
                 </button>
               </div>
               {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
+            </section>
+          ) : page === 'wedgeMatrix' ? (
+            <section className="card" aria-label="wedge matrix">
+              <h2>Wedge matrix</h2>
+              <p className="hint">Capture wedge distances by clock system and review your averages.</p>
+              <div className="manual-save-row">
+                <button
+                  onClick={() => {
+                    setIsWedgeFormOpen((prev) => !prev);
+                    setWedgeEntryError('');
+                    if (isWedgeFormOpen) {
+                      setEditingWedgeEntryId(null);
+                    }
+                  }}
+                >
+                  {isWedgeFormOpen ? 'Close form' : 'Add wedge result'}
+                </button>
+              </div>
+              {isWedgeFormOpen ? (
+                <form className="wedge-form" onSubmit={addWedgeEntry}>
+                  <div className="prototype-block">
+                    <h3 className="section-title">Wedge</h3>
+                    <div className="club-row" role="group" aria-label="Wedge selection">
+                      {WEDGE_OPTIONS.map((club) => (
+                        <button
+                          type="button"
+                          key={club}
+                          className={wedgeClubSelection === club ? 'club-btn active' : 'club-btn'}
+                          onClick={() => toggleWedgeSelection(club)}
+                        >
+                          {club}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="prototype-block">
+                    <h3 className="section-title">Clock system</h3>
+                    <div className="clock-row" role="group" aria-label="Swing clock">
+                      {SWING_CLOCK_OPTIONS.map((clock) => (
+                        <button
+                          type="button"
+                          key={clock}
+                          className={wedgeSwingClock === clock ? 'clock-btn active' : 'clock-btn'}
+                          onClick={() => toggleWedgeSwingClock(clock)}
+                        >
+                          {clock}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="prototype-block">
+                    <label className="wedge-distance-field">
+                      Distance (m)
+                      <input
+                        type="number"
+                        min={10}
+                        max={150}
+                        step={1}
+                        value={wedgeDistanceMeters}
+                        onChange={(event) => setWedgeDistanceMeters(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <div className="manual-save-row">
+                    <button type="submit" className="save-btn">
+                      {editingWedgeEntryId ? 'Save changes' : 'Save wedge result'}
+                    </button>
+                    {editingWedgeEntryId ? (
+                      <button type="button" className="reset-btn" onClick={cancelWedgeEdit}>
+                        Cancel edit
+                      </button>
+                    ) : null}
+                  </div>
+                  {wedgeEntryError ? <p className="hint">{wedgeEntryError}</p> : null}
+                </form>
+              ) : null}
+              <div className="wedge-matrix">
+                <table className="wedge-matrix-table">
+                  <thead>
+                    <tr>
+                      <th>Wedge</th>
+                      {SWING_CLOCK_OPTIONS.map((clock) => (
+                        <th key={clock}>{clock}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wedgeMatrixRows.map((row) => (
+                      <tr key={row.club}>
+                        <td className="wedge-label">{row.club}</td>
+                        {row.cells.map((cell) => (
+                          <td key={`${row.club}-${cell.clock}`}>
+                            <div className="matrix-cell">
+                              <span>{cell.avgMeters !== null ? `${cell.avgMeters}m` : '—'}</span>
+                              {cell.count > 0 ? <span className="matrix-count">{cell.count} shots</span> : null}
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {isLoadingWedgeEntries ? <p className="hint">Loading wedge results...</p> : null}
+                {!isLoadingWedgeEntries && wedgeEntriesError ? <p className="hint">{wedgeEntriesError}</p> : null}
+                {!isLoadingWedgeEntries && !wedgeEntriesError && wedgeEntries.length === 0 ? (
+                  <p className="hint">No wedge results yet.</p>
+                ) : null}
+                {wedgeEntrySaveState !== 'idle' ? <p className="hint">Wedge save: {wedgeEntrySaveState}</p> : null}
+              </div>
+              {wedgeRecentEntries.length > 0 ? (
+                <div className="wedge-recent">
+                  <h3 className="section-title">Recent entries</h3>
+                  <div className="wedge-recent-list">
+                    {wedgeRecentEntries.map((entry) => {
+                      const isPersisted = Number.isFinite(entry.id);
+                      return (
+                        <div key={entry.id} className="wedge-recent-row">
+                          <div className="wedge-recent-meta">
+                            <strong>{entry.club}</strong>
+                            <span>{entry.swingClock}</span>
+                            <span>{entry.distanceMeters}m</span>
+                            {!isPersisted ? <span className="matrix-count">Saving...</span> : null}
+                          </div>
+                          <div className="wedge-recent-actions">
+                            <button type="button" onClick={() => startWedgeEdit(entry)} disabled={!isPersisted}>
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="reset-btn"
+                              onClick={() => deleteWedgeEntry(entry.id)}
+                              disabled={!isPersisted}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </section>
           ) : (
             <section className="card" aria-label="club distance averages">

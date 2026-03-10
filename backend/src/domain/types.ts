@@ -1,10 +1,20 @@
-import type { BUNKER_KEYS, COUNTER_OPTIONS, FAIRWAY_KEYS, GIR_KEYS, CLUB_OPTIONS } from '../constants.js';
+import type {
+  BUNKER_KEYS,
+  COUNTER_OPTIONS,
+  FAIRWAY_KEYS,
+  GIR_KEYS,
+  CLUB_OPTIONS,
+  SWING_CLOCK_OPTIONS,
+  WEDGE_OPTIONS,
+} from '../constants.js';
 
 export type CounterOption = (typeof COUNTER_OPTIONS)[number];
 export type FairwaySelection = (typeof FAIRWAY_KEYS)[number];
 export type GirSelection = (typeof GIR_KEYS)[number];
 export type BunkerSelection = (typeof BUNKER_KEYS)[number];
 export type ClubOption = (typeof CLUB_OPTIONS)[number];
+export type WedgeOption = (typeof WEDGE_OPTIONS)[number];
+export type SwingClockOption = (typeof SWING_CLOCK_OPTIONS)[number];
 
 export type LatLng = {
   lat: number;
@@ -58,3 +68,11 @@ export type ClubActualAverage = {
 };
 
 export type ClubAveragesByClub = Partial<Record<ClubOption, ClubActualAverage>>;
+
+export type WedgeEntry = {
+  id: number;
+  club: WedgeOption;
+  swingClock: SwingClockOption;
+  distanceMeters: number;
+  createdAt: string;
+};

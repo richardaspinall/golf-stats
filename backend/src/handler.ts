@@ -7,6 +7,7 @@ import { ensureSchema } from './db/schema.js';
 import { deleteRoundById, getRoundById, insertRound, listRounds, updateRound } from './db/rounds.js';
 import { getCourseById, insertCourse, listCourses, updateCourse } from './db/courses.js';
 import { insertClubActualDistance, listClubActualAverages, listClubCarry, saveClubCarry } from './db/club.js';
+import { deleteWedgeEntry, insertWedgeEntry, listWedgeEntries, updateWedgeEntry } from './db/wedge.js';
 import { buildInitialByHole, buildInitialCourseMarkers, createCourse, createRound } from './domain/factories.js';
 import {
   sanitizeCourseMarkers,
@@ -83,7 +84,9 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       pathname === '/api/courses' ||
       pathname.startsWith('/api/courses/') ||
       pathname === '/api/club-carry' ||
-      pathname === '/api/club-actuals'
+      pathname === '/api/club-actuals' ||
+      pathname === '/api/wedge-entries' ||
+      pathname.startsWith('/api/wedge-entries/')
     ) {
       await ensureSchema();
     }
@@ -276,6 +279,69 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
       return;
+    }
+
+    if (pathname === '/api/wedge-entries' && method === 'GET') {
+      sendJson(res, 200, { entries: await listWedgeEntries() });
+      return;
+    }
+
+    if (pathname === '/api/wedge-entries' && method === 'POST') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const entry = await insertWedgeEntry({
+          club: String((body as any)?.club || '').trim(),
+          swingClock: String((body as any)?.swingClock || '').trim(),
+          distanceMeters: (body as any)?.distanceMeters,
+        });
+        sendJson(res, 201, { ok: true, entry });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    const wedgeMatch = pathname.match(/^\/api\/wedge-entries\/(\d+)$/);
+    if (wedgeMatch) {
+      const entryId = Number(wedgeMatch[1]);
+      if (!Number.isFinite(entryId) || entryId <= 0) {
+        sendJson(res, 400, { ok: false, error: 'Invalid entry id' });
+        return;
+      }
+
+      if (method === 'PUT') {
+        try {
+          const body = await parseBody(req as BodyAwareRequest);
+          const entry = await updateWedgeEntry({
+            id: entryId,
+            club: String((body as any)?.club || '').trim(),
+            swingClock: String((body as any)?.swingClock || '').trim(),
+            distanceMeters: (body as any)?.distanceMeters,
+          });
+          if (!entry) {
+            sendJson(res, 404, { ok: false, error: 'Entry not found' });
+            return;
+          }
+          sendJson(res, 200, { ok: true, entry });
+        } catch (error: any) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
+        return;
+      }
+
+      if (method === 'DELETE') {
+        try {
+          const deleted = await deleteWedgeEntry(entryId);
+          if (!deleted) {
+            sendJson(res, 404, { ok: false, error: 'Entry not found' });
+            return;
+          }
+          sendJson(res, 200, { ok: true });
+        } catch (error: any) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
+        return;
+      }
     }
 
     sendJson(res, 404, { ok: false, error: 'Not found' });

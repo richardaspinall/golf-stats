@@ -765,6 +765,102 @@ button:active {
   background: #fff;
 }
 
+.wedge-form {
+  margin-top: 16px;
+}
+
+.wedge-distance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #49614e;
+}
+
+.wedge-distance-field input {
+  width: 120px;
+  min-height: 38px;
+  border: 1px solid #9db08f;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 0.95rem;
+  color: #1d2a1f;
+  background: #fff;
+}
+
+.wedge-matrix {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+.wedge-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 420px;
+}
+
+.wedge-matrix-table th,
+.wedge-matrix-table td {
+  border-bottom: 1px solid #d4decc;
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.wedge-matrix-table th {
+  font-size: 0.85rem;
+  color: #49614e;
+}
+
+.wedge-label {
+  text-align: left;
+  font-weight: 600;
+}
+
+.matrix-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.matrix-count {
+  font-size: 0.7rem;
+  color: #49614e;
+}
+
+.wedge-recent {
+  margin-top: 20px;
+}
+
+.wedge-recent-list {
+  display: grid;
+  gap: 8px;
+}
+
+.wedge-recent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #d4decc;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f7faf3;
+}
+
+.wedge-recent-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: #1d2a1f;
+}
+
+.wedge-recent-actions {
+  display: flex;
+  gap: 8px;
+}
+
 @media (max-width: 520px) {
   .header-controls {
     width: 100%;

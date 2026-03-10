@@ -34,6 +34,13 @@ export const ensureSchema = async () => {
           actual_meters INTEGER NOT NULL,
           created_at TIMESTAMPTZ NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS wedge_entries (
+          id BIGSERIAL PRIMARY KEY,
+          club TEXT NOT NULL,
+          swing_clock TEXT NOT NULL,
+          distance_meters INTEGER NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL
+        );
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS course_id TEXT;
       `)
       .then(() => undefined);
