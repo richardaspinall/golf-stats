@@ -1,5 +1,5 @@
-import { CLUB_OPTION_SET } from '../constants.js';
 import { sanitizeActualMeters, sanitizeCarryMeters, sanitizeClubCarryPayload } from '../domain/sanitize.js';
+import { isClubOption } from '../domain/guards.js';
 import type { ClubAveragesByClub, ClubCarryByClub } from '../domain/types.js';
 import { getPool } from './pool.js';
 
@@ -10,10 +10,11 @@ export const listClubCarry = async () => {
   );
 
   return result.rows.reduce((acc: ClubCarryByClub, row: any) => {
-    if (CLUB_OPTION_SET.has(String(row.club))) {
+    const club = String(row.club);
+    if (isClubOption(club)) {
       const sanitizedCarry = sanitizeCarryMeters(row.carry_meters);
       if (sanitizedCarry !== null) {
-        acc[String(row.club)] = sanitizedCarry;
+        acc[club] = sanitizedCarry;
       }
     }
     return acc;
@@ -63,7 +64,7 @@ export const saveClubCarry = async (carryByClub: unknown) => {
 };
 
 export const insertClubActualDistance = async ({ club, actualMeters }: { club: string; actualMeters: unknown }) => {
-  if (!CLUB_OPTION_SET.has(club)) {
+  if (!isClubOption(club)) {
     throw new Error('Invalid club');
   }
 
@@ -96,7 +97,7 @@ export const listClubActualAverages = async () => {
 
   return result.rows.reduce((acc: ClubAveragesByClub, row: any) => {
     const club = String(row.club || '');
-    if (!CLUB_OPTION_SET.has(club)) {
+    if (!isClubOption(club)) {
       return acc;
     }
 
