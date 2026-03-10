@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { handleRequest } from '../src/api.js';
+import { handleRequest } from './handler.js';
 
 const PORT = Number(process.env.PORT || 3001);
 
