@@ -1964,9 +1964,7 @@ export default function App() {
                   <h2>Hole {selectedHole}</h2>
                   <span className="hole-index">Index {displayHoleIndex}</span>
                 </div>
-                <p className="hint">
-                  Round: {activeRound?.name || '...'} | Tap + to log. Tap - to correct. Use Fairway/GIR circles.
-                </p>
+                <p className="hint">Round: {activeRound?.name || '...'}</p>
                 <div className="stat-section">
                   <h3 className="section-title">Hole details</h3>
                   <div className="stat-list">
