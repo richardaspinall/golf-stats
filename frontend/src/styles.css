@@ -804,6 +804,7 @@ button:active {
 .wedge-matrix {
   margin-top: 18px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .wedge-matrix-table {
@@ -888,11 +889,28 @@ button:active {
   gap: 12px;
   font-size: 0.9rem;
   color: #1d2a1f;
+  flex-wrap: wrap;
 }
 
 .wedge-recent-actions {
   display: flex;
   gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .wedge-matrix-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wedge-matrix-actions {
+    width: 100%;
+  }
+
+  .wedge-recent-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 520px) {

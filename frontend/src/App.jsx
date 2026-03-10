@@ -2045,7 +2045,6 @@ export default function App() {
             };
           });
           setEditingWedgeEntryId(null);
-          setIsWedgeFormOpen(false);
           setWedgeEntrySaveState('saved');
         })
         .catch((error) => {
@@ -2065,7 +2064,6 @@ export default function App() {
       [activeWedgeMatrixId]: [entry, ...(prev[activeWedgeMatrixId] || [])],
     }));
     setWedgeEntryError('');
-    setIsWedgeFormOpen(false);
     setWedgeEntrySaveState('idle');
 
     if (!authToken) {
@@ -3289,6 +3287,16 @@ export default function App() {
                               Cancel edit
                             </button>
                           ) : null}
+                          <button
+                            type="button"
+                            className="reset-btn"
+                            onClick={() => {
+                              setIsWedgeFormOpen(false);
+                              setEditingWedgeEntryId(null);
+                            }}
+                          >
+                            Close form
+                          </button>
                         </div>
                         {wedgeEntryError ? <p className="hint">{wedgeEntryError}</p> : null}
                       </form>
