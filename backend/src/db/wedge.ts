@@ -4,14 +4,14 @@ import type { ClubOption, SwingClockOption, WedgeEntry, WedgeMatrix } from '../d
 import { getPool } from './pool.js';
 
 const sanitizeTextField = (value: unknown, max = 120) => String(value || '').trim().slice(0, max);
-const sanitizeClubList = (value: unknown) => {
+const sanitizeClubList = (value: unknown): ClubOption[] => {
   if (!Array.isArray(value)) {
     return [];
   }
 
   return value
     .map((club) => String(club || '').trim())
-    .filter((club, index, arr) => isClubOption(club) && arr.indexOf(club) === index);
+    .filter((club, index, arr) => isClubOption(club) && arr.indexOf(club) === index) as ClubOption[];
 };
 
 export const listWedgeMatrices = async () => {
@@ -106,7 +106,7 @@ export const deleteWedgeMatrix = async (id: number) => {
     await db.query('DELETE FROM wedge_entries WHERE matrix_id = $1', [id]);
     const result = await db.query('DELETE FROM wedge_matrices WHERE id = $1', [id]);
     await db.query('COMMIT');
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     await db.query('ROLLBACK');
     throw error;
@@ -285,5 +285,5 @@ export const deleteWedgeEntry = async (id: number) => {
 
   const db = getPool();
   const result = await db.query('DELETE FROM wedge_entries WHERE id = $1', [id]);
-  return result.rowCount > 0;
+  return (result.rowCount ?? 0) > 0;
 };
