@@ -8,14 +8,18 @@ export const COUNTER_OPTIONS = [
   'oopLook',
   'oopNoLook',
   'penalties',
-  'onePutts',
-  'threePutts',
+  'totalPutts',
+  'puttMissLong',
+  'puttMissShort',
+  'puttMissWithin2m',
 ] as const;
 
 export const FAIRWAY_KEYS = ['fairwayHit', 'fairwayLeft', 'fairwayRight'] as const;
 export const GIR_KEYS = ['girHit', 'girLeft', 'girRight', 'girLong', 'girShort'] as const;
+export const BUNKER_KEYS = ['bunkerLeft', 'bunkerRight', 'bunkerLong', 'bunkerShort'] as const;
 export const VALID_FAIRWAY_KEYS = new Set(FAIRWAY_KEYS);
 export const VALID_GIR_KEYS = new Set(GIR_KEYS);
+export const VALID_BUNKER_KEYS = new Set(BUNKER_KEYS);
 
 export const CLUB_OPTIONS = [
   '60',

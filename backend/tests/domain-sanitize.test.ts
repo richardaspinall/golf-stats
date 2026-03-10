@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLUB_OPTIONS, COUNTER_OPTIONS, FAIRWAY_KEYS, GIR_KEYS, HOLES } from '../src/constants.js';
+import { BUNKER_KEYS, CLUB_OPTIONS, COUNTER_OPTIONS, FAIRWAY_KEYS, GIR_KEYS, HOLES } from '../src/constants.js';
 import {
   sanitizeActualMeters,
   sanitizeCarryMeters,
@@ -16,6 +16,7 @@ const sampleStats = () => ({
     holeIndex: 1,
     fairwaySelection: FAIRWAY_KEYS[0],
     girSelection: GIR_KEYS[0],
+    bunkerSelection: BUNKER_KEYS[0],
     teePosition: { lat: -37.8, lng: 144.9 },
     greenPosition: { lat: -37.9, lng: 145.0 },
     inside100Over3: 2,
@@ -25,8 +26,10 @@ const sampleStats = () => ({
     oopLook: 0,
     oopNoLook: 0,
     penalties: 1,
-    onePutts: 1,
-    threePutts: 0,
+    totalPutts: 14,
+    puttMissLong: 2,
+    puttMissShort: 3,
+    puttMissWithin2m: 1,
   },
 });
 
@@ -52,6 +55,7 @@ describe('sanitizeStats', () => {
     expect(stats[1].holeIndex).toBe(18);
     expect(stats[1].fairwaySelection).toBeNull();
     expect(stats[1].girSelection).toBeNull();
+    expect(stats[1].bunkerSelection).toBeNull();
     expect(stats[1].teePosition).toBeNull();
     expect(stats[1].greenPosition).toEqual({ lat: -37.1, lng: 145.2 });
     expect(stats[1].inside100Over3).toBe(2);
@@ -65,6 +69,7 @@ describe('sanitizeStats', () => {
     const stats = sanitizeStats(sampleStats());
     expect(stats[1].fairwaySelection).toBe(FAIRWAY_KEYS[0]);
     expect(stats[1].girSelection).toBe(GIR_KEYS[0]);
+    expect(stats[1].bunkerSelection).toBe(BUNKER_KEYS[0]);
   });
 });
 

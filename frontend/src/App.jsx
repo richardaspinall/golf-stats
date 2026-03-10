@@ -60,8 +60,10 @@ const COUNTER_SECTIONS = [
   {
     title: 'Putting',
     options: [
-      { key: 'onePutts', label: '1 putts' },
-      { key: 'threePutts', label: '3 putts' },
+      { key: 'totalPutts', label: 'Total putts' },
+      { key: 'puttMissLong', label: 'Miss long' },
+      { key: 'puttMissShort', label: 'Miss short' },
+      { key: 'puttMissWithin2m', label: 'Miss within 2m' },
     ],
   },
   {
@@ -1923,9 +1925,6 @@ export default function App() {
             <button className={page === 'track' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('track')}>
               Track
             </button>
-            <button className={page === 'totals' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('totals')}>
-              Round totals
-            </button>
             <button className={page === 'distance' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('distance')}>
               Distances
             </button>
@@ -1934,6 +1933,9 @@ export default function App() {
               onClick={() => setPage('clubAverages')}
             >
               Club averages
+            </button>
+            <button className={page === 'totals' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('totals')}>
+              Round totals
             </button>
             <button className={page === 'courses' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('courses')}>
               Courses
@@ -1958,18 +1960,13 @@ export default function App() {
               </section>
 
               <section className="card" aria-label="hole stats">
-                <h2>Hole {selectedHole}</h2>
+                <div className="hole-header">
+                  <h2>Hole {selectedHole}</h2>
+                  <span className="hole-index">Index {displayHoleIndex}</span>
+                </div>
                 <p className="hint">
                   Round: {activeRound?.name || '...'} | Tap + to log. Tap - to correct. Use Fairway/GIR circles.
                 </p>
-                <div className="manual-save-row">
-                  <button
-                    onClick={saveCurrentRound}
-                    disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
-                  >
-                    {saveState === 'saving' ? 'Saving...' : 'Save hole'}
-                  </button>
-                </div>
                 <div className="stat-section">
                   <h3 className="section-title">Hole details</h3>
                   <div className="stat-list">
@@ -1979,12 +1976,6 @@ export default function App() {
                         <button onClick={() => updateHoleScore(selectedHole, -1)}>-</button>
                         <strong>{holeStats.score}</strong>
                         <button onClick={() => updateHoleScore(selectedHole, 1)}>+</button>
-                      </div>
-                    </div>
-                    <div className="stat-row">
-                      <span>Hole index</span>
-                      <div className="stat-actions">
-                        <strong>{displayHoleIndex}</strong>
                       </div>
                     </div>
                   </div>
@@ -2067,6 +2058,15 @@ export default function App() {
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="manual-save-row">
+                  <button
+                    className="save-btn"
+                    onClick={saveCurrentRound}
+                    disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
+                  >
+                    {saveState === 'saving' ? 'Saving...' : 'Save hole'}
+                  </button>
                 </div>
               </section>
             </>
@@ -2451,7 +2451,11 @@ export default function App() {
                 </div>
               </div>
 
-              <button onClick={addShotPrototypeNote}>Add to round notes</button>
+              <div className="manual-save-row">
+                <button className="save-btn" onClick={addShotPrototypeNote}>
+                  Save distance
+                </button>
+              </div>
               {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
             </section>
           ) : (

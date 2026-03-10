@@ -12,6 +12,7 @@ export const emptyHoleStats = (): StatsByHole[number] =>
       holeIndex: 1,
       fairwaySelection: null,
       girSelection: null,
+      bunkerSelection: null,
       teePosition: null,
       greenPosition: null,
     } as StatsByHole[number],

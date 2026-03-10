@@ -353,6 +353,19 @@ button:active {
   color: #35543f;
 }
 
+.hole-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hole-index {
+  font-weight: 600;
+  color: #5b6f63;
+  font-size: 0.95rem;
+}
+
 .gir-menu {
   --gir-size: min(280px, 88vw);
   --gir-selected: #e06a6a;
@@ -526,6 +539,27 @@ button:active {
 
 .manual-save-row {
   margin-bottom: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #d4decc;
+}
+
+.manual-save-row .save-btn {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 12px;
+  background: #2d7d46;
+  color: #fff;
+  border: 1px solid #2d7d46;
+  box-shadow: 0 8px 18px rgba(45, 125, 70, 0.18);
+}
+
+.manual-save-row .save-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .course-setup-list {
