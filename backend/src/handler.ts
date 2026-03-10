@@ -1,0 +1,293 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { AUTH_CONFIGURED, AUTH_PASSWORD, AUTH_USERNAME, DB_CONFIGURED, JWT_TTL_SECONDS } from './config/env.js';
+import { safeCompare } from './auth/crypto.js';
+import { signToken, verifyToken } from './auth/jwt.js';
+import { getDbDebugStatus } from './db/debug.js';
+import { ensureSchema } from './db/schema.js';
+import { deleteRoundById, getRoundById, insertRound, listRounds, updateRound } from './db/rounds.js';
+import { getCourseById, insertCourse, listCourses, updateCourse } from './db/courses.js';
+import { insertClubActualDistance, listClubActualAverages, listClubCarry, saveClubCarry } from './db/club.js';
+import { buildInitialByHole, buildInitialCourseMarkers, createCourse, createRound } from './domain/factories.js';
+import {
+  sanitizeCourseMarkers,
+  sanitizeCourseName,
+  sanitizeRoundName,
+  sanitizeRoundNotes,
+  sanitizeStats,
+} from './domain/sanitize.js';
+import { getBearerToken, getUrl, parseBody, sendJson, type BodyAwareRequest } from './utils/http.js';
+
+export const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
+  try {
+    const requestUrl = getUrl(req);
+    const pathname = requestUrl.pathname;
+    const method = req.method || 'GET';
+
+    if (method === 'OPTIONS') {
+      sendJson(res, 204, {});
+      return;
+    }
+
+    if (pathname === '/api/health' && method === 'GET') {
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (pathname === '/api/auth/login' && method === 'POST') {
+      if (!AUTH_CONFIGURED) {
+        sendJson(res, 500, { ok: false, error: 'Auth is not configured on the server' });
+        return;
+      }
+
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const username = String((body as any)?.username || '').trim();
+        const password = String((body as any)?.password || '');
+
+        if (!safeCompare(username, AUTH_USERNAME) || !safeCompare(password, AUTH_PASSWORD)) {
+          sendJson(res, 401, { ok: false, error: 'Invalid credentials' });
+          return;
+        }
+
+        const token = signToken(AUTH_USERNAME);
+        sendJson(res, 200, { ok: true, token, expiresIn: Math.max(60, Math.floor(JWT_TTL_SECONDS)) });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    if (pathname.startsWith('/api/') && pathname !== '/api/health') {
+      if (!AUTH_CONFIGURED) {
+        sendJson(res, 500, { ok: false, error: 'Auth is not configured on the server' });
+        return;
+      }
+
+      const token = getBearerToken(req);
+      const tokenState = verifyToken(token);
+      if (!tokenState.ok) {
+        sendJson(res, 401, { ok: false, error: 'Unauthorized' });
+        return;
+      }
+    }
+
+    if (pathname === '/api/debug/db' && method === 'GET') {
+      const debug = await getDbDebugStatus();
+      sendJson(res, debug.ok ? 200 : 500, debug);
+      return;
+    }
+
+    if (
+      pathname === '/api/rounds' ||
+      pathname.startsWith('/api/rounds/') ||
+      pathname === '/api/courses' ||
+      pathname.startsWith('/api/courses/') ||
+      pathname === '/api/club-carry' ||
+      pathname === '/api/club-actuals'
+    ) {
+      await ensureSchema();
+    }
+
+    if (pathname === '/api/courses' && method === 'GET') {
+      sendJson(res, 200, { courses: await listCourses() });
+      return;
+    }
+
+    if (pathname === '/api/courses' && method === 'POST') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const existingCourses = await listCourses();
+        const courseName = sanitizeCourseName((body as any)?.name, existingCourses.length + 1);
+        const newCourse = createCourse(courseName, (body as any)?.markers ?? buildInitialCourseMarkers());
+        const inserted = await insertCourse(newCourse);
+        sendJson(res, 201, { course: inserted });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    const courseMatch = pathname.match(/^\/api\/courses\/([^/]+)$/);
+    if (courseMatch) {
+      const courseId = decodeURIComponent(courseMatch[1]);
+
+      if (method === 'GET') {
+        const course = await getCourseById(courseId);
+        if (!course) {
+          sendJson(res, 404, { ok: false, error: 'Course not found' });
+          return;
+        }
+
+        sendJson(res, 200, { course });
+        return;
+      }
+
+      if (method === 'PUT') {
+        try {
+          const current = await getCourseById(courseId);
+          if (!current) {
+            sendJson(res, 404, { ok: false, error: 'Course not found' });
+            return;
+          }
+
+          const body = await parseBody(req as BodyAwareRequest);
+          const updated = await updateCourse(courseId, {
+            name: sanitizeCourseName((body as any)?.name ?? current.name),
+            markers: sanitizeCourseMarkers((body as any)?.markers ?? current.markers),
+            updatedAt: new Date().toISOString(),
+          });
+
+          sendJson(res, 200, { ok: true, course: updated });
+        } catch (error: any) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
+        return;
+      }
+    }
+
+    if (pathname === '/api/rounds' && method === 'GET') {
+      sendJson(res, 200, { rounds: await listRounds() });
+      return;
+    }
+
+    if (pathname === '/api/rounds' && method === 'POST') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const existingRounds = await listRounds();
+        const roundName = sanitizeRoundName((body as any)?.name, existingRounds.length + 1);
+        const rawCourseId = String((body as any)?.courseId || '').trim();
+        if (rawCourseId) {
+          const course = await getCourseById(rawCourseId);
+          if (!course) {
+            sendJson(res, 400, { ok: false, error: 'Course not found' });
+            return;
+          }
+        }
+        const newRound = createRound(
+          roundName,
+          (body as any)?.statsByHole ?? buildInitialByHole(),
+          (body as any)?.notes ?? '',
+        );
+        newRound.courseId = rawCourseId || null;
+        const inserted = await insertRound(newRound);
+        sendJson(res, 201, { round: inserted });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    const roundMatch = pathname.match(/^\/api\/rounds\/([^/]+)$/);
+    if (roundMatch) {
+      const roundId = decodeURIComponent(roundMatch[1]);
+
+      if (method === 'GET') {
+        const round = await getRoundById(roundId);
+        if (!round) {
+          sendJson(res, 404, { ok: false, error: 'Round not found' });
+          return;
+        }
+
+        sendJson(res, 200, { round });
+        return;
+      }
+
+      if (method === 'PUT') {
+        try {
+          const current = await getRoundById(roundId);
+          if (!current) {
+            sendJson(res, 404, { ok: false, error: 'Round not found' });
+            return;
+          }
+
+          const body = await parseBody(req as BodyAwareRequest);
+          const hasCourseId = Object.prototype.hasOwnProperty.call(body || {}, 'courseId');
+          let courseId = current.courseId || null;
+          if (hasCourseId) {
+            const rawCourseId = String((body as any)?.courseId || '').trim();
+            if (rawCourseId) {
+              const course = await getCourseById(rawCourseId);
+              if (!course) {
+                sendJson(res, 400, { ok: false, error: 'Course not found' });
+                return;
+              }
+              courseId = rawCourseId;
+            } else {
+              courseId = null;
+            }
+          }
+          const updated = await updateRound(roundId, {
+            name: sanitizeRoundName((body as any)?.name ?? current.name),
+            courseId,
+            statsByHole: sanitizeStats((body as any)?.statsByHole ?? current.statsByHole),
+            notes: sanitizeRoundNotes((body as any)?.notes ?? current.notes),
+            updatedAt: new Date().toISOString(),
+          });
+
+          sendJson(res, 200, { ok: true, round: updated });
+        } catch (error: any) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
+        return;
+      }
+
+      if (method === 'DELETE') {
+        const deleted = await deleteRoundById(roundId);
+        if (!deleted) {
+          sendJson(res, 404, { ok: false, error: 'Round not found' });
+          return;
+        }
+
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+    }
+
+    if (pathname === '/api/club-carry' && method === 'GET') {
+      sendJson(res, 200, { carryByClub: await listClubCarry() });
+      return;
+    }
+
+    if (pathname === '/api/club-carry' && method === 'PUT') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const saved = await saveClubCarry((body as any)?.carryByClub);
+        sendJson(res, 200, { ok: true, carryByClub: saved });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/club-actuals' && method === 'GET') {
+      sendJson(res, 200, { averagesByClub: await listClubActualAverages() });
+      return;
+    }
+
+    if (pathname === '/api/club-actuals' && method === 'POST') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        await insertClubActualDistance({
+          club: String((body as any)?.club || '').trim(),
+          actualMeters: (body as any)?.actualMeters,
+        });
+        sendJson(res, 201, { ok: true });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    sendJson(res, 404, { ok: false, error: 'Not found' });
+  } catch (error: any) {
+    if (!res.headersSent) {
+      const isMisconfigured = !DB_CONFIGURED && String(error?.message || '').includes('DATABASE_URL');
+      sendJson(res, 500, {
+        ok: false,
+        error: isMisconfigured ? 'DATABASE_URL is not configured' : 'Internal server error',
+        detail: error?.message || 'Unknown error',
+      });
+      return;
+    }
+  }
+};
