@@ -805,10 +805,12 @@ button:active {
   margin-top: 18px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
 .wedge-matrix-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   min-width: 420px;
 }
@@ -852,6 +854,7 @@ button:active {
   border: 1px solid #d4decc;
   border-radius: 14px;
   background: #fff;
+  overflow: hidden;
 }
 
 .wedge-matrix-header {
