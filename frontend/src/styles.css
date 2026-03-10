@@ -353,12 +353,32 @@ button:active {
   color: #35543f;
 }
 
+.hole-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hole-index {
+  font-weight: 600;
+  color: #5b6f63;
+  font-size: 0.95rem;
+}
+
 .gir-menu {
-  display: grid;
-  grid-template-columns: repeat(3, 64px);
-  grid-template-rows: repeat(3, 64px);
-  gap: 8px;
-  justify-content: center;
+  --gir-size: min(280px, 88vw);
+  --gir-selected: #e06a6a;
+  --gir-selected-text: #1f1f1f;
+  --gir-hit-selected: #2d7d46;
+  --gir-hit-text: #ffffff;
+  position: relative;
+  width: var(--gir-size);
+  height: var(--gir-size);
+  margin: 0 auto;
+  display: block;
+  border-radius: 50%;
+  overflow: hidden;
 }
 
 .fairway-menu {
@@ -374,6 +394,34 @@ button:active {
   border-radius: 999px;
   font-size: 0.8rem;
   padding: 0;
+}
+
+.gir-menu .directional-btn {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: #eef3fb;
+  color: #2b2b2b;
+  font-weight: 600;
+  font-size: 1.02rem;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 0 0 7px #f8f9fe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  text-align: center;
+}
+
+.gir-menu .directional-btn:focus-visible {
+  outline: 3px solid #2d7d46;
+  outline-offset: 4px;
+}
+
+.gir-menu .directional-btn.active {
+  background: var(--gir-selected);
+  color: var(--gir-selected-text);
+  box-shadow: inset 0 0 0 6px #f8f9fe;
 }
 
 .directional-btn.active {
@@ -407,6 +455,60 @@ button:active {
   grid-row: 3;
 }
 
+.gir-menu .directional-btn.long {
+  clip-path: polygon(50% 50%, 100% 0%, 0% 0%);
+  -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  align-items: flex-start;
+  padding-top: 34px;
+}
+
+.gir-menu .directional-btn.left {
+  clip-path: polygon(50% 50%, 0% 0%, 0% 100%);
+  -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  justify-content: flex-start;
+  padding-left: 30px;
+}
+
+.gir-menu .directional-btn.right {
+  clip-path: polygon(50% 50%, 100% 0%, 100% 100%);
+  -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  justify-content: flex-end;
+  padding-right: 18px;
+}
+
+.gir-menu .directional-btn.short {
+  clip-path: polygon(50% 50%, 0% 100%, 100% 100%);
+  -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
+  align-items: flex-end;
+  padding-bottom: 34px;
+}
+
+.gir-menu .directional-btn.center {
+  width: 92px;
+  height: 92px;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #f7f2f2;
+  color: #2b2b2b;
+  box-shadow: 0 0 0 12px #f8f9fe;
+  font-size: 0.95rem;
+  text-transform: none;
+  padding: 0;
+  z-index: 2;
+}
+
+.gir-menu .directional-btn.center.active {
+  background: var(--gir-hit-selected);
+  color: var(--gir-hit-text);
+}
+
 .stat-row,
 .total-row {
   display: flex;
@@ -437,6 +539,27 @@ button:active {
 
 .manual-save-row {
   margin-bottom: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #d4decc;
+}
+
+.manual-save-row .save-btn {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 12px;
+  background: #2d7d46;
+  color: #fff;
+  border: 1px solid #2d7d46;
+  box-shadow: 0 8px 18px rgba(45, 125, 70, 0.18);
+}
+
+.manual-save-row .save-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .course-setup-list {

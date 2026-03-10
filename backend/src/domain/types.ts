@@ -1,8 +1,9 @@
-import type { COUNTER_OPTIONS, FAIRWAY_KEYS, GIR_KEYS, CLUB_OPTIONS } from '../constants.js';
+import type { BUNKER_KEYS, COUNTER_OPTIONS, FAIRWAY_KEYS, GIR_KEYS, CLUB_OPTIONS } from '../constants.js';
 
 export type CounterOption = (typeof COUNTER_OPTIONS)[number];
 export type FairwaySelection = (typeof FAIRWAY_KEYS)[number];
 export type GirSelection = (typeof GIR_KEYS)[number];
+export type BunkerSelection = (typeof BUNKER_KEYS)[number];
 export type ClubOption = (typeof CLUB_OPTIONS)[number];
 
 export type LatLng = {
@@ -15,6 +16,7 @@ export type HoleStats = {
   holeIndex: number;
   fairwaySelection: FairwaySelection | null;
   girSelection: GirSelection | null;
+  bunkerSelection: BunkerSelection | null;
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
 } & Record<CounterOption, number>;
