@@ -1,12 +1,7 @@
-import {
-  CLUB_OPTION_SET,
-  COUNTER_OPTIONS,
-  HOLES,
-  VALID_FAIRWAY_KEYS,
-  VALID_GIR_KEYS,
-} from '../constants.js';
+import { COUNTER_OPTIONS, HOLES } from '../constants.js';
 import type { ClubCarryByClub, CourseMarkersByHole, LatLng, StatsByHole } from './types.js';
 import { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
+import { isClubOption, isFairwaySelection, isGirSelection } from './guards.js';
 
 export const sanitizeLatLng = (value: unknown): LatLng | null => {
   if (!value || typeof value !== 'object') {
@@ -46,10 +41,10 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
     const holeIndex = Number(holeRaw.holeIndex);
     safe[hole].holeIndex = Number.isFinite(holeIndex) ? Math.min(18, Math.max(1, Math.floor(holeIndex))) : hole;
 
-    safe[hole].fairwaySelection = VALID_FAIRWAY_KEYS.has(holeRaw.fairwaySelection)
+    safe[hole].fairwaySelection = isFairwaySelection(holeRaw.fairwaySelection)
       ? holeRaw.fairwaySelection
       : null;
-    safe[hole].girSelection = VALID_GIR_KEYS.has(holeRaw.girSelection) ? holeRaw.girSelection : null;
+    safe[hole].girSelection = isGirSelection(holeRaw.girSelection) ? holeRaw.girSelection : null;
     safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
   });
@@ -117,7 +112,7 @@ export const sanitizeClubCarryPayload = (raw: unknown): ClubCarryByClub => {
   }
 
   return Object.entries(raw as Record<string, unknown>).reduce((acc, [club, carryValue]) => {
-    if (!CLUB_OPTION_SET.has(club)) {
+    if (!isClubOption(club)) {
       return acc;
     }
 

@@ -27,7 +27,7 @@ export const listRounds = async () => {
     'SELECT id, name, course_id, created_at, updated_at FROM rounds ORDER BY updated_at DESC, created_at DESC',
   );
 
-  return result.rows.map((row) => ({
+  return result.rows.map((row: any) => ({
     id: String(row.id),
     name: sanitizeRoundName(row.name),
     courseId: row.course_id ? String(row.course_id) : '',
