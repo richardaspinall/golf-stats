@@ -731,6 +731,29 @@ const createWedgeMatrixInApi = async ({ name, stanceWidth, grip, ballPosition, n
   return data?.matrix ? normalizeWedgeMatrix(data.matrix) : null;
 };
 
+const loadClubActualEntriesFromApi = async (token) => {
+  const response = await requestApi(`${API_CLUB_ACTUALS_URL}/entries`, { token });
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to load shot log (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.entries) ? data.entries : [];
+};
+
+const deleteClubActualEntryInApi = async (entryId, token) => {
+  const response = await requestApi(`${API_CLUB_ACTUALS_URL}/entries/${encodeURIComponent(entryId)}`, {
+    method: 'DELETE',
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to delete shot log (${response.status})`, response.status, details);
+  }
+};
+
 const deleteWedgeMatrixInApi = async (id, token) => {
   const response = await requestApi(`${API_WEDGE_MATRICES_URL}/${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -787,7 +810,9 @@ export default function App() {
   const [saveState, setSaveState] = useState('loading');
   const [isSwitchingRound, setIsSwitchingRound] = useState(false);
   const [targetDistanceMeters, setTargetDistanceMeters] = useState(0);
+  const [actualDistanceMeters, setActualDistanceMeters] = useState(120);
   const [actualDistancePaces, setActualDistancePaces] = useState(() => metersToPaces(120));
+  const [actualDistanceUnit, setActualDistanceUnit] = useState('paces');
   const [offlineMeters, setOfflineMeters] = useState(0);
   const [distanceMode, setDistanceMode] = useState('view');
   const [setupSelection, setSetupSelection] = useState('');
@@ -798,6 +823,10 @@ export default function App() {
   const [isLoadingClubAverages, setIsLoadingClubAverages] = useState(false);
   const [clubAveragesError, setClubAveragesError] = useState('');
   const [clubAveragesDirty, setClubAveragesDirty] = useState(true);
+  const [clubActualEntries, setClubActualEntries] = useState([]);
+  const [isLoadingClubActualEntries, setIsLoadingClubActualEntries] = useState(false);
+  const [clubActualEntriesError, setClubActualEntriesError] = useState('');
+  const [clubActualEntriesDirty, setClubActualEntriesDirty] = useState(true);
   const [shotLogSaveState, setShotLogSaveState] = useState('idle');
   const [clubCarryByClub, setClubCarryByClub] = useState({});
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
@@ -818,6 +847,8 @@ export default function App() {
   const [wedgeClubSelection, setWedgeClubSelection] = useState('');
   const [wedgeSwingClock, setWedgeSwingClock] = useState('');
   const [wedgeDistanceMeters, setWedgeDistanceMeters] = useState(60);
+  const [wedgeDistancePaces, setWedgeDistancePaces] = useState(() => metersToPaces(60));
+  const [wedgeDistanceUnit, setWedgeDistanceUnit] = useState('meters');
   const [wedgeEntryError, setWedgeEntryError] = useState('');
   const [wedgeEntrySaveState, setWedgeEntrySaveState] = useState('idle');
   const [wedgeEntriesError, setWedgeEntriesError] = useState('');
@@ -902,6 +933,9 @@ export default function App() {
     setClubAverages([]);
     setClubAveragesError('');
     setClubAveragesDirty(true);
+    setClubActualEntries([]);
+    setClubActualEntriesError('');
+    setClubActualEntriesDirty(true);
     setShotLogSaveState('idle');
     setShowNewRoundForm(false);
     setSaveState('loading');
@@ -1980,6 +2014,8 @@ export default function App() {
     setWedgeClubSelection(entry.club);
     setWedgeSwingClock(entry.swingClock);
     setWedgeDistanceMeters(entry.distanceMeters);
+    setWedgeDistancePaces(metersToPaces(entry.distanceMeters));
+    setWedgeDistanceUnit('meters');
     setWedgeEntryError('');
     setWedgeEntrySaveState('idle');
     setIsWedgeFormOpen(true);
@@ -2147,9 +2183,12 @@ export default function App() {
       return;
     }
 
-    const distanceMeters = Math.round(Number(wedgeDistanceMeters));
+    const rawDistance =
+      wedgeDistanceUnit === 'paces' ? Number(wedgeDistancePaces) : Number(wedgeDistanceMeters);
+    const distanceMeters =
+      wedgeDistanceUnit === 'paces' ? pacesToMeters(rawDistance) : Math.round(rawDistance);
     if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
-      setWedgeEntryError('Enter a distance in meters.');
+      setWedgeEntryError('Enter a distance.');
       return;
     }
 
@@ -2262,7 +2301,8 @@ export default function App() {
   };
 
   const addShotPrototypeNote = async () => {
-    const actualDistanceMeters = pacesToMeters(actualDistancePaces);
+    const actualDistanceMetersValue =
+      actualDistanceUnit === 'meters' ? Number(actualDistanceMeters) : pacesToMeters(actualDistancePaces);
     const selectedSetup = SHOT_SETUP_OPTIONS.find((option) => option.key === setupSelection);
     const setupText = selectedSetup ? selectedSetup.label : 'No setup notes';
     const clubText = clubSelection || 'No club selected';
@@ -2273,7 +2313,7 @@ export default function App() {
     const swingText = swingClock ? `Swing ${swingClock}` : 'No swing clock';
     const summaryParts = [
       targetText,
-      `Actual ${actualDistanceMeters}m`,
+      `Actual ${actualDistanceMetersValue}m`,
       offlineText,
       clubText,
       `Lie ${lieText}`,
@@ -2289,7 +2329,7 @@ export default function App() {
     setRoundNotes(updatedNotes);
     setShowDistanceTracker(false);
 
-    if (!authToken || !CLUB_OPTION_SET.has(clubSelection) || actualDistanceMeters <= 0) {
+    if (!authToken || !CLUB_OPTION_SET.has(clubSelection) || actualDistanceMetersValue <= 0) {
       return;
     }
 
@@ -2322,8 +2362,9 @@ export default function App() {
 
     setShotLogSaveState('saving');
     try {
-      await saveClubActualToApi({ club: clubSelection, actualMeters: actualDistanceMeters }, authToken);
+      await saveClubActualToApi({ club: clubSelection, actualMeters: actualDistanceMetersValue }, authToken);
       setClubAveragesDirty(true);
+      setClubActualEntriesDirty(true);
       setShotLogSaveState('saved');
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -2332,6 +2373,28 @@ export default function App() {
       }
 
       setShotLogSaveState('error');
+    }
+  };
+
+  const deleteClubActualEntry = async (entryId) => {
+    if (!authToken) {
+      return;
+    }
+
+    const previousEntries = clubActualEntries;
+    setClubActualEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+    setClubActualEntriesError('');
+    try {
+      await deleteClubActualEntryInApi(entryId, authToken);
+      setClubAveragesDirty(true);
+      setClubActualEntriesDirty(true);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+      setClubActualEntries(previousEntries);
+      setClubActualEntriesError('Unable to delete shot log right now.');
     }
   };
 
@@ -2594,6 +2657,70 @@ export default function App() {
     };
   }, [authToken, page, clubAveragesDirty]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadClubActualEntries = async () => {
+      if (!authToken || page !== 'distance' || distanceMode !== 'setup') {
+        return;
+      }
+
+      if (!clubActualEntriesDirty) {
+        return;
+      }
+
+      setIsLoadingClubActualEntries(true);
+      setClubActualEntriesError('');
+      try {
+        const entries = await loadClubActualEntriesFromApi(authToken);
+        if (!isActive) {
+          return;
+        }
+
+        const sanitized = entries
+          .map((entry) => ({
+            id: Number(entry.id),
+            club: String(entry.club || ''),
+            actualMeters: Number(entry.actualMeters),
+            createdAt: entry.createdAt,
+          }))
+          .filter(
+            (entry) =>
+              Number.isFinite(entry.id) &&
+              entry.id > 0 &&
+              entry.club &&
+              Number.isFinite(entry.actualMeters) &&
+              entry.actualMeters > 0,
+          );
+
+        setClubActualEntries(sanitized);
+        setClubActualEntriesDirty(false);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setClubActualEntries([]);
+        setClubActualEntriesError('Unable to load shot log right now.');
+      } finally {
+        if (isActive) {
+          setIsLoadingClubActualEntries(false);
+        }
+      }
+    };
+
+    loadClubActualEntries();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken, page, distanceMode, clubActualEntriesDirty]);
+
   const setCarryForClub = (club, rawValue) => {
     const sanitized = sanitizeCarryMeters(rawValue);
     setClubCarryByClub((prev) => {
@@ -2814,18 +2941,60 @@ export default function App() {
                     </div>
 
                     <div className="prototype-block">
-                      <div className="distance-header">
-                        <span>Actual distance</span>
-                        <strong>{actualDistancePaces} paces</strong>
+                      <h3 className="section-title">Actual distance</h3>
+                      <div className="unit-toggle" role="group" aria-label="Actual distance unit">
+                        <button
+                          type="button"
+                          className={actualDistanceUnit === 'meters' ? 'club-btn active' : 'club-btn'}
+                          onClick={() => {
+                            setActualDistanceUnit('meters');
+                            setActualDistanceMeters(pacesToMeters(actualDistancePaces));
+                          }}
+                        >
+                          Meters
+                        </button>
+                        <button
+                          type="button"
+                          className={actualDistanceUnit === 'paces' ? 'club-btn active' : 'club-btn'}
+                          onClick={() => {
+                            setActualDistanceUnit('paces');
+                            setActualDistancePaces(metersToPaces(actualDistanceMeters));
+                          }}
+                        >
+                          Paces
+                        </button>
                       </div>
-                      <input
-                        type="range"
-                        min={metersToPaces(10)}
-                        max={metersToPaces(300)}
-                        step={1}
-                        value={actualDistancePaces}
-                        onChange={(event) => setActualDistancePaces(Number(event.target.value))}
-                      />
+                      {actualDistanceUnit === 'meters' ? (
+                        <>
+                          <div className="distance-header">
+                            <span>Meters</span>
+                            <strong>{actualDistanceMeters}m</strong>
+                          </div>
+                          <input
+                            type="range"
+                            min={10}
+                            max={300}
+                            step={1}
+                            value={actualDistanceMeters}
+                            onChange={(event) => setActualDistanceMeters(Number(event.target.value))}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <div className="distance-header">
+                            <span>Paces</span>
+                            <strong>{actualDistancePaces}</strong>
+                          </div>
+                          <input
+                            type="range"
+                            min={metersToPaces(10)}
+                            max={metersToPaces(300)}
+                            step={1}
+                            value={actualDistancePaces}
+                            onChange={(event) => setActualDistancePaces(Number(event.target.value))}
+                          />
+                        </>
+                      )}
                     </div>
 
                     <div className="prototype-block">
@@ -3378,6 +3547,47 @@ export default function App() {
                 <h2>Distances</h2>
               </div>
               <p className="hint">Use this tab to capture distance, setup choices, and swing clock feel.</p>
+              {distanceMode === 'setup' ? (
+                <div className="distance-log">
+                  <div className="distance-log-header">
+                    <h3>Saved distances</h3>
+                    <button
+                      type="button"
+                      onClick={() => setClubActualEntriesDirty(true)}
+                      disabled={isLoadingClubActualEntries}
+                    >
+                      {isLoadingClubActualEntries ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+                  {isLoadingClubActualEntries ? <p className="hint">Loading shot log...</p> : null}
+                  {!isLoadingClubActualEntries && clubActualEntriesError ? (
+                    <p className="hint">{clubActualEntriesError}</p>
+                  ) : null}
+                  {!isLoadingClubActualEntries && !clubActualEntriesError ? (
+                    clubActualEntries.length > 0 ? (
+                      <div className="distance-log-list">
+                        {clubActualEntries.map((entry) => (
+                          <div key={entry.id} className="distance-log-row">
+                            <div className="distance-log-meta">
+                              <strong>{entry.club}</strong>
+                              <span>{entry.actualMeters}m</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="reset-btn"
+                              onClick={() => deleteClubActualEntry(entry.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="hint">No saved distances yet.</p>
+                    )
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="distance-averages">
                 <h3>Club distance averages</h3>
@@ -3645,17 +3855,60 @@ export default function App() {
                           </div>
                         </div>
                         <div className="prototype-block">
-                          <label className="wedge-distance-field">
-                            Distance (m)
-                            <input
-                              type="number"
-                              min={10}
-                              max={150}
-                              step={1}
-                              value={wedgeDistanceMeters}
-                              onChange={(event) => setWedgeDistanceMeters(event.target.value)}
-                            />
-                          </label>
+                          <h3 className="section-title">Distance</h3>
+                          <div className="unit-toggle" role="group" aria-label="Distance unit">
+                            <button
+                              type="button"
+                              className={wedgeDistanceUnit === 'meters' ? 'club-btn active' : 'club-btn'}
+                              onClick={() => {
+                                setWedgeDistanceUnit('meters');
+                                setWedgeDistanceMeters(pacesToMeters(wedgeDistancePaces));
+                              }}
+                            >
+                              Meters
+                            </button>
+                            <button
+                              type="button"
+                              className={wedgeDistanceUnit === 'paces' ? 'club-btn active' : 'club-btn'}
+                              onClick={() => {
+                                setWedgeDistanceUnit('paces');
+                                setWedgeDistancePaces(metersToPaces(wedgeDistanceMeters));
+                              }}
+                            >
+                              Paces
+                            </button>
+                          </div>
+                          {wedgeDistanceUnit === 'paces' ? (
+                            <>
+                              <div className="distance-header">
+                                <span>Paces</span>
+                                <strong>{wedgeDistancePaces}</strong>
+                              </div>
+                              <input
+                                type="range"
+                                min={metersToPaces(10)}
+                                max={metersToPaces(150)}
+                                step={1}
+                                value={wedgeDistancePaces}
+                                onChange={(event) => setWedgeDistancePaces(Number(event.target.value))}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <div className="distance-header">
+                                <span>Meters</span>
+                                <strong>{wedgeDistanceMeters}m</strong>
+                              </div>
+                              <input
+                                type="range"
+                                min={10}
+                                max={150}
+                                step={1}
+                                value={wedgeDistanceMeters}
+                                onChange={(event) => setWedgeDistanceMeters(Number(event.target.value))}
+                              />
+                            </>
+                          )}
                         </div>
                         <div className="manual-save-row">
                           <button type="submit" className="save-btn">

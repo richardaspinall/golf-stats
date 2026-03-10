@@ -6,7 +6,14 @@ import { getDbDebugStatus } from './db/debug.js';
 import { ensureSchema } from './db/schema.js';
 import { deleteRoundById, getRoundById, insertRound, listRounds, updateRound } from './db/rounds.js';
 import { getCourseById, insertCourse, listCourses, updateCourse } from './db/courses.js';
-import { insertClubActualDistance, listClubActualAverages, listClubCarry, saveClubCarry } from './db/club.js';
+import {
+  deleteClubActualEntry,
+  insertClubActualDistance,
+  listClubActualAverages,
+  listClubActualEntries,
+  listClubCarry,
+  saveClubCarry,
+} from './db/club.js';
 import {
   deleteWedgeEntry,
   deleteWedgeMatrix,
@@ -269,6 +276,23 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       } catch (error: any) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
+      return;
+    }
+
+    if (pathname === '/api/club-actuals/entries' && method === 'GET') {
+      sendJson(res, 200, { entries: await listClubActualEntries() });
+      return;
+    }
+
+    const clubActualEntryMatch = pathname.match(/^\/api\/club-actuals\/entries\/(\d+)$/);
+    if (clubActualEntryMatch && method === 'DELETE') {
+      const entryId = Number(clubActualEntryMatch[1]);
+      if (!Number.isFinite(entryId) || entryId <= 0) {
+        sendJson(res, 400, { ok: false, error: 'Invalid entry id' });
+        return;
+      }
+      const deleted = await deleteClubActualEntry(entryId);
+      sendJson(res, deleted ? 200 : 404, { ok: deleted });
       return;
     }
 

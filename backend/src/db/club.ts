@@ -1,6 +1,6 @@
 import { sanitizeActualMeters, sanitizeCarryMeters, sanitizeClubCarryPayload } from '../domain/sanitize.js';
 import { isClubOption } from '../domain/guards.js';
-import type { ClubAveragesByClub, ClubCarryByClub } from '../domain/types.js';
+import type { ClubActualEntry, ClubAveragesByClub, ClubCarryByClub } from '../domain/types.js';
 import { getPool } from './pool.js';
 
 export const listClubCarry = async () => {
@@ -113,4 +113,40 @@ export const listClubActualAverages = async () => {
     };
     return acc;
   }, {} as ClubAveragesByClub);
+};
+
+export const listClubActualEntries = async () => {
+  const db = getPool();
+  const result = await db.query(
+    `
+      SELECT id, club, actual_meters, created_at
+      FROM club_actual_distances
+      ORDER BY created_at DESC
+      LIMIT 20
+    `,
+  );
+
+  return result.rows.reduce((acc: ClubActualEntry[], row: any) => {
+    const club = String(row.club || '');
+    if (!isClubOption(club)) {
+      return acc;
+    }
+    const actualMeters = Number(row.actual_meters);
+    if (!Number.isFinite(actualMeters) || actualMeters <= 0) {
+      return acc;
+    }
+    acc.push({
+      id: Number(row.id),
+      club,
+      actualMeters: Math.floor(actualMeters),
+      createdAt: new Date(row.created_at).toISOString(),
+    });
+    return acc;
+  }, []);
+};
+
+export const deleteClubActualEntry = async (entryId: number) => {
+  const db = getPool();
+  const result = await db.query('DELETE FROM club_actual_distances WHERE id = $1 RETURNING id', [entryId]);
+  return result.rows.length > 0;
 };
