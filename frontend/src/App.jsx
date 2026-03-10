@@ -760,6 +760,7 @@ export default function App() {
   const [targetDistanceMeters, setTargetDistanceMeters] = useState(0);
   const [actualDistancePaces, setActualDistancePaces] = useState(() => metersToPaces(120));
   const [offlineMeters, setOfflineMeters] = useState(0);
+  const [distanceMode, setDistanceMode] = useState('view');
   const [setupSelection, setSetupSelection] = useState('');
   const [swingClock, setSwingClock] = useState('');
   const [clubSelection, setClubSelection] = useState('');
@@ -773,7 +774,7 @@ export default function App() {
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
   const [isWedgeFormOpen, setIsWedgeFormOpen] = useState(false);
   const [activeWedgeMatrixId, setActiveWedgeMatrixId] = useState(null);
-  const [wedgeMatrixMode, setWedgeMatrixMode] = useState('setup');
+  const [wedgeMatrixMode, setWedgeMatrixMode] = useState('view');
   const [isWedgeMatrixFormOpen, setIsWedgeMatrixFormOpen] = useState(false);
   const [wedgeMatrixName, setWedgeMatrixName] = useState('');
   const [wedgeMatrixStanceWidth, setWedgeMatrixStanceWidth] = useState('');
@@ -872,6 +873,7 @@ export default function App() {
     setSaveState('loading');
     setClubCarryByClub({});
     setClubCarrySaveState('saved');
+    setDistanceMode('setup');
     setIsWedgeFormOpen(false);
     setActiveWedgeMatrixId(null);
     setWedgeMatrixMode('setup');
@@ -2372,7 +2374,7 @@ export default function App() {
     let isActive = true;
 
     const loadClubAverages = async () => {
-      if (!authToken || page !== 'clubAverages') {
+      if (!authToken || page !== 'distance') {
         return;
       }
 
@@ -2559,12 +2561,6 @@ export default function App() {
               onClick={() => setPage('wedgeMatrix')}
             >
               Wedge matrix
-            </button>
-            <button
-              className={page === 'clubAverages' ? 'tab-btn active' : 'tab-btn'}
-              onClick={() => setPage('clubAverages')}
-            >
-              Club averages
             </button>
             <button className={page === 'totals' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('totals')}>
               Round totals
@@ -2962,156 +2958,239 @@ export default function App() {
             </section>
           ) : page === 'distance' ? (
             <section className="card" aria-label="distance setup prototype">
-              <h2>Distances</h2>
+              <div className="card-header">
+                <h2>Distances</h2>
+                {distanceMode === 'setup' ? (
+                  <button type="button" className="setup-toggle" onClick={() => setDistanceMode('view')}>
+                    Close setup
+                  </button>
+                ) : (
+                  <button type="button" className="setup-toggle" onClick={() => setDistanceMode('setup')}>
+                    Set up
+                  </button>
+                )}
+              </div>
               <p className="hint">Use this tab to capture distance, setup choices, and swing clock feel.</p>
 
-              <div className="prototype-block">
-                <div className="distance-header">
-                  <span>Target distance</span>
-                  <strong>{targetDistanceMeters === 0 ? 'Off' : `${targetDistanceMeters}m`}</strong>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={300}
-                  step={1}
-                  value={targetDistanceMeters}
-                  onChange={(event) => setTargetDistanceMeters(Number(event.target.value))}
-                />
-              </div>
-
-              <div className="prototype-block">
-                <div className="distance-header">
-                  <span>Actual distance</span>
-                  <strong>{actualDistancePaces} paces</strong>
-                </div>
-                <input
-                  type="range"
-                  min={metersToPaces(10)}
-                  max={metersToPaces(300)}
-                  step={1}
-                  value={actualDistancePaces}
-                  onChange={(event) => setActualDistancePaces(Number(event.target.value))}
-                />
-              </div>
-
-              <div className="prototype-block">
-                <div className="distance-header">
-                  <span>Offline</span>
-                  <strong>
-                    {offlineMeters === 0
-                      ? 'Off'
-                      : `${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`}
-                  </strong>
-                </div>
-                <input
-                  type="range"
-                  min={-50}
-                  max={50}
-                  step={1}
-                  value={offlineMeters}
-                  onChange={(event) => setOfflineMeters(Number(event.target.value))}
-                />
-              </div>
-
-              <div className="prototype-block">
-                <h3 className="section-title">Club</h3>
-                <div className="club-groups" role="group" aria-label="Club selection">
-                  {CLUB_GROUPS.map((group) => (
-                    <div key={group.label} className="club-group">
-                      <h4 className="club-group-title">{group.label}</h4>
-                      <div className="club-row">
-                        {group.options.map((club) => (
-                          <button
-                            key={club}
-                            className={clubSelection === club ? 'club-btn active' : 'club-btn'}
-                            onClick={() => setClubSelection((prev) => (prev === club ? '' : club))}
-                          >
-                            {club}
-                          </button>
-                        ))}
-                      </div>
+              {distanceMode === 'setup' ? (
+                <>
+                  <div className="prototype-block">
+                    <div className="distance-header">
+                      <span>Target distance</span>
+                      <strong>{targetDistanceMeters === 0 ? 'Off' : `${targetDistanceMeters}m`}</strong>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={300}
+                      step={1}
+                      value={targetDistanceMeters}
+                      onChange={(event) => setTargetDistanceMeters(Number(event.target.value))}
+                    />
+                  </div>
 
-              <div className="prototype-block">
-                <h3 className="section-title">Lie</h3>
-                <div className="club-row" role="group" aria-label="Lie selection">
-                  {LIE_OPTIONS.map((lie) => (
-                    <button
-                      key={lie}
-                      className={lieSelection === lie ? 'club-btn active' : 'club-btn'}
-                      onClick={() => setLieSelection((prev) => (prev === lie ? '' : lie))}
-                    >
-                      {lie}
+                  <div className="prototype-block">
+                    <div className="distance-header">
+                      <span>Actual distance</span>
+                      <strong>{actualDistancePaces} paces</strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={metersToPaces(10)}
+                      max={metersToPaces(300)}
+                      step={1}
+                      value={actualDistancePaces}
+                      onChange={(event) => setActualDistancePaces(Number(event.target.value))}
+                    />
+                  </div>
+
+                  <div className="prototype-block">
+                    <div className="distance-header">
+                      <span>Offline</span>
+                      <strong>
+                        {offlineMeters === 0
+                          ? 'Off'
+                          : `${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`}
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={-50}
+                      max={50}
+                      step={1}
+                      value={offlineMeters}
+                      onChange={(event) => setOfflineMeters(Number(event.target.value))}
+                    />
+                  </div>
+
+                  <div className="prototype-block">
+                    <h3 className="section-title">Club</h3>
+                    <div className="club-groups" role="group" aria-label="Club selection">
+                      {CLUB_GROUPS.map((group) => (
+                        <div key={group.label} className="club-group">
+                          <h4 className="club-group-title">{group.label}</h4>
+                          <div className="club-row">
+                            {group.options.map((club) => (
+                              <button
+                                key={club}
+                                className={clubSelection === club ? 'club-btn active' : 'club-btn'}
+                                onClick={() => setClubSelection((prev) => (prev === club ? '' : club))}
+                              >
+                                {club}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="prototype-block">
+                    <h3 className="section-title">Lie</h3>
+                    <div className="club-row" role="group" aria-label="Lie selection">
+                      {LIE_OPTIONS.map((lie) => (
+                        <button
+                          key={lie}
+                          className={lieSelection === lie ? 'club-btn active' : 'club-btn'}
+                          onClick={() => setLieSelection((prev) => (prev === lie ? '' : lie))}
+                        >
+                          {lie}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="prototype-block">
+                    <h3 className="section-title">Setup notes</h3>
+                    <div className="quick-notes-row" role="group" aria-label="Setup note buttons">
+                      {SHOT_SETUP_OPTIONS.map((option) => (
+                        <button
+                          key={option.key}
+                          className={setupSelection === option.key ? 'quick-note-btn active' : 'quick-note-btn'}
+                          onClick={() => toggleSetupSelection(option.key)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="prototype-block">
+                    <h3 className="section-title">Clock system</h3>
+                    <div className="clock-row" role="group" aria-label="Swing clock">
+                      {SWING_CLOCK_OPTIONS.map((clock) => (
+                        <button
+                          key={clock}
+                          className={swingClock === clock ? 'clock-btn active' : 'clock-btn'}
+                          onClick={() => setSwingClock((prev) => (prev === clock ? '' : clock))}
+                        >
+                          {clock}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="manual-save-row">
+                    <button className="save-btn" onClick={addShotPrototypeNote}>
+                      Save distance
                     </button>
-                  ))}
-                </div>
-              </div>
+                  </div>
+                  {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
+                </>
+              ) : null}
 
-              <div className="prototype-block">
-                <h3 className="section-title">Setup notes</h3>
-                <div className="quick-notes-row" role="group" aria-label="Setup note buttons">
-                  {SHOT_SETUP_OPTIONS.map((option) => (
-                    <button
-                      key={option.key}
-                      className={setupSelection === option.key ? 'quick-note-btn active' : 'quick-note-btn'}
-                      onClick={() => toggleSetupSelection(option.key)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+              <div className="distance-averages">
+                <h3>Club distance averages</h3>
+                <p className="hint">Averages are based on your independent shot log and are not deleted with rounds.</p>
+                {isLoadingClubAverages ? <p className="hint">Loading averages...</p> : null}
+                {!isLoadingClubAverages && clubAveragesError ? <p className="hint">{clubAveragesError}</p> : null}
+                {!isLoadingClubAverages && !clubAveragesError ? (
+                  clubAverages.length > 0 ? (
+                    <div className="distance-table">
+                      <table className="wedge-matrix-table">
+                        <thead>
+                          <tr>
+                            <th>Club</th>
+                            <th>Carry</th>
+                            <th>Total (X shots)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {clubAverages.map((entry) => {
+                            const carryValue = clubCarryByClub[entry.club];
+                            const totalLabel =
+                              entry.avgMeters !== null ? `${entry.avgMeters}m (${entry.shots} shots)` : 'No data yet';
+                            return (
+                              <tr key={entry.club}>
+                                <td className="wedge-label">{entry.club}</td>
+                                <td>
+                                  {distanceMode === 'setup' ? (
+                                    <label className="carry-field">
+                                      Carry
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={400}
+                                        step={1}
+                                        value={carryValue ?? ''}
+                                        onChange={(event) => setCarryForClub(entry.club, event.target.value)}
+                                        placeholder="m"
+                                      />
+                                    </label>
+                                  ) : (
+                                    <span>{carryValue != null ? `${carryValue}m` : '—'}</span>
+                                  )}
+                                </td>
+                                <td>{totalLabel}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="hint">No saved shot-note data found yet.</p>
+                  )
+                ) : null}
+                {distanceMode === 'setup' ? (
+                  <>
+                    <p className="hint">Carry save: {clubCarrySaveState}</p>
+                    <div className="manual-save-row">
+                      <button
+                        className="save-btn"
+                        onClick={saveClubCarry}
+                        disabled={clubCarrySaveState === 'saving' || clubCarrySaveState === 'loading'}
+                      >
+                        {clubCarrySaveState === 'saving' ? 'Saving...' : 'Save carry'}
+                      </button>
+                    </div>
+                  </>
+                ) : null}
               </div>
-
-              <div className="prototype-block">
-                <h3 className="section-title">Clock system</h3>
-                <div className="clock-row" role="group" aria-label="Swing clock">
-                  {SWING_CLOCK_OPTIONS.map((clock) => (
-                    <button
-                      key={clock}
-                      className={swingClock === clock ? 'clock-btn active' : 'clock-btn'}
-                      onClick={() => setSwingClock((prev) => (prev === clock ? '' : clock))}
-                    >
-                      {clock}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="manual-save-row">
-                <button className="save-btn" onClick={addShotPrototypeNote}>
-                  Save distance
-                </button>
-              </div>
-              {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
             </section>
           ) : page === 'wedgeMatrix' ? (
             <section className="card" aria-label="wedge matrix">
-              <h2>Wedge matrix</h2>
-              <p className="hint">Capture wedge distances by clock system and compare setups.</p>
-              <div className="wedge-mode-toggle">
-                <button
-                  type="button"
-                  className={wedgeMatrixMode === 'setup' ? 'tab-btn active' : 'tab-btn'}
-                  onClick={() => setWedgeMatrixMode('setup')}
-                >
-                  Setup
-                </button>
-                <button
-                  type="button"
-                  className={wedgeMatrixMode === 'view' ? 'tab-btn active' : 'tab-btn'}
-                  onClick={() => {
-                    setWedgeMatrixMode('view');
-                    setIsWedgeFormOpen(false);
-                    setEditingWedgeEntryId(null);
-                  }}
-                >
-                  View only
-                </button>
+              <div className="card-header">
+                <h2>Wedge matrix</h2>
+                {wedgeMatrixMode === 'setup' ? (
+                  <button
+                    type="button"
+                    className="setup-toggle"
+                    onClick={() => {
+                      setWedgeMatrixMode('view');
+                      setIsWedgeFormOpen(false);
+                      setEditingWedgeEntryId(null);
+                    }}
+                  >
+                    Close setup
+                  </button>
+                ) : (
+                  <button type="button" className="setup-toggle" onClick={() => setWedgeMatrixMode('setup')}>
+                    Set up
+                  </button>
+                )}
               </div>
+              <p className="hint">Capture wedge distances by clock system and compare setups.</p>
               {wedgeMatrixMode === 'setup' ? (
                 <div className="manual-save-row">
                   <button
@@ -3399,51 +3478,7 @@ export default function App() {
                 );
               })}
             </section>
-          ) : (
-            <section className="card" aria-label="club distance averages">
-              <h2>Club distance averages</h2>
-              <p className="hint">Averages are based on your independent shot log and are not deleted with rounds.</p>
-              <p className="hint">Carry save: {clubCarrySaveState}</p>
-              <div className="manual-save-row">
-                <button
-                  onClick={saveClubCarry}
-                  disabled={clubCarrySaveState === 'saving' || clubCarrySaveState === 'loading'}
-                >
-                  {clubCarrySaveState === 'saving' ? 'Saving...' : 'Save carry'}
-                </button>
-              </div>
-              {isLoadingClubAverages ? <p className="hint">Loading averages...</p> : null}
-              {!isLoadingClubAverages && clubAveragesError ? <p className="hint">{clubAveragesError}</p> : null}
-              {!isLoadingClubAverages && !clubAveragesError ? (
-                clubAverages.length > 0 ? (
-                  <div className="average-list">
-                    {clubAverages.map((entry) => (
-                      <div key={entry.club} className="average-row">
-                        <span className="average-club">{entry.club}</span>
-                        <strong className="average-metrics">
-                          {entry.avgMeters !== null ? `${entry.avgMeters}m (${entry.shots} shots)` : 'No data yet'}
-                        </strong>
-                        <label className="carry-field">
-                          Carry
-                          <input
-                            type="number"
-                            min={0}
-                            max={400}
-                            step={1}
-                            value={clubCarryByClub[entry.club] ?? ''}
-                            onChange={(event) => setCarryForClub(entry.club, event.target.value)}
-                            placeholder="m"
-                          />
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="hint">No saved shot-note data found yet.</p>
-                )
-              ) : null}
-            </section>
-          )}
+          ) : null}
 
           <section className="card" aria-label="round notes">
             <h2>Notes</h2>
