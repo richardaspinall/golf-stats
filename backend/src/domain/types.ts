@@ -69,6 +69,13 @@ export type ClubActualAverage = {
 
 export type ClubAveragesByClub = Partial<Record<ClubOption, ClubActualAverage>>;
 
+export type ClubActualEntry = {
+  id: number;
+  club: ClubOption;
+  actualMeters: number;
+  createdAt: string;
+};
+
 export type WedgeEntry = {
   id: number;
   matrixId: number;

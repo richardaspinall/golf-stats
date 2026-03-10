@@ -721,7 +721,8 @@ button:active {
 
 .club-row,
 .quick-notes-row,
-.clock-row {
+.clock-row,
+.unit-toggle {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -900,6 +901,57 @@ button:active {
   margin-top: 12px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.distance-log {
+  margin: 16px 0 20px;
+  padding: 12px;
+  border: 1px solid #d4decc;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.distance-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.distance-log-header h3 {
+  margin: 0;
+}
+
+.distance-log-list {
+  display: grid;
+  gap: 10px;
+}
+
+.distance-log-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2ead8;
+}
+
+.distance-log-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.distance-log-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  color: #243328;
+}
+
+.distance-log-meta span {
+  font-size: 0.95rem;
+  color: #4e5f55;
 }
 
 .manage-menu {
