@@ -25,13 +25,19 @@ const GOOGLE_MAPS_API_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '
 const GOOGLE_MAPS_MAP_ID = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || '').trim();
 const DEFAULT_MAP_CENTER = { lat: -37.815, lng: 144.963 };
 const AUTH_TOKEN_STORAGE_KEY = 'golf_stats_auth_token';
-const sanitizeNoteText = (raw) => String(raw || '').trim().slice(0, 1000);
+const sanitizeNoteText = (raw) =>
+  String(raw || '')
+    .trim()
+    .slice(0, 1000);
 const sanitizeNotesList = (raw) => {
   if (!Array.isArray(raw)) {
     return [];
   }
 
-  return raw.map((note) => sanitizeNoteText(note)).filter(Boolean).slice(0, 300);
+  return raw
+    .map((note) => sanitizeNoteText(note))
+    .filter(Boolean)
+    .slice(0, 300);
 };
 
 const COUNTER_SECTIONS = [
@@ -60,9 +66,7 @@ const COUNTER_SECTIONS = [
   },
   {
     title: 'Penalties',
-    options: [
-      { key: 'penalties', label: 'Penalties' },
-    ],
+    options: [{ key: 'penalties', label: 'Penalties' }],
   },
 ];
 
@@ -139,6 +143,18 @@ const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'];
 const METERS_PER_PACE = 0.83;
 const metersToPaces = (meters) => Math.round(meters / METERS_PER_PACE);
 const pacesToMeters = (paces) => Math.round(paces * METERS_PER_PACE);
+const distanceMetersBetween = (start, end) => {
+  const toRadians = (deg) => (deg * Math.PI) / 180;
+  const lat1 = toRadians(start.lat);
+  const lat2 = toRadians(end.lat);
+  const dLat = lat2 - lat1;
+  const dLng = toRadians(end.lng - start.lng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const earthRadiusMeters = 6371000;
+  return earthRadiusMeters * c;
+};
 const CLUB_GROUPS = [
   { label: 'Wedges', options: ['60', '56', '50', 'PW'] },
   { label: 'Irons + Hybrid', options: ['9i', '8i', '7i', '6i', '5i', '4i', '5Hy'] },
@@ -188,10 +204,13 @@ const loadGoogleMapsScript = (apiKey) => {
 };
 
 const emptyHoleStats = () =>
-  COUNTER_OPTIONS.reduce((acc, option) => {
-    acc[option.key] = 0;
-    return acc;
-  }, { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null, teePosition: null, greenPosition: null });
+  COUNTER_OPTIONS.reduce(
+    (acc, option) => {
+      acc[option.key] = 0;
+      return acc;
+    },
+    { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null, teePosition: null, greenPosition: null },
+  );
 
 const emptyTotals = () =>
   TOTAL_OPTIONS.reduce((acc, option) => {
@@ -249,9 +268,7 @@ const sanitizeStats = (raw) => {
     safe[hole].score = Number.isFinite(score) && score > 0 ? Math.floor(score) : 0;
 
     const holeIndex = Number(raw[hole].holeIndex);
-    safe[hole].holeIndex = Number.isFinite(holeIndex)
-      ? Math.min(18, Math.max(1, Math.floor(holeIndex)))
-      : hole;
+    safe[hole].holeIndex = Number.isFinite(holeIndex) ? Math.min(18, Math.max(1, Math.floor(holeIndex))) : hole;
 
     const fairwaySelection = raw[hole].fairwaySelection;
     safe[hole].fairwaySelection = VALID_FAIRWAY_KEYS.has(fairwaySelection) ? fairwaySelection : null;
@@ -281,9 +298,7 @@ const sanitizeCourseMarkers = (raw) => {
     safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
     const holeIndex = Number(holeRaw.holeIndex);
-    safe[hole].holeIndex = Number.isFinite(holeIndex)
-      ? Math.min(18, Math.max(1, Math.floor(holeIndex)))
-      : hole;
+    safe[hole].holeIndex = Number.isFinite(holeIndex) ? Math.min(18, Math.max(1, Math.floor(holeIndex))) : hole;
   });
 
   return safe;
@@ -606,6 +621,8 @@ export default function App() {
   const [teeToGreenMeters, setTeeToGreenMeters] = useState(null);
   const [mapSetupHole, setMapSetupHole] = useState(1);
   const [isMapSetupOpen, setIsMapSetupOpen] = useState(false);
+  const [mapViewportVersion, setMapViewportVersion] = useState(0);
+  const [mapDebugInfo, setMapDebugInfo] = useState(null);
 
   const hasLoadedRef = useRef(false);
   const skipNextSaveRef = useRef(false);
@@ -630,23 +647,24 @@ export default function App() {
   const courseEditor = courses.find((course) => course.id === courseEditorId);
   const mapCourse = page === 'courses' ? courseEditor : activeCourse;
   const mapHoleStats = mapCourse?.markers?.[mapHole] ?? null;
-  const displayHoleIndex =
-    activeCourse?.markers?.[selectedHole]?.holeIndex ?? holeStats?.holeIndex ?? selectedHole;
+  const displayHoleIndex = activeCourse?.markers?.[selectedHole]?.holeIndex ?? holeStats?.holeIndex ?? selectedHole;
   const teePosition = mapHoleStats?.teePosition ?? null;
   const greenPosition = mapHoleStats?.greenPosition ?? null;
-  const mapStatusLabel = {
-    idle: 'Idle',
-    loading: 'Loading',
-    locating: 'Locating',
-    ready: 'Ready',
-    error: 'Error',
-    'missing-key': 'Missing key',
-  }[mapStatus] || 'Idle';
-  const mapPlacementLabel = {
-    idle: 'Click to place',
-    tee: 'Placing tee',
-    green: 'Placing green',
-  }[mapPlacementMode] || 'Click to place';
+  const mapStatusLabel =
+    {
+      idle: 'Idle',
+      loading: 'Loading',
+      locating: 'Locating',
+      ready: 'Ready',
+      error: 'Error',
+      'missing-key': 'Missing key',
+    }[mapStatus] || 'Idle';
+  const mapPlacementLabel =
+    {
+      idle: 'Click to place',
+      tee: 'Placing tee',
+      green: 'Placing green',
+    }[mapPlacementMode] || 'Click to place';
   const rotationSupportLabel =
     mapRotationSupport === 'supported'
       ? 'Rotation supported'
@@ -710,10 +728,7 @@ export default function App() {
       setIsLoadingCourses(true);
       setCoursesError('');
       try {
-        const [list, coursesList] = await Promise.all([
-          loadRoundsFromApi(authToken),
-          loadCoursesFromApi(authToken),
-        ]);
+        const [list, coursesList] = await Promise.all([loadRoundsFromApi(authToken), loadCoursesFromApi(authToken)]);
         if (!isActive) {
           return;
         }
@@ -804,7 +819,7 @@ export default function App() {
           mapId: GOOGLE_MAPS_MAP_ID || undefined,
           tilt: 0,
           rotateControl: true,
-          disableDefaultUI: false,
+          disableDefaultUI: true,
           clickableIcons: false,
         });
         lastAutoHeadingRef.current = null;
@@ -964,6 +979,12 @@ export default function App() {
   }, [page, mapSetupHole]);
 
   useEffect(() => {
+    if (page === 'track') {
+      setMapViewportVersion((prev) => prev + 1);
+    }
+  }, [page, selectedHole, selectedCourseId]);
+
+  useEffect(() => {
     lastAutoHeadingRef.current = null;
   }, [mapHole, isMapSetupOpen]);
 
@@ -1009,6 +1030,11 @@ export default function App() {
     }
 
     if (teePosition && greenPosition) {
+      const map = mapInstanceRef.current;
+      if (map) {
+        map.setHeading(0);
+        map.setTilt(0);
+      }
       const toRadians = (deg) => (deg * Math.PI) / 180;
       const toDegrees = (rad) => (rad * 180) / Math.PI;
       const lat1 = toRadians(teePosition.lat);
@@ -1018,10 +1044,80 @@ export default function App() {
       const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
       const bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
 
+      const distanceMeters = distanceMetersBetween(teePosition, greenPosition);
+      const basePadding = distanceMeters < 120 ? 60 : distanceMeters < 200 ? 80 : distanceMeters < 300 ? 90 : 120;
+      const deltaLat = Math.abs(teePosition.lat - greenPosition.lat);
+      const deltaLng = Math.abs(teePosition.lng - greenPosition.lng);
       const bounds = new window.google.maps.LatLngBounds();
       bounds.extend(teePosition);
       bounds.extend(greenPosition);
-      mapInstanceRef.current.fitBounds(bounds, { top: 40, bottom: 40, left: 40, right: 40 });
+      const fitPadding = {
+        top: basePadding,
+        bottom: basePadding + 20,
+        left: basePadding,
+        right: basePadding,
+      };
+      const ensureFitBounds = (attempt = 0, padding = fitPadding, postHeading = null, source = 'base') => {
+        const map = mapInstanceRef.current;
+        if (!map) {
+          return;
+        }
+        if (typeof postHeading === 'number') {
+          map.setHeading(postHeading);
+          map.setTilt(0);
+        }
+        map.fitBounds(bounds, padding);
+        window.setTimeout(() => {
+          if (typeof postHeading === 'number') {
+            map.setHeading(postHeading);
+            map.setTilt(0);
+          }
+          const nextMap = mapInstanceRef.current;
+          const mapBounds = nextMap?.getBounds();
+          if (mapBounds) {
+            const ne = mapBounds.getNorthEast();
+            const sw = mapBounds.getSouthWest();
+            setMapDebugInfo({
+              hole: mapHole,
+              tee: teePosition,
+              green: greenPosition,
+              bounds: {
+                ne: { lat: ne.lat(), lng: ne.lng() },
+                sw: { lat: sw.lat(), lng: sw.lng() },
+              },
+              attempt,
+              padding,
+              source,
+            });
+          }
+          if (mapBounds?.contains(teePosition) && mapBounds?.contains(greenPosition)) {
+            return;
+          }
+          if (attempt < 2) {
+            ensureFitBounds(attempt + 1, padding, postHeading, source);
+          }
+        }, 200);
+      };
+      const zoomOutUntilVisible = (attempt = 0) => {
+        const nextMap = mapInstanceRef.current;
+        if (!nextMap) {
+          return;
+        }
+        const mapBounds = nextMap.getBounds();
+        if (mapBounds?.contains(teePosition) && mapBounds?.contains(greenPosition)) {
+          return;
+        }
+        if (attempt >= 3) {
+          return;
+        }
+        const currentZoom = nextMap.getZoom();
+        if (typeof currentZoom === 'number') {
+          nextMap.setZoom(currentZoom - 1);
+        }
+        window.setTimeout(() => zoomOutUntilVisible(attempt + 1), 120);
+      };
+
+      // ensureFitBounds(0, fitPadding, bearing, 'base');
 
       if (lastAutoHeadingRef.current !== bearing) {
         lastAutoHeadingRef.current = bearing;
@@ -1037,10 +1133,40 @@ export default function App() {
           map.setHeading(bearing);
           map.setTilt(0);
         };
-
         window.google.maps.event.addListenerOnce(mapInstanceRef.current, 'idle', () => {
-          applyHeading();
-          window.setTimeout(applyHeading, 0);
+          ensureFitBounds(0, fitPadding, bearing, 'base');
+          const extraPadding = {
+            top: fitPadding.top + 40,
+            bottom: fitPadding.bottom + 40,
+            left: fitPadding.left + 40,
+            right: fitPadding.right + 40,
+          };
+          window.setTimeout(() => {
+            const map = mapInstanceRef.current;
+            const mapBounds = map?.getBounds();
+            if (map && !(mapBounds?.contains(teePosition) && mapBounds?.contains(greenPosition))) {
+              ensureFitBounds(0, extraPadding, bearing, 'extra');
+              window.setTimeout(() => zoomOutUntilVisible(0), 160);
+            }
+            const projection = map?.getProjection?.();
+            const zoom = map?.getZoom?.();
+            if (map && projection && typeof zoom === 'number') {
+              const scale = Math.pow(2, zoom);
+              const center = map.getCenter();
+              if (center) {
+                const greenPoint = projection.fromLatLngToPoint(new window.google.maps.LatLng(greenPosition));
+                const centerPoint = projection.fromLatLngToPoint(center);
+                const desiredScreenOffsetPx = 80;
+                const currentOffsetPx = (greenPoint.y - centerPoint.y) * scale;
+                if (currentOffsetPx < -desiredScreenOffsetPx) {
+                  const deltaPx = -desiredScreenOffsetPx - currentOffsetPx;
+                  const nextCenterPoint = new window.google.maps.Point(centerPoint.x, centerPoint.y + deltaPx / scale);
+                  const nextCenter = projection.fromPointToLatLng(nextCenterPoint);
+                  map.setCenter(nextCenter);
+                }
+              }
+            }
+          }, 150);
         });
       }
 
@@ -1106,6 +1232,7 @@ export default function App() {
       }
     } else {
       setTeeToGreenMeters(null);
+      setMapDebugInfo(null);
       if (distanceLineRef.current) {
         distanceLineRef.current.setMap(null);
         distanceLineRef.current = null;
@@ -1115,7 +1242,7 @@ export default function App() {
         distanceLabelRef.current = null;
       }
     }
-  }, [teePosition, greenPosition, mapStatus, mapHole]);
+  }, [teePosition, greenPosition, mapStatus, mapHole, mapViewportVersion]);
 
   useEffect(() => {
     if (!authToken || !hasLoadedRef.current || !selectedRoundId) {
@@ -1137,13 +1264,7 @@ export default function App() {
 
     setSaveState('saving');
     try {
-      const savedRound = await saveRoundToApi(
-        selectedRoundId,
-        statsByHole,
-        roundNotes,
-        selectedCourseId,
-        authToken,
-      );
+      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes, selectedCourseId, authToken);
       setSaveState('saved');
       setRounds((prev) =>
         prev.map((round) =>
@@ -1775,11 +1896,7 @@ export default function App() {
                 </option>
               ))}
             </select>
-            <input
-              type="date"
-              value={newRoundDate}
-              onChange={(event) => setNewRoundDate(event.target.value)}
-            />
+            <input type="date" value={newRoundDate} onChange={(event) => setNewRoundDate(event.target.value)} />
           </div>
           <div className="new-round-actions">
             <button type="submit" disabled={isSwitchingRound}>
@@ -1803,22 +1920,13 @@ export default function App() {
           <span className={`save-pill ${saveState}`}>Save: {saveState}</span>
 
           <nav className="page-tabs" aria-label="page tabs">
-            <button
-              className={page === 'track' ? 'tab-btn active' : 'tab-btn'}
-              onClick={() => setPage('track')}
-            >
+            <button className={page === 'track' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('track')}>
               Track
             </button>
-            <button
-              className={page === 'totals' ? 'tab-btn active' : 'tab-btn'}
-              onClick={() => setPage('totals')}
-            >
+            <button className={page === 'totals' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('totals')}>
               Round totals
             </button>
-            <button
-              className={page === 'distance' ? 'tab-btn active' : 'tab-btn'}
-              onClick={() => setPage('distance')}
-            >
+            <button className={page === 'distance' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('distance')}>
               Distances
             </button>
             <button
@@ -1827,10 +1935,7 @@ export default function App() {
             >
               Club averages
             </button>
-            <button
-              className={page === 'courses' ? 'tab-btn active' : 'tab-btn'}
-              onClick={() => setPage('courses')}
-            >
+            <button className={page === 'courses' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('courses')}>
               Courses
             </button>
           </nav>
@@ -1877,8 +1982,16 @@ export default function App() {
                         ? 'Tee + green set'
                         : 'No markers for this hole yet'}
                   </span>
-                  {teeToGreenMeters != null ? (
-                    <span className="map-distance">{teeToGreenMeters} m</span>
+                  {teeToGreenMeters != null ? <span className="map-distance">{teeToGreenMeters} m</span> : null}
+                  {mapDebugInfo ? (
+                    <span className="map-debug">
+                      Debug: hole {mapDebugInfo.hole} | tee {mapDebugInfo.tee?.lat?.toFixed?.(5)},
+                      {mapDebugInfo.tee?.lng?.toFixed?.(5)} | green {mapDebugInfo.green?.lat?.toFixed?.(5)},
+                      {mapDebugInfo.green?.lng?.toFixed?.(5)} | bounds NE {mapDebugInfo.bounds.ne.lat.toFixed(5)},
+                      {mapDebugInfo.bounds.ne.lng.toFixed(5)} SW {mapDebugInfo.bounds.sw.lat.toFixed(5)},
+                      {mapDebugInfo.bounds.sw.lng.toFixed(5)} | attempt {mapDebugInfo.attempt} | source{' '}
+                      {mapDebugInfo.source} | padding {mapDebugInfo.padding?.top}/{mapDebugInfo.padding?.left}
+                    </span>
                   ) : null}
                 </div>
                 <div className="map-shell">
@@ -2149,7 +2262,9 @@ export default function App() {
               {courseEditor && isMapSetupOpen ? (
                 <section className="card map-card" aria-label="course setup map">
                   <div className="map-header">
-                    <h2>{courseEditor.name} - Hole {mapSetupHole}</h2>
+                    <h2>
+                      {courseEditor.name} - Hole {mapSetupHole}
+                    </h2>
                     <div className="map-header-meta">
                       <span className={`map-status ${mapStatus}`}>{mapStatusLabel}</span>
                       <span className="map-status neutral">{rotationSupportLabel}</span>
@@ -2219,8 +2334,16 @@ export default function App() {
                       Close map
                     </button>
                     <span className="map-placement-status">{mapPlacementLabel}</span>
-                    {teeToGreenMeters != null ? (
-                      <span className="map-distance">{teeToGreenMeters} m</span>
+                    {teeToGreenMeters != null ? <span className="map-distance">{teeToGreenMeters} m</span> : null}
+                    {mapDebugInfo ? (
+                      <span className="map-debug">
+                        Debug: hole {mapDebugInfo.hole} | tee {mapDebugInfo.tee?.lat?.toFixed?.(5)},
+                        {mapDebugInfo.tee?.lng?.toFixed?.(5)} | green {mapDebugInfo.green?.lat?.toFixed?.(5)},
+                        {mapDebugInfo.green?.lng?.toFixed?.(5)} | bounds NE {mapDebugInfo.bounds.ne.lat.toFixed(5)},
+                        {mapDebugInfo.bounds.ne.lng.toFixed(5)} SW {mapDebugInfo.bounds.sw.lat.toFixed(5)},
+                        {mapDebugInfo.bounds.sw.lng.toFixed(5)} | attempt {mapDebugInfo.attempt} | source{' '}
+                        {mapDebugInfo.source} | padding {mapDebugInfo.padding?.top}/{mapDebugInfo.padding?.left}
+                      </span>
                     ) : null}
                   </div>
                   <div className="map-shell">

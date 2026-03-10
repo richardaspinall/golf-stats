@@ -303,6 +303,15 @@ h2 {
   border: 1px solid #c7d9f2;
 }
 
+.map-debug {
+  font-size: 0.7rem;
+  color: #3d4a57;
+  background: #eef1f4;
+  border: 1px solid #d3d9e0;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
 button {
   border: 1px solid #9db08f;
   background: #f4f9f1;
