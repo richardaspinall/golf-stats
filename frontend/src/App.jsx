@@ -21,6 +21,7 @@ const API_COURSES_URL = `${API_BASE_URL}/api/courses`;
 const API_CLUB_CARRY_URL = `${API_BASE_URL}/api/club-carry`;
 const API_CLUB_ACTUALS_URL = `${API_BASE_URL}/api/club-actuals`;
 const API_WEDGE_ENTRIES_URL = `${API_BASE_URL}/api/wedge-entries`;
+const API_WEDGE_MATRICES_URL = `${API_BASE_URL}/api/wedge-matrices`;
 const API_LOGIN_URL = `${API_BASE_URL}/api/auth/login`;
 const GOOGLE_MAPS_API_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
 const GOOGLE_MAPS_MAP_ID = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || '').trim();
@@ -588,9 +589,10 @@ const sanitizeWedgeEntry = (entry) => {
   const swingClock = entry.swingClock;
   const distanceMeters = Number(entry.distanceMeters);
   const id = Number(entry.id);
+  const matrixId = Number(entry.matrixId);
   const createdAt = String(entry.createdAt || '');
 
-  if (!WEDGE_OPTIONS.includes(club)) {
+  if (!CLUB_OPTIONS.includes(club)) {
     return null;
   }
 
@@ -602,12 +604,13 @@ const sanitizeWedgeEntry = (entry) => {
     return null;
   }
 
-  if (!Number.isFinite(id)) {
+  if (!Number.isFinite(id) || !Number.isFinite(matrixId)) {
     return null;
   }
 
   return {
     id: Math.floor(id),
+    matrixId: Math.floor(matrixId),
     club,
     swingClock,
     distanceMeters: Math.round(distanceMeters),
@@ -615,8 +618,8 @@ const sanitizeWedgeEntry = (entry) => {
   };
 };
 
-const loadWedgeEntriesFromApi = async (token) => {
-  const response = await requestApi(API_WEDGE_ENTRIES_URL, { token });
+const loadWedgeEntriesFromApi = async (matrixId, token) => {
+  const response = await requestApi(`${API_WEDGE_ENTRIES_URL}?matrixId=${encodeURIComponent(matrixId)}`, { token });
   if (!response.ok) {
     const details = await getErrorDetails(response);
     throw new ApiError(`Failed to load wedge entries (${response.status})`, response.status, details);
@@ -630,10 +633,10 @@ const loadWedgeEntriesFromApi = async (token) => {
   return data.entries.map((entry) => sanitizeWedgeEntry(entry)).filter(Boolean);
 };
 
-const saveWedgeEntryToApi = async ({ club, swingClock, distanceMeters }, token) => {
+const saveWedgeEntryToApi = async ({ matrixId, club, swingClock, distanceMeters }, token) => {
   const response = await requestApi(API_WEDGE_ENTRIES_URL, {
     method: 'POST',
-    body: { club, swingClock, distanceMeters },
+    body: { matrixId, club, swingClock, distanceMeters },
     token,
   });
 
@@ -646,10 +649,10 @@ const saveWedgeEntryToApi = async ({ club, swingClock, distanceMeters }, token) 
   return sanitizeWedgeEntry(data?.entry);
 };
 
-const updateWedgeEntryInApi = async ({ id, club, swingClock, distanceMeters }, token) => {
+const updateWedgeEntryInApi = async ({ id, matrixId, club, swingClock, distanceMeters }, token) => {
   const response = await requestApi(`${API_WEDGE_ENTRIES_URL}/${encodeURIComponent(id)}`, {
     method: 'PUT',
-    body: { club, swingClock, distanceMeters },
+    body: { matrixId, club, swingClock, distanceMeters },
     token,
   });
 
@@ -660,6 +663,60 @@ const updateWedgeEntryInApi = async ({ id, club, swingClock, distanceMeters }, t
 
   const data = await response.json();
   return sanitizeWedgeEntry(data?.entry);
+};
+
+const normalizeWedgeMatrix = (matrix) => ({
+  id: Number(matrix?.id),
+  name: String(matrix?.name || ''),
+  stanceWidth: String(matrix?.stanceWidth || ''),
+  grip: String(matrix?.grip || ''),
+  ballPosition: String(matrix?.ballPosition || ''),
+  notes: String(matrix?.notes || ''),
+  clubs: Array.isArray(matrix?.clubs) ? matrix.clubs : [],
+  createdAt: String(matrix?.createdAt || ''),
+});
+
+const loadWedgeMatricesFromApi = async (token) => {
+  const response = await requestApi(API_WEDGE_MATRICES_URL, { token });
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to load wedge matrices (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  if (!Array.isArray(data?.matrices)) {
+    return [];
+  }
+
+  return data.matrices.map((matrix) => normalizeWedgeMatrix(matrix));
+};
+
+const createWedgeMatrixInApi = async ({ name, stanceWidth, grip, ballPosition, notes, clubs }, token) => {
+  const response = await requestApi(API_WEDGE_MATRICES_URL, {
+    method: 'POST',
+    body: { name, stanceWidth, grip, ballPosition, notes, clubs },
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to create wedge matrix (${response.status})`, response.status, details);
+  }
+
+  const data = await response.json();
+  return data?.matrix ? normalizeWedgeMatrix(data.matrix) : null;
+};
+
+const deleteWedgeMatrixInApi = async (id, token) => {
+  const response = await requestApi(`${API_WEDGE_MATRICES_URL}/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    token,
+  });
+
+  if (!response.ok) {
+    const details = await getErrorDetails(response);
+    throw new ApiError(`Failed to delete wedge matrix (${response.status})`, response.status, details);
+  }
 };
 
 const deleteWedgeEntryInApi = async (id, token) => {
@@ -715,6 +772,18 @@ export default function App() {
   const [clubCarryByClub, setClubCarryByClub] = useState({});
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
   const [isWedgeFormOpen, setIsWedgeFormOpen] = useState(false);
+  const [activeWedgeMatrixId, setActiveWedgeMatrixId] = useState(null);
+  const [isWedgeMatrixFormOpen, setIsWedgeMatrixFormOpen] = useState(false);
+  const [wedgeMatrixName, setWedgeMatrixName] = useState('');
+  const [wedgeMatrixStanceWidth, setWedgeMatrixStanceWidth] = useState('');
+  const [wedgeMatrixGrip, setWedgeMatrixGrip] = useState('');
+  const [wedgeMatrixBallPosition, setWedgeMatrixBallPosition] = useState('');
+  const [wedgeMatrixNotes, setWedgeMatrixNotes] = useState('');
+  const [wedgeMatrixClubs, setWedgeMatrixClubs] = useState([]);
+  const [wedgeMatrixSaveState, setWedgeMatrixSaveState] = useState('idle');
+  const [wedgeMatricesError, setWedgeMatricesError] = useState('');
+  const [isLoadingWedgeMatrices, setIsLoadingWedgeMatrices] = useState(false);
+  const [wedgeMatrices, setWedgeMatrices] = useState([]);
   const [wedgeClubSelection, setWedgeClubSelection] = useState('');
   const [wedgeSwingClock, setWedgeSwingClock] = useState('');
   const [wedgeDistanceMeters, setWedgeDistanceMeters] = useState(60);
@@ -722,7 +791,7 @@ export default function App() {
   const [wedgeEntrySaveState, setWedgeEntrySaveState] = useState('idle');
   const [wedgeEntriesError, setWedgeEntriesError] = useState('');
   const [isLoadingWedgeEntries, setIsLoadingWedgeEntries] = useState(false);
-  const [wedgeEntries, setWedgeEntries] = useState([]);
+  const [wedgeEntriesByMatrix, setWedgeEntriesByMatrix] = useState({});
   const [editingWedgeEntryId, setEditingWedgeEntryId] = useState(null);
   const [mapStatus, setMapStatus] = useState('idle');
   const [mapPlacementMode, setMapPlacementMode] = useState('idle');
@@ -803,6 +872,18 @@ export default function App() {
     setClubCarryByClub({});
     setClubCarrySaveState('saved');
     setIsWedgeFormOpen(false);
+    setActiveWedgeMatrixId(null);
+    setIsWedgeMatrixFormOpen(false);
+    setWedgeMatrixName('');
+    setWedgeMatrixStanceWidth('');
+    setWedgeMatrixGrip('');
+    setWedgeMatrixBallPosition('');
+    setWedgeMatrixNotes('');
+    setWedgeMatrixClubs([]);
+    setWedgeMatrixSaveState('idle');
+    setWedgeMatricesError('');
+    setIsLoadingWedgeMatrices(false);
+    setWedgeMatrices([]);
     setWedgeClubSelection('');
     setWedgeSwingClock('');
     setWedgeDistanceMeters(60);
@@ -810,7 +891,7 @@ export default function App() {
     setWedgeEntrySaveState('idle');
     setWedgeEntriesError('');
     setIsLoadingWedgeEntries(false);
-    setWedgeEntries([]);
+    setWedgeEntriesByMatrix({});
     setEditingWedgeEntryId(null);
     hasLoadedRef.current = false;
     skipNextSaveRef.current = false;
@@ -1619,8 +1700,9 @@ export default function App() {
     );
   }, [statsByHole]);
 
-  const wedgeMatrixRows = useMemo(() => {
-    const buckets = WEDGE_OPTIONS.reduce((acc, club) => {
+  const buildWedgeMatrixRows = (entries, clubs) => {
+    const clubsForMatrix = clubs && clubs.length > 0 ? clubs : CLUB_OPTIONS;
+    const buckets = clubsForMatrix.reduce((acc, club) => {
       acc[club] = SWING_CLOCK_OPTIONS.reduce((clockAcc, clock) => {
         clockAcc[clock] = { total: 0, count: 0 };
         return clockAcc;
@@ -1628,8 +1710,8 @@ export default function App() {
       return acc;
     }, {});
 
-    wedgeEntries.forEach((entry) => {
-      if (!WEDGE_OPTIONS.includes(entry.club) || !SWING_CLOCK_OPTIONS.includes(entry.swingClock)) {
+    entries.forEach((entry) => {
+      if (!CLUB_OPTIONS.includes(entry.club) || !SWING_CLOCK_OPTIONS.includes(entry.swingClock)) {
         return;
       }
       if (!Number.isFinite(entry.distanceMeters) || entry.distanceMeters <= 0) {
@@ -1640,7 +1722,7 @@ export default function App() {
       bucket.count += 1;
     });
 
-    return WEDGE_OPTIONS.map((club) => ({
+    return clubsForMatrix.map((club) => ({
       club,
       cells: SWING_CLOCK_OPTIONS.map((clock) => {
         const bucket = buckets[club][clock];
@@ -1654,9 +1736,7 @@ export default function App() {
         };
       }),
     }));
-  }, [wedgeEntries]);
-
-  const wedgeRecentEntries = useMemo(() => wedgeEntries.slice(0, 12), [wedgeEntries]);
+  };
 
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => ({
@@ -1746,6 +1826,7 @@ export default function App() {
       return;
     }
     setEditingWedgeEntryId(entry.id);
+    setActiveWedgeMatrixId(entry.matrixId);
     setWedgeClubSelection(entry.club);
     setWedgeSwingClock(entry.swingClock);
     setWedgeDistanceMeters(entry.distanceMeters);
@@ -1760,8 +1841,103 @@ export default function App() {
     setIsWedgeFormOpen(false);
   };
 
-  const deleteWedgeEntry = (entryId) => {
-    if (!authToken || !Number.isFinite(entryId)) {
+  const toggleWedgeMatrixClub = (club) => {
+    if (!CLUB_OPTIONS.includes(club)) {
+      return;
+    }
+    setWedgeMatrixClubs((prev) => {
+      if (prev.includes(club)) {
+        return prev.filter((item) => item !== club);
+      }
+      return [...prev, club];
+    });
+  };
+
+  const createWedgeMatrix = (event) => {
+    event?.preventDefault();
+    if (!authToken) {
+      return;
+    }
+
+    setWedgeMatrixSaveState('saving');
+    createWedgeMatrixInApi(
+      {
+        name: wedgeMatrixName || 'Wedge matrix',
+        stanceWidth: wedgeMatrixStanceWidth,
+        grip: wedgeMatrixGrip,
+        ballPosition: wedgeMatrixBallPosition,
+        notes: wedgeMatrixNotes,
+        clubs: wedgeMatrixClubs,
+      },
+      authToken,
+    )
+      .then((matrix) => {
+        if (!matrix) {
+          setWedgeMatrixSaveState('error');
+          setWedgeMatricesError('Unable to create wedge matrix right now.');
+          return;
+        }
+
+        setWedgeMatrices((prev) => [matrix, ...prev]);
+        setWedgeMatrixName('');
+        setWedgeMatrixStanceWidth('');
+        setWedgeMatrixGrip('');
+        setWedgeMatrixBallPosition('');
+        setWedgeMatrixNotes('');
+        setWedgeMatrixClubs([]);
+        setIsWedgeMatrixFormOpen(false);
+        setWedgeMatrixSaveState('saved');
+      })
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeMatrixSaveState('error');
+        setWedgeMatricesError('Unable to create wedge matrix right now.');
+      });
+  };
+
+  const deleteWedgeMatrix = (matrixId) => {
+    if (!authToken || !Number.isFinite(matrixId)) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this wedge matrix and its entries?');
+    if (!confirmed) {
+      return;
+    }
+
+    setWedgeMatrixSaveState('saving');
+    deleteWedgeMatrixInApi(matrixId, authToken)
+      .then(() => {
+        setWedgeMatrices((prev) => prev.filter((matrix) => matrix.id !== matrixId));
+        setWedgeEntriesByMatrix((prev) => {
+          const next = { ...prev };
+          delete next[matrixId];
+          return next;
+        });
+        if (activeWedgeMatrixId === matrixId) {
+          setActiveWedgeMatrixId(null);
+          setIsWedgeFormOpen(false);
+          setEditingWedgeEntryId(null);
+        }
+        setWedgeMatrixSaveState('saved');
+      })
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeMatrixSaveState('error');
+        setWedgeMatricesError('Unable to delete wedge matrix right now.');
+      });
+  };
+
+  const deleteWedgeEntry = (entryId, matrixId) => {
+    if (!authToken || !Number.isFinite(entryId) || !Number.isFinite(matrixId)) {
       return;
     }
 
@@ -1772,9 +1948,12 @@ export default function App() {
 
     setWedgeEntrySaveState('saving');
     let previousEntries = [];
-    setWedgeEntries((prev) => {
-      previousEntries = prev;
-      return prev.filter((entry) => entry.id !== entryId);
+    setWedgeEntriesByMatrix((prev) => {
+      previousEntries = prev[matrixId] || [];
+      return {
+        ...prev,
+        [matrixId]: (prev[matrixId] || []).filter((entry) => entry.id !== entryId),
+      };
     });
     deleteWedgeEntryInApi(entryId, authToken)
       .then(() => {
@@ -1787,7 +1966,10 @@ export default function App() {
         }
 
         setWedgeEntrySaveState('error');
-        setWedgeEntries(previousEntries);
+        setWedgeEntriesByMatrix((prev) => ({
+          ...prev,
+          [matrixId]: previousEntries,
+        }));
         setWedgeEntriesError('Unable to delete wedge entry right now.');
       });
   };
@@ -1796,8 +1978,17 @@ export default function App() {
     event?.preventDefault();
     setWedgeEntryError('');
 
-    if (!WEDGE_OPTIONS.includes(wedgeClubSelection)) {
-      setWedgeEntryError('Select a wedge.');
+    if (!Number.isFinite(activeWedgeMatrixId)) {
+      setWedgeEntryError('Select a wedge matrix.');
+      return;
+    }
+
+    const activeMatrix = wedgeMatrices.find((matrix) => matrix.id === activeWedgeMatrixId);
+    const activeMatrixClubs =
+      activeMatrix && Array.isArray(activeMatrix.clubs) && activeMatrix.clubs.length > 0 ? activeMatrix.clubs : CLUB_OPTIONS;
+
+    if (!activeMatrixClubs.includes(wedgeClubSelection)) {
+      setWedgeEntryError('Select a club.');
       return;
     }
 
@@ -1815,6 +2006,7 @@ export default function App() {
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const entry = {
       id: tempId,
+      matrixId: activeWedgeMatrixId,
       club: wedgeClubSelection,
       swingClock: wedgeSwingClock,
       distanceMeters,
@@ -1828,7 +2020,13 @@ export default function App() {
 
       setWedgeEntrySaveState('saving');
       updateWedgeEntryInApi(
-        { id: editingWedgeEntryId, club: wedgeClubSelection, swingClock: wedgeSwingClock, distanceMeters },
+        {
+          id: editingWedgeEntryId,
+          matrixId: activeWedgeMatrixId,
+          club: wedgeClubSelection,
+          swingClock: wedgeSwingClock,
+          distanceMeters,
+        },
         authToken,
       )
         .then((saved) => {
@@ -1838,9 +2036,13 @@ export default function App() {
             return;
           }
 
-          setWedgeEntries((prev) => {
-            const withoutOld = prev.filter((item) => item.id !== editingWedgeEntryId);
-            return [saved, ...withoutOld];
+          setWedgeEntriesByMatrix((prev) => {
+            const existing = prev[activeWedgeMatrixId] || [];
+            const withoutOld = existing.filter((item) => item.id !== editingWedgeEntryId);
+            return {
+              ...prev,
+              [activeWedgeMatrixId]: [saved, ...withoutOld],
+            };
           });
           setEditingWedgeEntryId(null);
           setIsWedgeFormOpen(false);
@@ -1858,7 +2060,10 @@ export default function App() {
       return;
     }
 
-    setWedgeEntries((prev) => [entry, ...prev]);
+    setWedgeEntriesByMatrix((prev) => ({
+      ...prev,
+      [activeWedgeMatrixId]: [entry, ...(prev[activeWedgeMatrixId] || [])],
+    }));
     setWedgeEntryError('');
     setIsWedgeFormOpen(false);
     setWedgeEntrySaveState('idle');
@@ -1868,18 +2073,28 @@ export default function App() {
     }
 
     setWedgeEntrySaveState('saving');
-    saveWedgeEntryToApi({ club: wedgeClubSelection, swingClock: wedgeSwingClock, distanceMeters }, authToken)
+    saveWedgeEntryToApi(
+      { matrixId: activeWedgeMatrixId, club: wedgeClubSelection, swingClock: wedgeSwingClock, distanceMeters },
+      authToken,
+    )
       .then((saved) => {
         if (!saved) {
           setWedgeEntrySaveState('error');
-          setWedgeEntries((prev) => prev.filter((item) => item.id !== tempId));
+          setWedgeEntriesByMatrix((prev) => ({
+            ...prev,
+            [activeWedgeMatrixId]: (prev[activeWedgeMatrixId] || []).filter((item) => item.id !== tempId),
+          }));
           setWedgeEntryError('Unable to save wedge entry.');
           return;
         }
 
-        setWedgeEntries((prev) => {
-          const withoutTemp = prev.filter((item) => item.id !== tempId);
-          return [saved, ...withoutTemp];
+        setWedgeEntriesByMatrix((prev) => {
+          const existing = prev[activeWedgeMatrixId] || [];
+          const withoutTemp = existing.filter((item) => item.id !== tempId);
+          return {
+            ...prev,
+            [activeWedgeMatrixId]: [saved, ...withoutTemp],
+          };
         });
         setWedgeEntrySaveState('saved');
       })
@@ -1890,7 +2105,10 @@ export default function App() {
         }
 
         setWedgeEntrySaveState('error');
-        setWedgeEntries((prev) => prev.filter((item) => item.id !== tempId));
+        setWedgeEntriesByMatrix((prev) => ({
+          ...prev,
+          [activeWedgeMatrixId]: (prev[activeWedgeMatrixId] || []).filter((item) => item.id !== tempId),
+        }));
         setWedgeEntryError('Unable to save wedge entry.');
       });
   };
@@ -2025,20 +2243,20 @@ export default function App() {
   useEffect(() => {
     let isActive = true;
 
-    const loadWedgeEntries = async () => {
+    const loadWedgeMatrices = async () => {
       if (!authToken) {
         return;
       }
 
-      setIsLoadingWedgeEntries(true);
-      setWedgeEntriesError('');
+      setIsLoadingWedgeMatrices(true);
+      setWedgeMatricesError('');
       try {
-        const entries = await loadWedgeEntriesFromApi(authToken);
+        const matrices = await loadWedgeMatricesFromApi(authToken);
         if (!isActive) {
           return;
         }
 
-        setWedgeEntries(entries);
+        setWedgeMatrices(matrices);
       } catch (error) {
         if (!isActive) {
           return;
@@ -2049,7 +2267,54 @@ export default function App() {
           return;
         }
 
-        setWedgeEntries([]);
+        setWedgeMatrices([]);
+        setWedgeMatricesError('Unable to load wedge matrices right now.');
+      } finally {
+        if (isActive) {
+          setIsLoadingWedgeMatrices(false);
+        }
+      }
+    };
+
+    loadWedgeMatrices();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadAllWedgeEntries = async () => {
+      if (!authToken || wedgeMatrices.length === 0) {
+        return;
+      }
+
+      setIsLoadingWedgeEntries(true);
+      setWedgeEntriesError('');
+      try {
+        const entriesByMatrix = {};
+        for (const matrix of wedgeMatrices) {
+          const entries = await loadWedgeEntriesFromApi(matrix.id, authToken);
+          entriesByMatrix[matrix.id] = entries;
+        }
+        if (!isActive) {
+          return;
+        }
+
+        setWedgeEntriesByMatrix(entriesByMatrix);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeEntriesByMatrix({});
         setWedgeEntriesError('Unable to load wedge entries right now.');
       } finally {
         if (isActive) {
@@ -2058,12 +2323,12 @@ export default function App() {
       }
     };
 
-    loadWedgeEntries();
+    loadAllWedgeEntries();
 
     return () => {
       isActive = false;
     };
-  }, [authToken]);
+  }, [authToken, wedgeMatrices]);
 
   useEffect(() => {
     if (!authToken || !hasLoadedClubCarryRef.current) {
@@ -2826,144 +3091,279 @@ export default function App() {
           ) : page === 'wedgeMatrix' ? (
             <section className="card" aria-label="wedge matrix">
               <h2>Wedge matrix</h2>
-              <p className="hint">Capture wedge distances by clock system and review your averages.</p>
+              <p className="hint">Capture wedge distances by clock system and compare setups.</p>
               <div className="manual-save-row">
                 <button
                   onClick={() => {
-                    setIsWedgeFormOpen((prev) => !prev);
-                    setWedgeEntryError('');
-                    if (isWedgeFormOpen) {
-                      setEditingWedgeEntryId(null);
-                    }
+                    setIsWedgeMatrixFormOpen((prev) => !prev);
+                    setWedgeMatricesError('');
                   }}
                 >
-                  {isWedgeFormOpen ? 'Close form' : 'Add wedge result'}
+                  {isWedgeMatrixFormOpen ? 'Close new matrix' : 'Create new matrix'}
                 </button>
               </div>
-              {isWedgeFormOpen ? (
-                <form className="wedge-form" onSubmit={addWedgeEntry}>
+              {isWedgeMatrixFormOpen ? (
+                <form className="wedge-form" onSubmit={createWedgeMatrix}>
                   <div className="prototype-block">
-                    <h3 className="section-title">Wedge</h3>
-                    <div className="club-row" role="group" aria-label="Wedge selection">
-                      {WEDGE_OPTIONS.map((club) => (
+                    <label className="wedge-distance-field">
+                      Matrix name
+                      <input
+                        type="text"
+                        maxLength={80}
+                        value={wedgeMatrixName}
+                        onChange={(event) => setWedgeMatrixName(event.target.value)}
+                        placeholder="e.g. Narrow stance"
+                      />
+                    </label>
+                  </div>
+                  <div className="prototype-block">
+                    <h3 className="section-title">Clubs</h3>
+                    <div className="club-row" role="group" aria-label="Club selection">
+                      {CLUB_OPTIONS.map((club) => (
                         <button
                           type="button"
                           key={club}
-                          className={wedgeClubSelection === club ? 'club-btn active' : 'club-btn'}
-                          onClick={() => toggleWedgeSelection(club)}
+                          className={wedgeMatrixClubs.includes(club) ? 'club-btn active' : 'club-btn'}
+                          onClick={() => toggleWedgeMatrixClub(club)}
                         >
                           {club}
                         </button>
                       ))}
                     </div>
+                    <p className="hint">Pick the clubs you want in this matrix.</p>
                   </div>
                   <div className="prototype-block">
-                    <h3 className="section-title">Clock system</h3>
-                    <div className="clock-row" role="group" aria-label="Swing clock">
-                      {SWING_CLOCK_OPTIONS.map((clock) => (
+                    <h3 className="section-title">Stance width</h3>
+                    <div className="club-row" role="group" aria-label="Stance width">
+                      {['Short', 'Medium', 'Wide'].map((option) => (
                         <button
                           type="button"
-                          key={clock}
-                          className={wedgeSwingClock === clock ? 'clock-btn active' : 'clock-btn'}
-                          onClick={() => toggleWedgeSwingClock(clock)}
+                          key={option}
+                          className={wedgeMatrixStanceWidth === option ? 'club-btn active' : 'club-btn'}
+                          onClick={() => setWedgeMatrixStanceWidth((prev) => (prev === option ? '' : option))}
                         >
-                          {clock}
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="prototype-block">
+                    <h3 className="section-title">Grip</h3>
+                    <div className="club-row" role="group" aria-label="Grip">
+                      {['Bottom', 'Mid', 'Normal'].map((option) => (
+                        <button
+                          type="button"
+                          key={option}
+                          className={wedgeMatrixGrip === option ? 'club-btn active' : 'club-btn'}
+                          onClick={() => setWedgeMatrixGrip((prev) => (prev === option ? '' : option))}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="prototype-block">
+                    <h3 className="section-title">Ball position</h3>
+                    <div className="club-row" role="group" aria-label="Ball position">
+                      {['Forward', 'Middle', 'Back'].map((option) => (
+                        <button
+                          type="button"
+                          key={option}
+                          className={wedgeMatrixBallPosition === option ? 'club-btn active' : 'club-btn'}
+                          onClick={() => setWedgeMatrixBallPosition((prev) => (prev === option ? '' : option))}
+                        >
+                          {option}
                         </button>
                       ))}
                     </div>
                   </div>
                   <div className="prototype-block">
                     <label className="wedge-distance-field">
-                      Distance (m)
-                      <input
-                        type="number"
-                        min={10}
-                        max={150}
-                        step={1}
-                        value={wedgeDistanceMeters}
-                        onChange={(event) => setWedgeDistanceMeters(event.target.value)}
+                      Notes
+                      <textarea
+                        className="wedge-notes-input"
+                        rows={3}
+                        maxLength={400}
+                        value={wedgeMatrixNotes}
+                        onChange={(event) => setWedgeMatrixNotes(event.target.value)}
+                        placeholder="Anything else..."
                       />
                     </label>
                   </div>
                   <div className="manual-save-row">
                     <button type="submit" className="save-btn">
-                      {editingWedgeEntryId ? 'Save changes' : 'Save wedge result'}
+                      Create matrix
                     </button>
-                    {editingWedgeEntryId ? (
-                      <button type="button" className="reset-btn" onClick={cancelWedgeEdit}>
-                        Cancel edit
-                      </button>
-                    ) : null}
                   </div>
-                  {wedgeEntryError ? <p className="hint">{wedgeEntryError}</p> : null}
                 </form>
               ) : null}
-              <div className="wedge-matrix">
-                <table className="wedge-matrix-table">
-                  <thead>
-                    <tr>
-                      <th>Wedge</th>
-                      {SWING_CLOCK_OPTIONS.map((clock) => (
-                        <th key={clock}>{clock}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {wedgeMatrixRows.map((row) => (
-                      <tr key={row.club}>
-                        <td className="wedge-label">{row.club}</td>
-                        {row.cells.map((cell) => (
-                          <td key={`${row.club}-${cell.clock}`}>
-                            <div className="matrix-cell">
-                              <span>{cell.avgMeters !== null ? `${cell.avgMeters}m` : '—'}</span>
-                              {cell.count > 0 ? <span className="matrix-count">{cell.count} shots</span> : null}
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {isLoadingWedgeEntries ? <p className="hint">Loading wedge results...</p> : null}
-                {!isLoadingWedgeEntries && wedgeEntriesError ? <p className="hint">{wedgeEntriesError}</p> : null}
-                {!isLoadingWedgeEntries && !wedgeEntriesError && wedgeEntries.length === 0 ? (
-                  <p className="hint">No wedge results yet.</p>
-                ) : null}
-                {wedgeEntrySaveState !== 'idle' ? <p className="hint">Wedge save: {wedgeEntrySaveState}</p> : null}
-              </div>
-              {wedgeRecentEntries.length > 0 ? (
-                <div className="wedge-recent">
-                  <h3 className="section-title">Recent entries</h3>
-                  <div className="wedge-recent-list">
-                    {wedgeRecentEntries.map((entry) => {
-                      const isPersisted = Number.isFinite(entry.id);
-                      return (
-                        <div key={entry.id} className="wedge-recent-row">
-                          <div className="wedge-recent-meta">
-                            <strong>{entry.club}</strong>
-                            <span>{entry.swingClock}</span>
-                            <span>{entry.distanceMeters}m</span>
-                            {!isPersisted ? <span className="matrix-count">Saving...</span> : null}
-                          </div>
-                          <div className="wedge-recent-actions">
-                            <button type="button" onClick={() => startWedgeEdit(entry)} disabled={!isPersisted}>
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="reset-btn"
-                              onClick={() => deleteWedgeEntry(entry.id)}
-                              disabled={!isPersisted}
-                            >
-                              Delete
-                            </button>
+              {isLoadingWedgeMatrices ? <p className="hint">Loading wedge matrices...</p> : null}
+              {!isLoadingWedgeMatrices && wedgeMatricesError ? <p className="hint">{wedgeMatricesError}</p> : null}
+              {wedgeMatrices.length === 0 ? <p className="hint">No wedge matrices yet.</p> : null}
+              {wedgeMatrices.map((matrix) => {
+                const entries = wedgeEntriesByMatrix[matrix.id] || [];
+                const rows = buildWedgeMatrixRows(entries, matrix.clubs);
+                const matrixClubs = Array.isArray(matrix.clubs) && matrix.clubs.length > 0 ? matrix.clubs : CLUB_OPTIONS;
+                const recentEntries = entries.slice(0, 12);
+                const isActiveMatrix = activeWedgeMatrixId === matrix.id;
+
+                return (
+                  <div key={matrix.id} className="wedge-matrix-card">
+                    <div className="wedge-matrix-header">
+                      <div>
+                        <h3 className="section-title">{matrix.name || 'Wedge matrix'}</h3>
+                        <p className="hint">
+                          Stance: {matrix.stanceWidth || '—'} | Grip: {matrix.grip || '—'} | Ball position:{' '}
+                          {matrix.ballPosition || '—'}
+                        </p>
+                        {matrix.notes ? <p className="hint">Notes: {matrix.notes}</p> : null}
+                      </div>
+                      <div className="wedge-matrix-actions">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveWedgeMatrixId(matrix.id);
+                            setIsWedgeFormOpen(true);
+                            setEditingWedgeEntryId(null);
+                            setWedgeEntryError('');
+                          }}
+                        >
+                          Add wedge result
+                        </button>
+                        <button type="button" className="reset-btn" onClick={() => deleteWedgeMatrix(matrix.id)}>
+                          Delete matrix
+                        </button>
+                      </div>
+                    </div>
+                    {isWedgeFormOpen && isActiveMatrix ? (
+                      <form className="wedge-form" onSubmit={addWedgeEntry}>
+                        <div className="prototype-block">
+                          <h3 className="section-title">Club</h3>
+                          <div className="club-row" role="group" aria-label="Club selection">
+                            {matrixClubs.map((club) => (
+                              <button
+                                type="button"
+                                key={club}
+                                className={wedgeClubSelection === club ? 'club-btn active' : 'club-btn'}
+                                onClick={() => toggleWedgeSelection(club)}
+                              >
+                                {club}
+                              </button>
+                            ))}
                           </div>
                         </div>
-                      );
-                    })}
+                        <div className="prototype-block">
+                          <h3 className="section-title">Clock system</h3>
+                          <div className="clock-row" role="group" aria-label="Swing clock">
+                            {SWING_CLOCK_OPTIONS.map((clock) => (
+                              <button
+                                type="button"
+                                key={clock}
+                                className={wedgeSwingClock === clock ? 'clock-btn active' : 'clock-btn'}
+                                onClick={() => toggleWedgeSwingClock(clock)}
+                              >
+                                {clock}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="prototype-block">
+                          <label className="wedge-distance-field">
+                            Distance (m)
+                            <input
+                              type="number"
+                              min={10}
+                              max={150}
+                              step={1}
+                              value={wedgeDistanceMeters}
+                              onChange={(event) => setWedgeDistanceMeters(event.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="manual-save-row">
+                          <button type="submit" className="save-btn">
+                            {editingWedgeEntryId ? 'Save changes' : 'Save wedge result'}
+                          </button>
+                          {editingWedgeEntryId ? (
+                            <button type="button" className="reset-btn" onClick={cancelWedgeEdit}>
+                              Cancel edit
+                            </button>
+                          ) : null}
+                        </div>
+                        {wedgeEntryError ? <p className="hint">{wedgeEntryError}</p> : null}
+                      </form>
+                    ) : null}
+                    <div className="wedge-matrix">
+                      <table className="wedge-matrix-table">
+                        <thead>
+                          <tr>
+                            <th>Wedge</th>
+                            {SWING_CLOCK_OPTIONS.map((clock) => (
+                              <th key={clock}>{clock}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row) => (
+                            <tr key={row.club}>
+                              <td className="wedge-label">{row.club}</td>
+                              {row.cells.map((cell) => (
+                                <td key={`${row.club}-${cell.clock}`}>
+                                  <div className="matrix-cell">
+                                    <span>{cell.avgMeters !== null ? `${cell.avgMeters}m` : '—'}</span>
+                                    {cell.count > 0 ? <span className="matrix-count">{cell.count} shots</span> : null}
+                                  </div>
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {isLoadingWedgeEntries ? <p className="hint">Loading wedge results...</p> : null}
+                      {!isLoadingWedgeEntries && wedgeEntriesError ? <p className="hint">{wedgeEntriesError}</p> : null}
+                      {!isLoadingWedgeEntries && !wedgeEntriesError && entries.length === 0 ? (
+                        <p className="hint">No wedge results yet.</p>
+                      ) : null}
+                      {wedgeEntrySaveState !== 'idle' ? (
+                        <p className="hint">Wedge save: {wedgeEntrySaveState}</p>
+                      ) : null}
+                    </div>
+                    {recentEntries.length > 0 ? (
+                      <div className="wedge-recent">
+                        <h3 className="section-title">Recent entries</h3>
+                        <div className="wedge-recent-list">
+                          {recentEntries.map((entry) => {
+                            const isPersisted = Number.isFinite(entry.id);
+                            return (
+                              <div key={entry.id} className="wedge-recent-row">
+                                <div className="wedge-recent-meta">
+                                  <strong>{entry.club}</strong>
+                                  <span>{entry.swingClock}</span>
+                                  <span>{entry.distanceMeters}m</span>
+                                  {!isPersisted ? <span className="matrix-count">Saving...</span> : null}
+                                </div>
+                                <div className="wedge-recent-actions">
+                                  <button type="button" onClick={() => startWedgeEdit(entry)} disabled={!isPersisted}>
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="reset-btn"
+                                    onClick={() => deleteWedgeEntry(entry.id, matrix.id)}
+                                    disabled={!isPersisted}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              ) : null}
+                );
+              })}
             </section>
           ) : (
             <section className="card" aria-label="club distance averages">

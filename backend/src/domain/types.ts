@@ -71,8 +71,20 @@ export type ClubAveragesByClub = Partial<Record<ClubOption, ClubActualAverage>>;
 
 export type WedgeEntry = {
   id: number;
-  club: WedgeOption;
+  matrixId: number;
+  club: ClubOption;
   swingClock: SwingClockOption;
   distanceMeters: number;
+  createdAt: string;
+};
+
+export type WedgeMatrix = {
+  id: number;
+  name: string;
+  stanceWidth: string;
+  grip: string;
+  ballPosition: string;
+  notes: string;
+  clubs: ClubOption[];
   createdAt: string;
 };

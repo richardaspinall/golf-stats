@@ -7,7 +7,15 @@ import { ensureSchema } from './db/schema.js';
 import { deleteRoundById, getRoundById, insertRound, listRounds, updateRound } from './db/rounds.js';
 import { getCourseById, insertCourse, listCourses, updateCourse } from './db/courses.js';
 import { insertClubActualDistance, listClubActualAverages, listClubCarry, saveClubCarry } from './db/club.js';
-import { deleteWedgeEntry, insertWedgeEntry, listWedgeEntries, updateWedgeEntry } from './db/wedge.js';
+import {
+  deleteWedgeEntry,
+  deleteWedgeMatrix,
+  insertWedgeEntry,
+  insertWedgeMatrix,
+  listWedgeEntries,
+  listWedgeMatrices,
+  updateWedgeEntry,
+} from './db/wedge.js';
 import { buildInitialByHole, buildInitialCourseMarkers, createCourse, createRound } from './domain/factories.js';
 import {
   sanitizeCourseMarkers,
@@ -86,7 +94,9 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       pathname === '/api/club-carry' ||
       pathname === '/api/club-actuals' ||
       pathname === '/api/wedge-entries' ||
-      pathname.startsWith('/api/wedge-entries/')
+      pathname.startsWith('/api/wedge-entries/') ||
+      pathname === '/api/wedge-matrices' ||
+      pathname.startsWith('/api/wedge-matrices/')
     ) {
       await ensureSchema();
     }
@@ -282,7 +292,9 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/wedge-entries' && method === 'GET') {
-      sendJson(res, 200, { entries: await listWedgeEntries() });
+      const matrixIdRaw = requestUrl.searchParams.get('matrixId');
+      const matrixId = matrixIdRaw ? Number(matrixIdRaw) : null;
+      sendJson(res, 200, { entries: await listWedgeEntries(matrixId) });
       return;
     }
 
@@ -290,6 +302,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       try {
         const body = await parseBody(req as BodyAwareRequest);
         const entry = await insertWedgeEntry({
+          matrixId: Number((body as any)?.matrixId),
           club: String((body as any)?.club || '').trim(),
           swingClock: String((body as any)?.swingClock || '').trim(),
           distanceMeters: (body as any)?.distanceMeters,
@@ -314,6 +327,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           const body = await parseBody(req as BodyAwareRequest);
           const entry = await updateWedgeEntry({
             id: entryId,
+            matrixId: Number((body as any)?.matrixId),
             club: String((body as any)?.club || '').trim(),
             swingClock: String((body as any)?.swingClock || '').trim(),
             distanceMeters: (body as any)?.distanceMeters,
@@ -334,6 +348,52 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           const deleted = await deleteWedgeEntry(entryId);
           if (!deleted) {
             sendJson(res, 404, { ok: false, error: 'Entry not found' });
+            return;
+          }
+          sendJson(res, 200, { ok: true });
+        } catch (error: any) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
+        return;
+      }
+    }
+
+    if (pathname === '/api/wedge-matrices' && method === 'GET') {
+      sendJson(res, 200, { matrices: await listWedgeMatrices() });
+      return;
+    }
+
+    if (pathname === '/api/wedge-matrices' && method === 'POST') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const matrix = await insertWedgeMatrix({
+          name: String((body as any)?.name || '').trim(),
+          stanceWidth: String((body as any)?.stanceWidth || '').trim(),
+          grip: String((body as any)?.grip || '').trim(),
+          ballPosition: String((body as any)?.ballPosition || '').trim(),
+          notes: String((body as any)?.notes || '').trim(),
+          clubs: Array.isArray((body as any)?.clubs) ? (body as any).clubs : [],
+        });
+        sendJson(res, 201, { ok: true, matrix });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
+    const matrixMatch = pathname.match(/^\/api\/wedge-matrices\/(\d+)$/);
+    if (matrixMatch) {
+      const matrixId = Number(matrixMatch[1]);
+      if (!Number.isFinite(matrixId) || matrixId <= 0) {
+        sendJson(res, 400, { ok: false, error: 'Invalid matrix id' });
+        return;
+      }
+
+      if (method === 'DELETE') {
+        try {
+          const deleted = await deleteWedgeMatrix(matrixId);
+          if (!deleted) {
+            sendJson(res, 404, { ok: false, error: 'Matrix not found' });
             return;
           }
           sendJson(res, 200, { ok: true });

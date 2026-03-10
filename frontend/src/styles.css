@@ -777,7 +777,8 @@ button:active {
   color: #49614e;
 }
 
-.wedge-distance-field input {
+.wedge-distance-field input,
+.wedge-distance-field select {
   width: 120px;
   min-height: 38px;
   border: 1px solid #9db08f;
@@ -786,6 +787,18 @@ button:active {
   font-size: 0.95rem;
   color: #1d2a1f;
   background: #fff;
+}
+
+.wedge-notes-input {
+  width: 100%;
+  min-height: 90px;
+  border: 1px solid #9db08f;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  color: #1d2a1f;
+  background: #fff;
+  resize: vertical;
 }
 
 .wedge-matrix {
@@ -830,6 +843,27 @@ button:active {
 
 .wedge-recent {
   margin-top: 20px;
+}
+
+.wedge-matrix-card {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #d4decc;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.wedge-matrix-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wedge-matrix-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .wedge-recent-list {
