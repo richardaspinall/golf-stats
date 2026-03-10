@@ -14,7 +14,7 @@ export const COUNTER_OPTIONS = [
   'puttMissWithin2m',
 ] as const;
 
-export const FAIRWAY_KEYS = ['fairwayHit', 'fairwayLeft', 'fairwayRight'] as const;
+export const FAIRWAY_KEYS = ['fairwayHit', 'fairwayLeft', 'fairwayRight', 'fairwayLong', 'fairwayShort'] as const;
 export const GIR_KEYS = ['girHit', 'girLeft', 'girRight', 'girLong', 'girShort'] as const;
 export const BUNKER_KEYS = ['bunkerLeft', 'bunkerRight', 'bunkerLong', 'bunkerShort'] as const;
 export const VALID_FAIRWAY_KEYS = new Set(FAIRWAY_KEYS);
