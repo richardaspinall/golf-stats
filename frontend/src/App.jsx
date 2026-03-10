@@ -77,9 +77,11 @@ const COUNTER_SECTIONS = [
 const FAIRWAY_SECTION = {
   title: 'Fairway Hit',
   options: [
+    { key: 'fairwayLong', label: 'Long', position: 'long' },
     { key: 'fairwayHit', label: 'Hit', position: 'center' },
     { key: 'fairwayLeft', label: 'Left', position: 'left' },
     { key: 'fairwayRight', label: 'Right', position: 'right' },
+    { key: 'fairwayShort', label: 'Short', position: 'short' },
   ],
 };
 
@@ -237,6 +239,28 @@ const buildInitialCourseMarkers = () =>
     acc[hole] = { teePosition: null, greenPosition: null, holeIndex: hole };
     return acc;
   }, {});
+
+const computeTotalsForStats = (statsByHole) =>
+  HOLES.reduce(
+    (acc, hole) => {
+      acc.score += statsByHole[hole].score;
+      COUNTER_OPTIONS.forEach(({ key }) => {
+        acc[key] += statsByHole[hole][key];
+      });
+
+      const fairwaySelection = statsByHole[hole].fairwaySelection;
+      if (VALID_FAIRWAY_KEYS.has(fairwaySelection)) {
+        acc[fairwaySelection] += 1;
+      }
+
+      const girSelection = statsByHole[hole].girSelection;
+      if (VALID_GIR_KEYS.has(girSelection)) {
+        acc[girSelection] += 1;
+      }
+      return acc;
+    },
+    { ...emptyTotals(), score: 0 },
+  );
 
 const sanitizeLatLng = (value) => {
   if (!value || typeof value !== 'object') {
@@ -740,6 +764,11 @@ export default function App() {
   const [selectedHole, setSelectedHole] = useState(1);
   const [page, setPage] = useState('track');
   const [rounds, setRounds] = useState([]);
+  const [roundSummaries, setRoundSummaries] = useState({});
+  const [roundSummariesState, setRoundSummariesState] = useState('idle');
+  const [roundSummariesError, setRoundSummariesError] = useState('');
+  const [isManageMenuOpen, setIsManageMenuOpen] = useState(false);
+  const [showDistanceTracker, setShowDistanceTracker] = useState(false);
   const [courses, setCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [newRoundCourseId, setNewRoundCourseId] = useState('');
@@ -857,6 +886,11 @@ export default function App() {
     setAuthToken('');
     setAuthError(message);
     setRounds([]);
+    setRoundSummaries({});
+    setRoundSummariesState('idle');
+    setRoundSummariesError('');
+    setIsManageMenuOpen(false);
+    setShowDistanceTracker(false);
     setCourses([]);
     setSelectedCourseId('');
     setNewRoundCourseId('');
@@ -986,6 +1020,63 @@ export default function App() {
       isActive = false;
     };
   }, [authToken]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadRoundSummaries = async () => {
+      if (!authToken || page !== 'rounds') {
+        return;
+      }
+
+      const missing = rounds.filter((round) => !roundSummaries[round.id]);
+      if (missing.length === 0) {
+        return;
+      }
+
+      setRoundSummariesState('loading');
+      setRoundSummariesError('');
+      try {
+        const entries = await Promise.all(
+          missing.map(async (round) => {
+            const full = await loadRoundFromApi(round.id, authToken);
+            if (!full) {
+              return null;
+            }
+            const totals = computeTotalsForStats(full.statsByHole);
+            return [round.id, { totals }];
+          }),
+        );
+        if (!isActive) {
+          return;
+        }
+        setRoundSummaries((prev) => {
+          const next = { ...prev };
+          entries.filter(Boolean).forEach(([id, data]) => {
+            next[id] = data;
+          });
+          return next;
+        });
+        setRoundSummariesState('loaded');
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+        setRoundSummariesState('error');
+        setRoundSummariesError('Unable to load round summaries.');
+      }
+    };
+
+    loadRoundSummaries();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken, page, rounds, roundSummaries]);
 
   useEffect(() => {
     const shouldShowMap = page === 'courses' && isMapSetupOpen;
@@ -1463,7 +1554,7 @@ export default function App() {
 
   const saveCurrentRound = async () => {
     if (!authToken || !selectedRoundId) {
-      return;
+      return false;
     }
 
     setSaveState('saving');
@@ -1482,14 +1573,25 @@ export default function App() {
             : round,
         ),
       );
+      return true;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         handleAuthFailure('Session expired. Log in again.');
-        return;
+        return false;
       }
 
       setSaveState('error');
+      return false;
     }
+  };
+
+  const saveAndNextHole = async () => {
+    const didSave = await saveCurrentRound();
+    if (!didSave) {
+      return;
+    }
+    const nextHole = selectedHole >= HOLES.length ? HOLES[0] : selectedHole + 1;
+    setSelectedHole(nextHole);
   };
 
   const switchRound = async (roundId) => {
@@ -1651,6 +1753,11 @@ export default function App() {
 
       const updatedRounds = rounds.filter((round) => round.id !== selectedRoundId);
       setRounds(updatedRounds);
+      setRoundSummaries((prev) => {
+        const next = { ...prev };
+        delete next[selectedRoundId];
+        return next;
+      });
 
       if (updatedRounds.length === 0) {
         skipNextSaveRef.current = true;
@@ -1682,26 +1789,7 @@ export default function App() {
   };
 
   const totals = useMemo(() => {
-    return HOLES.reduce(
-      (acc, hole) => {
-        acc.score += statsByHole[hole].score;
-        COUNTER_OPTIONS.forEach(({ key }) => {
-          acc[key] += statsByHole[hole][key];
-        });
-
-        const fairwaySelection = statsByHole[hole].fairwaySelection;
-        if (VALID_FAIRWAY_KEYS.has(fairwaySelection)) {
-          acc[fairwaySelection] += 1;
-        }
-
-        const girSelection = statsByHole[hole].girSelection;
-        if (VALID_GIR_KEYS.has(girSelection)) {
-          acc[girSelection] += 1;
-        }
-        return acc;
-      },
-      { ...emptyTotals(), score: 0 },
-    );
+    return computeTotalsForStats(statsByHole);
   }, [statsByHole]);
 
   const buildWedgeMatrixRows = (entries, clubs) => {
@@ -1798,19 +1886,77 @@ export default function App() {
     }, {});
   }, [courseEditor]);
 
-  const addNote = (event) => {
+  const addNote = async (event) => {
     event?.preventDefault();
     const next = sanitizeNoteText(noteDraft);
     if (!next) {
       return;
     }
 
-    setRoundNotes((prev) => [...prev, next]);
+    const updatedNotes = [...roundNotes, next];
+    setRoundNotes(updatedNotes);
     setNoteDraft('');
+    if (!authToken || !selectedRoundId) {
+      return;
+    }
+
+    setSaveState('saving');
+    try {
+      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, updatedNotes, selectedCourseId, authToken);
+      setSaveState('saved');
+      setRounds((prev) =>
+        prev.map((round) =>
+          round.id === selectedRoundId
+            ? {
+                ...round,
+                name: savedRound?.name ?? round.name,
+                courseId: savedRound?.courseId ?? round.courseId,
+                updatedAt: savedRound?.updatedAt ?? round.updatedAt,
+              }
+            : round,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setSaveState('error');
+    }
   };
 
-  const deleteNote = (indexToDelete) => {
-    setRoundNotes((prev) => prev.filter((_, index) => index !== indexToDelete));
+  const deleteNote = async (indexToDelete) => {
+    const updatedNotes = roundNotes.filter((_, index) => index !== indexToDelete);
+    setRoundNotes(updatedNotes);
+    if (!authToken || !selectedRoundId) {
+      return;
+    }
+
+    setSaveState('saving');
+    try {
+      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, updatedNotes, selectedCourseId, authToken);
+      setSaveState('saved');
+      setRounds((prev) =>
+        prev.map((round) =>
+          round.id === selectedRoundId
+            ? {
+                ...round,
+                name: savedRound?.name ?? round.name,
+                courseId: savedRound?.courseId ?? round.courseId,
+                updatedAt: savedRound?.updatedAt ?? round.updatedAt,
+              }
+            : round,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setSaveState('error');
+    }
   };
 
   const toggleSetupSelection = (setupKey) => {
@@ -2139,10 +2285,39 @@ export default function App() {
       return;
     }
 
-    setRoundNotes((prev) => [...prev, summary]);
+    const updatedNotes = [...roundNotes, summary];
+    setRoundNotes(updatedNotes);
+    setShowDistanceTracker(false);
 
     if (!authToken || !CLUB_OPTION_SET.has(clubSelection) || actualDistanceMeters <= 0) {
       return;
+    }
+
+    if (selectedRoundId) {
+      setSaveState('saving');
+      try {
+        const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, updatedNotes, selectedCourseId, authToken);
+        setSaveState('saved');
+        setRounds((prev) =>
+          prev.map((round) =>
+            round.id === selectedRoundId
+              ? {
+                  ...round,
+                  name: savedRound?.name ?? round.name,
+                  courseId: savedRound?.courseId ?? round.courseId,
+                  updatedAt: savedRound?.updatedAt ?? round.updatedAt,
+                }
+              : round,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setSaveState('error');
+      }
     }
 
     setShotLogSaveState('saving');
@@ -2473,18 +2648,6 @@ export default function App() {
         <h1>Golf Stat Tracker</h1>
         {!showNewRoundForm ? (
           <div className="header-controls">
-            <select
-              className="round-select"
-              value={selectedRoundId}
-              onChange={(event) => switchRound(event.target.value)}
-              disabled={isSwitchingRound || rounds.length === 0}
-            >
-              {rounds.map((round) => (
-                <option key={round.id} value={round.id}>
-                  {round.name}
-                </option>
-              ))}
-            </select>
             <button
               onClick={() => {
                 setNewRoundCourseId(selectedCourseId);
@@ -2494,12 +2657,44 @@ export default function App() {
             >
               New round
             </button>
-            <button className="reset-btn" onClick={deleteRound} disabled={!selectedRoundId || isSwitchingRound}>
-              Delete round
-            </button>
             <button onClick={logout} disabled={isSwitchingRound}>
               Log out
             </button>
+            <div className="manage-menu">
+              <button
+                type="button"
+                onClick={() => setIsManageMenuOpen((prev) => !prev)}
+                disabled={isSwitchingRound}
+                aria-expanded={isManageMenuOpen}
+                aria-haspopup="true"
+              >
+                Manage
+              </button>
+              {isManageMenuOpen ? (
+                <div className="manage-dropdown" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setPage('rounds');
+                      setIsManageMenuOpen(false);
+                    }}
+                  >
+                    Rounds
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setPage('courses');
+                      setIsManageMenuOpen(false);
+                    }}
+                  >
+                    Courses
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </header>
@@ -2565,9 +2760,6 @@ export default function App() {
             <button className={page === 'totals' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('totals')}>
               Round totals
             </button>
-            <button className={page === 'courses' ? 'tab-btn active' : 'tab-btn'} onClick={() => setPage('courses')}>
-              Courses
-            </button>
           </nav>
 
           {page === 'track' ? (
@@ -2593,6 +2785,143 @@ export default function App() {
                   <span className="hole-index">Index {displayHoleIndex}</span>
                 </div>
                 <p className="hint">Round: {activeRound?.name || '...'}</p>
+                <div className="track-distance-row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDistanceTracker(true);
+                      setDistanceMode('setup');
+                    }}
+                  >
+                    Track distance
+                  </button>
+                </div>
+                {showDistanceTracker ? (
+                  <div className="distance-tracker">
+                    <div className="prototype-block">
+                      <div className="distance-header">
+                        <span>Target distance</span>
+                        <strong>{targetDistanceMeters === 0 ? 'Off' : `${targetDistanceMeters}m`}</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={300}
+                        step={1}
+                        value={targetDistanceMeters}
+                        onChange={(event) => setTargetDistanceMeters(Number(event.target.value))}
+                      />
+                    </div>
+
+                    <div className="prototype-block">
+                      <div className="distance-header">
+                        <span>Actual distance</span>
+                        <strong>{actualDistancePaces} paces</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={metersToPaces(10)}
+                        max={metersToPaces(300)}
+                        step={1}
+                        value={actualDistancePaces}
+                        onChange={(event) => setActualDistancePaces(Number(event.target.value))}
+                      />
+                    </div>
+
+                    <div className="prototype-block">
+                      <div className="distance-header">
+                        <span>Offline</span>
+                        <strong>
+                          {offlineMeters === 0
+                            ? 'Off'
+                            : `${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`}
+                        </strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={-50}
+                        max={50}
+                        step={1}
+                        value={offlineMeters}
+                        onChange={(event) => setOfflineMeters(Number(event.target.value))}
+                      />
+                    </div>
+
+                    <div className="prototype-block">
+                      <h3 className="section-title">Club</h3>
+                      <div className="club-groups" role="group" aria-label="Club selection">
+                        {CLUB_GROUPS.map((group) => (
+                          <div key={group.label} className="club-group">
+                            <h4 className="club-group-title">{group.label}</h4>
+                            <div className="club-row">
+                              {group.options.map((club) => (
+                                <button
+                                  key={club}
+                                  className={clubSelection === club ? 'club-btn active' : 'club-btn'}
+                                  onClick={() => setClubSelection((prev) => (prev === club ? '' : club))}
+                                >
+                                  {club}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="prototype-block">
+                      <h3 className="section-title">Lie</h3>
+                      <div className="club-row" role="group" aria-label="Lie selection">
+                        {LIE_OPTIONS.map((lie) => (
+                          <button
+                            key={lie}
+                            className={lieSelection === lie ? 'club-btn active' : 'club-btn'}
+                            onClick={() => setLieSelection((prev) => (prev === lie ? '' : lie))}
+                          >
+                            {lie}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="prototype-block">
+                      <h3 className="section-title">Setup notes</h3>
+                      <div className="quick-notes-row" role="group" aria-label="Setup note buttons">
+                        {SHOT_SETUP_OPTIONS.map((option) => (
+                          <button
+                            key={option.key}
+                            className={setupSelection === option.key ? 'quick-note-btn active' : 'quick-note-btn'}
+                            onClick={() => toggleSetupSelection(option.key)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="prototype-block">
+                      <h3 className="section-title">Clock system</h3>
+                      <div className="clock-row" role="group" aria-label="Swing clock">
+                        {SWING_CLOCK_OPTIONS.map((clock) => (
+                          <button
+                            key={clock}
+                            className={swingClock === clock ? 'clock-btn active' : 'clock-btn'}
+                            onClick={() => setSwingClock((prev) => (prev === clock ? '' : clock))}
+                          >
+                            {clock}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="manual-save-row">
+                      <button className="save-btn" onClick={addShotPrototypeNote}>
+                        Save distance
+                      </button>
+                    </div>
+                    {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
+                  </div>
+                ) : null}
                 <div className="stat-section">
                   <h3 className="section-title">Hole details</h3>
                   <div className="stat-list">
@@ -2685,13 +3014,20 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-                <div className="manual-save-row">
+                <div className="manual-save-row hole-save-row">
                   <button
                     className="save-btn"
                     onClick={saveCurrentRound}
                     disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
                   >
                     {saveState === 'saving' ? 'Saving...' : 'Save hole'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveAndNextHole}
+                    disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
+                  >
+                    Next hole
                   </button>
                 </div>
               </section>
@@ -2956,148 +3292,92 @@ export default function App() {
                 ))}
               </div>
             </section>
+          ) : page === 'rounds' ? (
+            <section className="card" aria-label="rounds overview">
+              <h2>Rounds</h2>
+              <div className="rounds-controls">
+                <label className="rounds-field">
+                  <span>Active round</span>
+                  <select
+                    className="round-select"
+                    value={selectedRoundId}
+                    onChange={(event) => switchRound(event.target.value)}
+                    disabled={isSwitchingRound || rounds.length === 0}
+                  >
+                    {rounds.length === 0 ? (
+                      <option value="">No rounds yet</option>
+                    ) : (
+                      rounds.map((round) => (
+                        <option key={round.id} value={round.id}>
+                          {round.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </label>
+                <button
+                  className="reset-btn"
+                  onClick={deleteRound}
+                  disabled={!selectedRoundId || isSwitchingRound}
+                >
+                  Delete round
+                </button>
+              </div>
+              {roundSummariesError ? <p className="hint">{roundSummariesError}</p> : null}
+              <div className="rounds-summary-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Round</th>
+                      <th>Total score</th>
+                      <th>Fairway hit</th>
+                      <th>GIR hit</th>
+                      <th>Over 3 score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rounds.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="rounds-empty">
+                          No rounds yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      rounds.map((round) => {
+                        const summary = roundSummaries[round.id];
+                        const totals = summary?.totals;
+                        const isLoadingSummary = !summary && roundSummariesState === 'loading';
+                        const fallback = isLoadingSummary ? '...' : '—';
+
+                        return (
+                          <tr key={round.id} className={round.id === selectedRoundId ? 'active' : ''}>
+                            <td data-label="Round">{round.name}</td>
+                            <td data-label="Total score" className="numeric">
+                              {totals ? totals.score : fallback}
+                            </td>
+                            <td data-label="Fairway hit" className="numeric">
+                              {totals ? totals.fairwayHit : fallback}
+                            </td>
+                            <td data-label="GIR hit" className="numeric">
+                              {totals ? totals.girHit : fallback}
+                            </td>
+                            <td data-label="Over 3 score" className="numeric">
+                              {totals ? totals.inside100Over3 : fallback}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           ) : page === 'distance' ? (
             <section className="card" aria-label="distance setup prototype">
               <div className="card-header">
                 <h2>Distances</h2>
-                {distanceMode === 'setup' ? (
-                  <button type="button" className="setup-toggle" onClick={() => setDistanceMode('view')}>
-                    Close setup
-                  </button>
-                ) : (
-                  <button type="button" className="setup-toggle" onClick={() => setDistanceMode('setup')}>
-                    Set up
-                  </button>
-                )}
               </div>
               <p className="hint">Use this tab to capture distance, setup choices, and swing clock feel.</p>
-
-              {distanceMode === 'setup' ? (
-                <>
-                  <div className="prototype-block">
-                    <div className="distance-header">
-                      <span>Target distance</span>
-                      <strong>{targetDistanceMeters === 0 ? 'Off' : `${targetDistanceMeters}m`}</strong>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={300}
-                      step={1}
-                      value={targetDistanceMeters}
-                      onChange={(event) => setTargetDistanceMeters(Number(event.target.value))}
-                    />
-                  </div>
-
-                  <div className="prototype-block">
-                    <div className="distance-header">
-                      <span>Actual distance</span>
-                      <strong>{actualDistancePaces} paces</strong>
-                    </div>
-                    <input
-                      type="range"
-                      min={metersToPaces(10)}
-                      max={metersToPaces(300)}
-                      step={1}
-                      value={actualDistancePaces}
-                      onChange={(event) => setActualDistancePaces(Number(event.target.value))}
-                    />
-                  </div>
-
-                  <div className="prototype-block">
-                    <div className="distance-header">
-                      <span>Offline</span>
-                      <strong>
-                        {offlineMeters === 0
-                          ? 'Off'
-                          : `${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`}
-                      </strong>
-                    </div>
-                    <input
-                      type="range"
-                      min={-50}
-                      max={50}
-                      step={1}
-                      value={offlineMeters}
-                      onChange={(event) => setOfflineMeters(Number(event.target.value))}
-                    />
-                  </div>
-
-                  <div className="prototype-block">
-                    <h3 className="section-title">Club</h3>
-                    <div className="club-groups" role="group" aria-label="Club selection">
-                      {CLUB_GROUPS.map((group) => (
-                        <div key={group.label} className="club-group">
-                          <h4 className="club-group-title">{group.label}</h4>
-                          <div className="club-row">
-                            {group.options.map((club) => (
-                              <button
-                                key={club}
-                                className={clubSelection === club ? 'club-btn active' : 'club-btn'}
-                                onClick={() => setClubSelection((prev) => (prev === club ? '' : club))}
-                              >
-                                {club}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="prototype-block">
-                    <h3 className="section-title">Lie</h3>
-                    <div className="club-row" role="group" aria-label="Lie selection">
-                      {LIE_OPTIONS.map((lie) => (
-                        <button
-                          key={lie}
-                          className={lieSelection === lie ? 'club-btn active' : 'club-btn'}
-                          onClick={() => setLieSelection((prev) => (prev === lie ? '' : lie))}
-                        >
-                          {lie}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="prototype-block">
-                    <h3 className="section-title">Setup notes</h3>
-                    <div className="quick-notes-row" role="group" aria-label="Setup note buttons">
-                      {SHOT_SETUP_OPTIONS.map((option) => (
-                        <button
-                          key={option.key}
-                          className={setupSelection === option.key ? 'quick-note-btn active' : 'quick-note-btn'}
-                          onClick={() => toggleSetupSelection(option.key)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="prototype-block">
-                    <h3 className="section-title">Clock system</h3>
-                    <div className="clock-row" role="group" aria-label="Swing clock">
-                      {SWING_CLOCK_OPTIONS.map((clock) => (
-                        <button
-                          key={clock}
-                          className={swingClock === clock ? 'clock-btn active' : 'clock-btn'}
-                          onClick={() => setSwingClock((prev) => (prev === clock ? '' : clock))}
-                        >
-                          {clock}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="manual-save-row">
-                    <button className="save-btn" onClick={addShotPrototypeNote}>
-                      Save distance
-                    </button>
-                  </div>
-                  {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
-                </>
-              ) : null}
 
               <div className="distance-averages">
                 <h3>Club distance averages</h3>
@@ -3167,28 +3447,22 @@ export default function App() {
                   </>
                 ) : null}
               </div>
+              <div className="setup-footer">
+                {distanceMode === 'setup' ? (
+                  <button type="button" className="setup-toggle" onClick={() => setDistanceMode('view')}>
+                    Close setup
+                  </button>
+                ) : (
+                  <button type="button" className="setup-toggle" onClick={() => setDistanceMode('setup')}>
+                    Set up
+                  </button>
+                )}
+              </div>
             </section>
           ) : page === 'wedgeMatrix' ? (
             <section className="card" aria-label="wedge matrix">
               <div className="card-header">
                 <h2>Wedge matrix</h2>
-                {wedgeMatrixMode === 'setup' ? (
-                  <button
-                    type="button"
-                    className="setup-toggle"
-                    onClick={() => {
-                      setWedgeMatrixMode('view');
-                      setIsWedgeFormOpen(false);
-                      setEditingWedgeEntryId(null);
-                    }}
-                  >
-                    Close setup
-                  </button>
-                ) : (
-                  <button type="button" className="setup-toggle" onClick={() => setWedgeMatrixMode('setup')}>
-                    Set up
-                  </button>
-                )}
               </div>
               <p className="hint">Capture wedge distances by clock system and compare setups.</p>
               {wedgeMatrixMode === 'setup' ? (
@@ -3477,23 +3751,30 @@ export default function App() {
                   </div>
                 );
               })}
+              <div className="setup-footer">
+                {wedgeMatrixMode === 'setup' ? (
+                  <button
+                    type="button"
+                    className="setup-toggle"
+                    onClick={() => {
+                      setWedgeMatrixMode('view');
+                      setIsWedgeFormOpen(false);
+                      setEditingWedgeEntryId(null);
+                    }}
+                  >
+                    Close setup
+                  </button>
+                ) : (
+                  <button type="button" className="setup-toggle" onClick={() => setWedgeMatrixMode('setup')}>
+                    Set up
+                  </button>
+                )}
+              </div>
             </section>
           ) : null}
 
           <section className="card" aria-label="round notes">
             <h2>Notes</h2>
-            <div className="notes-list">
-              {roundNotes.length > 0 ? (
-                roundNotes.map((note, index) => (
-                  <div key={`${index}-${note.slice(0, 20)}`} className="note-item">
-                    <p>{note}</p>
-                    <button onClick={() => deleteNote(index)}>Delete</button>
-                  </div>
-                ))
-              ) : (
-                <p className="hint">No notes yet.</p>
-              )}
-            </div>
             <form className="note-form" onSubmit={addNote}>
               <textarea
                 className="notes-input"
@@ -3504,6 +3785,21 @@ export default function App() {
               />
               <button type="submit">Save note</button>
             </form>
+            <div className="notes-list">
+              {roundNotes.length > 0 ? (
+                roundNotes
+                  .map((note, index) => ({ note, index }))
+                  .reverse()
+                  .map(({ note, index }) => (
+                    <div key={`${index}-${note.slice(0, 20)}`} className="note-item">
+                      <p>{note}</p>
+                      <button onClick={() => deleteNote(index)}>Delete</button>
+                    </div>
+                  ))
+              ) : (
+                <p className="hint">No notes yet.</p>
+              )}
+            </div>
           </section>
         </>
       ) : null}

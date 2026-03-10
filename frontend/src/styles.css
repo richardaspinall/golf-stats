@@ -71,7 +71,7 @@ body {
 
 .page-tabs {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
@@ -367,14 +367,14 @@ button:active {
 }
 
 .gir-menu {
-  --gir-size: min(280px, 88vw);
-  --gir-selected: #e06a6a;
-  --gir-selected-text: #1f1f1f;
-  --gir-hit-selected: #2d7d46;
-  --gir-hit-text: #ffffff;
+  --menu-size: min(280px, 88vw);
+  --menu-selected: #d58d8d;
+  --menu-selected-text: #1f1f1f;
+  --menu-hit-selected: #2d7d46;
+  --menu-hit-text: #ffffff;
   position: relative;
-  width: var(--gir-size);
-  height: var(--gir-size);
+  width: var(--menu-size);
+  height: var(--menu-size);
   margin: 0 auto;
   display: block;
   border-radius: 50%;
@@ -382,10 +382,18 @@ button:active {
 }
 
 .fairway-menu {
-  display: grid;
-  grid-template-columns: repeat(3, 64px);
-  gap: 8px;
-  justify-content: center;
+  --menu-size: min(260px, 86vw);
+  --menu-selected: #d58d8d;
+  --menu-selected-text: #1f1f1f;
+  --menu-hit-selected: #2d7d46;
+  --menu-hit-text: #ffffff;
+  position: relative;
+  width: var(--menu-size);
+  height: var(--menu-size);
+  margin: 0 auto;
+  display: block;
+  border-radius: 50%;
+  overflow: hidden;
 }
 
 .directional-btn {
@@ -396,7 +404,8 @@ button:active {
   padding: 0;
 }
 
-.gir-menu .directional-btn {
+.gir-menu .directional-btn,
+.fairway-menu .directional-btn {
   position: absolute;
   inset: 0;
   border: none;
@@ -413,14 +422,16 @@ button:active {
   text-align: center;
 }
 
-.gir-menu .directional-btn:focus-visible {
+.gir-menu .directional-btn:focus-visible,
+.fairway-menu .directional-btn:focus-visible {
   outline: 3px solid #2d7d46;
   outline-offset: 4px;
 }
 
-.gir-menu .directional-btn.active {
-  background: var(--gir-selected);
-  color: var(--gir-selected-text);
+.gir-menu .directional-btn.active,
+.fairway-menu .directional-btn.active {
+  background: var(--menu-selected);
+  color: var(--menu-selected-text);
   box-shadow: inset 0 0 0 6px #f8f9fe;
 }
 
@@ -455,7 +466,8 @@ button:active {
   grid-row: 3;
 }
 
-.gir-menu .directional-btn.long {
+.gir-menu .directional-btn.long,
+.fairway-menu .directional-btn.long {
   clip-path: polygon(50% 50%, 100% 0%, 0% 0%);
   -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
   mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
@@ -463,7 +475,8 @@ button:active {
   padding-top: 34px;
 }
 
-.gir-menu .directional-btn.left {
+.gir-menu .directional-btn.left,
+.fairway-menu .directional-btn.left {
   clip-path: polygon(50% 50%, 0% 0%, 0% 100%);
   -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
   mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
@@ -471,7 +484,8 @@ button:active {
   padding-left: 30px;
 }
 
-.gir-menu .directional-btn.right {
+.gir-menu .directional-btn.right,
+.fairway-menu .directional-btn.right {
   clip-path: polygon(50% 50%, 100% 0%, 100% 100%);
   -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
   mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
@@ -479,7 +493,8 @@ button:active {
   padding-right: 18px;
 }
 
-.gir-menu .directional-btn.short {
+.gir-menu .directional-btn.short,
+.fairway-menu .directional-btn.short {
   clip-path: polygon(50% 50%, 0% 100%, 100% 100%);
   -webkit-mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
   mask: radial-gradient(circle at center, transparent 0 34%, #000 35%);
@@ -487,7 +502,8 @@ button:active {
   padding-bottom: 34px;
 }
 
-.gir-menu .directional-btn.center {
+.gir-menu .directional-btn.center,
+.fairway-menu .directional-btn.center {
   width: 92px;
   height: 92px;
   inset: auto;
@@ -504,9 +520,10 @@ button:active {
   z-index: 2;
 }
 
-.gir-menu .directional-btn.center.active {
-  background: var(--gir-hit-selected);
-  color: var(--gir-hit-text);
+.gir-menu .directional-btn.center.active,
+.fairway-menu .directional-btn.center.active {
+  background: var(--menu-hit-selected);
+  color: var(--menu-hit-text);
 }
 
 .stat-row,
@@ -521,6 +538,7 @@ button:active {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding-bottom: 8px;
 }
 
 .stat-actions button {
@@ -533,6 +551,14 @@ button:active {
   font-size: 0.9rem;
 }
 
+.track-distance-row {
+  margin: 8px 0 16px;
+}
+
+.distance-tracker {
+  margin-bottom: 18px;
+}
+
 .reset-btn {
   padding: 0 12px;
 }
@@ -542,6 +568,13 @@ button:active {
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid #d4decc;
+}
+
+.hole-save-row {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 10px;
+  align-items: center;
 }
 
 .manual-save-row .save-btn {
@@ -867,6 +900,161 @@ button:active {
   margin-top: 12px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.manage-menu {
+  position: relative;
+}
+
+.manage-menu > button {
+  min-height: 40px;
+}
+
+.manage-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  display: grid;
+  gap: 6px;
+  min-width: 160px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #d4decc;
+  border-radius: 12px;
+  box-shadow: 0 14px 30px rgba(45, 70, 50, 0.18);
+  z-index: 20;
+}
+
+.manage-dropdown button {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.setup-footer {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.setup-footer .setup-toggle {
+  min-height: 40px;
+}
+
+.rounds-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rounds-field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #49614e;
+}
+
+.rounds-summary-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rounds-summary-table table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+}
+
+.rounds-summary-table th,
+.rounds-summary-table td {
+  border-bottom: 1px solid #d4decc;
+  padding: 10px 8px;
+  text-align: left;
+}
+
+.rounds-summary-table th {
+  font-size: 0.85rem;
+  color: #49614e;
+  font-weight: 600;
+}
+
+.rounds-summary-table td.numeric {
+  text-align: center;
+}
+
+.rounds-summary-table tr.active {
+  background: #f5f8f1;
+}
+
+.rounds-empty {
+  color: #637067;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 700px) {
+  .rounds-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rounds-controls .reset-btn {
+    width: 100%;
+  }
+
+  .rounds-summary-table table {
+    min-width: 0;
+  }
+
+  .rounds-summary-table thead {
+    display: none;
+  }
+
+  .rounds-summary-table tbody,
+  .rounds-summary-table tr,
+  .rounds-summary-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .rounds-summary-table tr {
+    border: 1px solid #d4decc;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: #fff;
+  }
+
+  .rounds-summary-table tr.active {
+    background: #f5f8f1;
+  }
+
+  .rounds-summary-table td {
+    border: none;
+    padding: 6px 0;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+  }
+
+  .rounds-summary-table td::before {
+    content: attr(data-label);
+    font-size: 0.8rem;
+    color: #49614e;
+    font-weight: 600;
+    text-transform: none;
+  }
+
+  .rounds-summary-table td.numeric {
+    text-align: right;
+  }
+
+  .rounds-empty {
+    border: 1px dashed #d4decc;
+    border-radius: 12px;
+    padding: 12px;
+  }
 }
 
 .card-header {
