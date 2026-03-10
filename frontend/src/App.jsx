@@ -784,7 +784,7 @@ export default function App() {
   }, [authToken]);
 
   useEffect(() => {
-    const shouldShowMap = page === 'track' || (page === 'courses' && isMapSetupOpen);
+    const shouldShowMap = page === 'courses' && isMapSetupOpen;
     if (!shouldShowMap) {
       return;
     }
@@ -940,7 +940,7 @@ export default function App() {
   }, [page, isMapSetupOpen, courseEditorId]);
 
   useEffect(() => {
-    const shouldShowMap = page === 'track' || (page === 'courses' && isMapSetupOpen);
+    const shouldShowMap = page === 'courses' && isMapSetupOpen;
     if (shouldShowMap) {
       return;
     }
@@ -979,10 +979,10 @@ export default function App() {
   }, [page, mapSetupHole]);
 
   useEffect(() => {
-    if (page === 'track') {
+    if (page === 'courses' && isMapSetupOpen) {
       setMapViewportVersion((prev) => prev + 1);
     }
-  }, [page, selectedHole, selectedCourseId]);
+  }, [page, isMapSetupOpen, mapSetupHole, courseEditorId]);
 
   useEffect(() => {
     lastAutoHeadingRef.current = null;
@@ -1954,53 +1954,6 @@ export default function App() {
                       {hole}
                     </button>
                   ))}
-                </div>
-              </section>
-
-              <section className="card map-card" aria-label="hole map">
-                <div className="map-header">
-                  <h2>
-                    Hole {selectedHole} map {activeCourse?.name ? `- ${activeCourse.name}` : ''}
-                  </h2>
-                  <div className="map-header-meta">
-                    <span className={`map-status ${mapStatus}`}>{mapStatusLabel}</span>
-                    <span className="map-status neutral">{rotationSupportLabel}</span>
-                  </div>
-                </div>
-                <p className="hint">Markers are set in Courses. This view is read-only.</p>
-                {!GOOGLE_MAPS_MAP_ID ? (
-                  <p className="map-warning">Rotation needs a Google Maps Map ID (VITE_GOOGLE_MAPS_MAP_ID).</p>
-                ) : null}
-                {!GOOGLE_MAPS_API_KEY ? (
-                  <p className="map-warning">Set VITE_GOOGLE_MAPS_API_KEY to render the map.</p>
-                ) : null}
-                <div className="map-controls">
-                  <span className="map-placement-status">
-                    {!activeCourse
-                      ? 'No course selected for this round'
-                      : teePosition && greenPosition
-                        ? 'Tee + green set'
-                        : 'No markers for this hole yet'}
-                  </span>
-                  {teeToGreenMeters != null ? <span className="map-distance">{teeToGreenMeters} m</span> : null}
-                  {mapDebugInfo ? (
-                    <span className="map-debug">
-                      Debug: hole {mapDebugInfo.hole} | tee {mapDebugInfo.tee?.lat?.toFixed?.(5)},
-                      {mapDebugInfo.tee?.lng?.toFixed?.(5)} | green {mapDebugInfo.green?.lat?.toFixed?.(5)},
-                      {mapDebugInfo.green?.lng?.toFixed?.(5)} | bounds NE {mapDebugInfo.bounds.ne.lat.toFixed(5)},
-                      {mapDebugInfo.bounds.ne.lng.toFixed(5)} SW {mapDebugInfo.bounds.sw.lat.toFixed(5)},
-                      {mapDebugInfo.bounds.sw.lng.toFixed(5)} | attempt {mapDebugInfo.attempt} | source{' '}
-                      {mapDebugInfo.source} | padding {mapDebugInfo.padding?.top}/{mapDebugInfo.padding?.left}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="map-shell">
-                  <div ref={mapContainerRef} className="map-canvas" role="presentation" aria-hidden="true" />
-                  {mapStatus === 'loading' ? <div className="map-overlay">Loading map...</div> : null}
-                  {mapStatus === 'locating' ? <div className="map-overlay">Locating you...</div> : null}
-                  {mapStatus === 'error' ? (
-                    <div className="map-overlay error">Map failed to load or location denied.</div>
-                  ) : null}
                 </div>
               </section>
 
