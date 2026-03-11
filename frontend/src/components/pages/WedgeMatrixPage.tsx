@@ -29,6 +29,7 @@ type WedgeMatrixPageProps = {
     wedgeDistancePaces: number;
     wedgeDistanceMeters: number;
     editingWedgeEntryId: number | null;
+    recentEntriesMatrixId: number | null;
     wedgeEntryError: string;
     isLoadingWedgeEntries: boolean;
     wedgeEntriesError: string;
@@ -53,6 +54,7 @@ type WedgeMatrixPageProps = {
     setActiveWedgeMatrixId: (value: number | null) => void;
     setIsWedgeFormOpen: (value: boolean) => void;
     setEditingWedgeEntryId: (value: number | null) => void;
+    setRecentEntriesMatrixId: (value: number | null | ((prev: number | null) => number | null)) => void;
     setWedgeEntryError: (value: string) => void;
     deleteWedgeMatrix: (matrixId: number) => void;
     addWedgeEntry: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -127,6 +129,8 @@ type WedgeMatrixCardProps = {
   startWedgeMatrixEdit: WedgeMatrixPageProps['actions']['startWedgeMatrixEdit'];
   setIsWedgeFormOpen: WedgeMatrixPageProps['actions']['setIsWedgeFormOpen'];
   setEditingWedgeEntryId: WedgeMatrixPageProps['actions']['setEditingWedgeEntryId'];
+  recentEntriesMatrixId: WedgeMatrixPageProps['state']['recentEntriesMatrixId'];
+  setRecentEntriesMatrixId: WedgeMatrixPageProps['actions']['setRecentEntriesMatrixId'];
   setWedgeEntryError: WedgeMatrixPageProps['actions']['setWedgeEntryError'];
   deleteWedgeMatrix: WedgeMatrixPageProps['actions']['deleteWedgeMatrix'];
   isWedgeFormOpen: WedgeMatrixPageProps['state']['isWedgeFormOpen'];
@@ -394,7 +398,7 @@ function WedgeEntryForm({
             </div>
             <input
               type="range"
-              min={metersToPaces(10)}
+              min={metersToPaces(5)}
               max={metersToPaces(150)}
               step={1}
               value={wedgeDistancePaces}
@@ -409,7 +413,7 @@ function WedgeEntryForm({
             </div>
             <input
               type="range"
-              min={10}
+              min={5}
               max={150}
               step={1}
               value={wedgeDistanceMeters}
@@ -452,6 +456,8 @@ function WedgeMatrixCard({
   startWedgeMatrixEdit,
   setIsWedgeFormOpen,
   setEditingWedgeEntryId,
+  recentEntriesMatrixId,
+  setRecentEntriesMatrixId,
   setWedgeEntryError,
   deleteWedgeMatrix,
   isWedgeFormOpen,
@@ -485,6 +491,7 @@ function WedgeMatrixCard({
     Array.isArray(matrix.swingClocks) && matrix.swingClocks.length > 0 ? matrix.swingClocks : SWING_CLOCK_OPTIONS;
   const recentEntries = entries.slice(0, 12);
   const isActiveMatrix = activeWedgeMatrixId === matrix.id;
+  const isRecentEntriesOpen = recentEntriesMatrixId === matrix.id;
 
   return (
     <div className="wedge-matrix-card">
@@ -512,6 +519,14 @@ function WedgeMatrixCard({
             <button type="button" onClick={() => startWedgeMatrixEdit(matrix)}>
               Edit matrix
             </button>
+            {recentEntries.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setRecentEntriesMatrixId((prev) => (prev === matrix.id ? null : matrix.id))}
+              >
+                {isRecentEntriesOpen ? 'Close recent entries' : 'Edit recent entries'}
+              </button>
+            ) : null}
             <button type="button" className="reset-btn" onClick={() => deleteWedgeMatrix(matrix.id)}>
               Delete matrix
             </button>
@@ -573,7 +588,7 @@ function WedgeMatrixCard({
         {!isLoadingWedgeEntries && !wedgeEntriesError && entries.length === 0 ? <p className="hint">No wedge results yet.</p> : null}
         {wedgeMatrixMode === 'setup' && wedgeEntrySaveState !== 'idle' ? <p className="hint">Wedge save: {wedgeEntrySaveState}</p> : null}
       </div>
-      {wedgeMatrixMode === 'setup' && recentEntries.length > 0 ? (
+      {wedgeMatrixMode === 'setup' && recentEntries.length > 0 && isRecentEntriesOpen ? (
         <div className="wedge-recent">
           <h3 className="section-title">Recent entries</h3>
           <div className="wedge-recent-list">
@@ -630,6 +645,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
     wedgeDistancePaces,
     wedgeDistanceMeters,
     editingWedgeEntryId,
+    recentEntriesMatrixId,
     wedgeEntryError,
     isLoadingWedgeEntries,
     wedgeEntriesError,
@@ -652,8 +668,8 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
     setWedgeMatrixNotes,
     setActiveWedgeMatrixId,
     setIsWedgeFormOpen,
-    setEditingWedgeMatrixId,
     setEditingWedgeEntryId,
+    setRecentEntriesMatrixId,
     setWedgeEntryError,
     deleteWedgeMatrix,
     addWedgeEntry,
@@ -726,6 +742,8 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
             startWedgeMatrixEdit={startWedgeMatrixEdit}
             setIsWedgeFormOpen={setIsWedgeFormOpen}
             setEditingWedgeEntryId={setEditingWedgeEntryId}
+            recentEntriesMatrixId={recentEntriesMatrixId}
+            setRecentEntriesMatrixId={setRecentEntriesMatrixId}
             setWedgeEntryError={setWedgeEntryError}
             deleteWedgeMatrix={deleteWedgeMatrix}
             isWedgeFormOpen={isWedgeFormOpen}
@@ -765,12 +783,20 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
               setIsWedgeFormOpen(false);
               setEditingWedgeMatrixId(null);
               setEditingWedgeEntryId(null);
+              setRecentEntriesMatrixId(null);
             }}
           >
             Close setup
           </button>
         ) : (
-          <button type="button" className="setup-toggle" onClick={() => setWedgeMatrixMode('setup')}>
+          <button
+            type="button"
+            className="setup-toggle"
+            onClick={() => {
+              setWedgeMatrixMode('setup');
+              setRecentEntriesMatrixId(null);
+            }}
+          >
             Set up
           </button>
         )}
