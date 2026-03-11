@@ -109,12 +109,15 @@ export default function App() {
   const [activeWedgeMatrixId, setActiveWedgeMatrixId] = useState(null);
   const [wedgeMatrixMode, setWedgeMatrixMode] = useState('view');
   const [isWedgeMatrixFormOpen, setIsWedgeMatrixFormOpen] = useState(false);
+  const [editingWedgeMatrixId, setEditingWedgeMatrixId] = useState(null);
   const [wedgeMatrixName, setWedgeMatrixName] = useState('');
   const [wedgeMatrixStanceWidth, setWedgeMatrixStanceWidth] = useState('');
   const [wedgeMatrixGrip, setWedgeMatrixGrip] = useState('');
   const [wedgeMatrixBallPosition, setWedgeMatrixBallPosition] = useState('');
   const [wedgeMatrixNotes, setWedgeMatrixNotes] = useState('');
   const [wedgeMatrixClubs, setWedgeMatrixClubs] = useState([]);
+  const [wedgeMatrixSwingClocks, setWedgeMatrixSwingClocks] = useState(() => [...SWING_CLOCK_OPTIONS]);
+  const [wedgeMatrixEnabledColumns, setWedgeMatrixEnabledColumns] = useState([true, true, true, true]);
   const [wedgeMatrixSaveState, setWedgeMatrixSaveState] = useState('idle');
   const [wedgeMatricesError, setWedgeMatricesError] = useState('');
   const [isLoadingWedgeMatrices, setIsLoadingWedgeMatrices] = useState(false);
@@ -201,12 +204,15 @@ export default function App() {
     setActiveWedgeMatrixId(null);
     setWedgeMatrixMode('setup');
     setIsWedgeMatrixFormOpen(false);
+    setEditingWedgeMatrixId(null);
     setWedgeMatrixName('');
     setWedgeMatrixStanceWidth('');
     setWedgeMatrixGrip('');
     setWedgeMatrixBallPosition('');
     setWedgeMatrixNotes('');
     setWedgeMatrixClubs([]);
+    setWedgeMatrixSwingClocks([...SWING_CLOCK_OPTIONS]);
+    setWedgeMatrixEnabledColumns([true, true, true, true]);
     setWedgeMatrixSaveState('idle');
     setWedgeMatricesError('');
     setIsLoadingWedgeMatrices(false);
@@ -599,7 +605,11 @@ export default function App() {
     startWedgeEdit,
     cancelWedgeEdit,
     toggleWedgeMatrixClub,
-    createWedgeMatrix,
+    setWedgeMatrixSwingClockValue,
+    setWedgeMatrixColumnEnabled,
+    saveWedgeMatrix,
+    startWedgeMatrixEdit,
+    cancelWedgeMatrixEdit,
     deleteWedgeMatrix,
     deleteWedgeEntry,
     addWedgeEntry,
@@ -611,6 +621,8 @@ export default function App() {
     wedgeMatrixBallPosition,
     wedgeMatrixNotes,
     wedgeMatrixClubs,
+    wedgeMatrixSwingClocks,
+    wedgeMatrixEnabledColumns,
     setWedgeMatrices,
     setWedgeMatrixName,
     setWedgeMatrixStanceWidth,
@@ -618,9 +630,13 @@ export default function App() {
     setWedgeMatrixBallPosition,
     setWedgeMatrixNotes,
     setWedgeMatrixClubs,
+    setWedgeMatrixSwingClocks,
+    setWedgeMatrixEnabledColumns,
     setIsWedgeMatrixFormOpen,
     setWedgeMatrixSaveState,
     setWedgeMatricesError,
+    editingWedgeMatrixId,
+    setEditingWedgeMatrixId,
     activeWedgeMatrixId,
     wedgeMatrices,
     setActiveWedgeMatrixId,
@@ -1337,12 +1353,15 @@ export default function App() {
               state={{
                 wedgeMatrixMode,
                 isWedgeMatrixFormOpen,
+                editingWedgeMatrixId,
                 wedgeMatrixName,
                 wedgeMatrixClubs,
                 wedgeMatrixStanceWidth,
                 wedgeMatrixGrip,
                 wedgeMatrixBallPosition,
                 wedgeMatrixNotes,
+                wedgeMatrixSwingClocks,
+                wedgeMatrixEnabledColumns,
                 isLoadingWedgeMatrices,
                 wedgeMatricesError,
                 wedgeMatrices,
@@ -1364,9 +1383,14 @@ export default function App() {
                 setWedgeMatrixMode,
                 setIsWedgeMatrixFormOpen,
                 setWedgeMatricesError,
-                createWedgeMatrix,
+                saveWedgeMatrix,
+                startWedgeMatrixEdit,
+                cancelWedgeMatrixEdit,
+                setEditingWedgeMatrixId,
                 setWedgeMatrixName,
                 toggleWedgeMatrixClub,
+                setWedgeMatrixSwingClockValue,
+                setWedgeMatrixColumnEnabled,
                 setWedgeMatrixStanceWidth,
                 setWedgeMatrixGrip,
                 setWedgeMatrixBallPosition,

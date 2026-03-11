@@ -1,6 +1,7 @@
 import { sanitizeWedgeDistanceMeters } from '../domain/sanitize.js';
-import { isClubOption, isSwingClockOption } from '../domain/guards.js';
-import type { ClubOption, SwingClockOption, WedgeEntry, WedgeMatrix } from '../domain/types.js';
+import { SWING_CLOCK_OPTIONS } from '../constants.js';
+import { isClubOption } from '../domain/guards.js';
+import type { ClubOption, WedgeEntry, WedgeMatrix } from '../domain/types.js';
 import { getPool } from './pool.js';
 
 const sanitizeTextField = (value: unknown, max = 120) => String(value || '').trim().slice(0, max);
@@ -12,6 +13,20 @@ const sanitizeClubList = (value: unknown): ClubOption[] => {
   return value
     .map((club) => String(club || '').trim())
     .filter((club, index, arr) => isClubOption(club) && arr.indexOf(club) === index) as ClubOption[];
+};
+const sanitizeSwingClockLabel = (value: unknown, max = 40) => String(value || '').trim().slice(0, max);
+const sanitizeSwingClockList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((clock) => sanitizeSwingClockLabel(clock))
+    .filter((clock, index, arr) => Boolean(clock) && arr.indexOf(clock) === index);
+};
+const resolveSwingClockList = (value: unknown): string[] => {
+  const sanitized = sanitizeSwingClockList(value);
+  return sanitized.length > 0 ? sanitized : [...SWING_CLOCK_OPTIONS];
 };
 
 export const listWedgeMatrices = async () => {
@@ -25,6 +40,7 @@ export const listWedgeMatrices = async () => {
              ball_position,
              notes,
              clubs,
+             swing_clocks,
              created_at
       FROM wedge_matrices
       ORDER BY created_at DESC, id DESC
@@ -44,6 +60,7 @@ export const listWedgeMatrices = async () => {
       ballPosition: String(row.ball_position || ''),
       notes: String(row.notes || ''),
       clubs: sanitizeClubList(row.clubs),
+      swingClocks: resolveSwingClockList(row.swing_clocks),
       createdAt: String(row.created_at || ''),
     });
     return acc;
@@ -57,6 +74,7 @@ export const insertWedgeMatrix = async ({
   ballPosition,
   notes,
   clubs,
+  swingClocks,
 }: {
   name: string;
   stanceWidth: string;
@@ -64,6 +82,7 @@ export const insertWedgeMatrix = async ({
   ballPosition: string;
   notes: string;
   clubs: ClubOption[];
+  swingClocks: string[];
 }) => {
   const safeName = sanitizeTextField(name, 80) || 'Wedge matrix';
   const safeStanceWidth = sanitizeTextField(stanceWidth, 120);
@@ -71,15 +90,25 @@ export const insertWedgeMatrix = async ({
   const safeBallPosition = sanitizeTextField(ballPosition, 120);
   const safeNotes = sanitizeTextField(notes, 400);
   const safeClubs = sanitizeClubList(clubs);
+  const resolvedSwingClocks = resolveSwingClockList(swingClocks);
 
   const db = getPool();
   const result = await db.query(
     `
-      INSERT INTO wedge_matrices (name, stance_width, grip, ball_position, notes, clubs, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::timestamptz)
-      RETURNING id, name, stance_width, grip, ball_position, notes, clubs, created_at
+      INSERT INTO wedge_matrices (name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::timestamptz)
+      RETURNING id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at
     `,
-    [safeName, safeStanceWidth, safeGrip, safeBallPosition, safeNotes, JSON.stringify(safeClubs), new Date().toISOString()],
+    [
+      safeName,
+      safeStanceWidth,
+      safeGrip,
+      safeBallPosition,
+      safeNotes,
+      JSON.stringify(safeClubs),
+      JSON.stringify(resolvedSwingClocks),
+      new Date().toISOString(),
+    ],
   );
 
   const row = result.rows[0] || {};
@@ -91,6 +120,73 @@ export const insertWedgeMatrix = async ({
     ballPosition: String(row.ball_position || ''),
     notes: String(row.notes || ''),
     clubs: sanitizeClubList(row.clubs),
+    swingClocks: resolveSwingClockList(row.swing_clocks),
+    createdAt: String(row.created_at || ''),
+  } satisfies WedgeMatrix;
+};
+
+export const updateWedgeMatrix = async ({
+  id,
+  name,
+  stanceWidth,
+  grip,
+  ballPosition,
+  notes,
+  clubs,
+  swingClocks,
+}: {
+  id: number;
+  name: string;
+  stanceWidth: string;
+  grip: string;
+  ballPosition: string;
+  notes: string;
+  clubs: ClubOption[];
+  swingClocks: string[];
+}) => {
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error('Invalid id');
+  }
+
+  const safeName = sanitizeTextField(name, 80) || 'Wedge matrix';
+  const safeStanceWidth = sanitizeTextField(stanceWidth, 120);
+  const safeGrip = sanitizeTextField(grip, 120);
+  const safeBallPosition = sanitizeTextField(ballPosition, 120);
+  const safeNotes = sanitizeTextField(notes, 400);
+  const safeClubs = sanitizeClubList(clubs);
+  const resolvedSwingClocks = resolveSwingClockList(swingClocks);
+
+  const db = getPool();
+  const result = await db.query(
+    `
+      UPDATE wedge_matrices
+      SET name = $1,
+          stance_width = $2,
+          grip = $3,
+          ball_position = $4,
+          notes = $5,
+          clubs = $6::jsonb,
+          swing_clocks = $7::jsonb
+      WHERE id = $8
+      RETURNING id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at
+    `,
+    [safeName, safeStanceWidth, safeGrip, safeBallPosition, safeNotes, JSON.stringify(safeClubs), JSON.stringify(resolvedSwingClocks), id],
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: Number(row.id),
+    name: String(row.name || ''),
+    stanceWidth: String(row.stance_width || ''),
+    grip: String(row.grip || ''),
+    ballPosition: String(row.ball_position || ''),
+    notes: String(row.notes || ''),
+    clubs: sanitizeClubList(row.clubs),
+    swingClocks: resolveSwingClockList(row.swing_clocks),
     createdAt: String(row.created_at || ''),
   } satisfies WedgeMatrix;
 };
@@ -139,12 +235,12 @@ export const listWedgeEntries = async (matrixId?: number | null) => {
 
   return result.rows.reduce((acc: WedgeEntry[], row: any) => {
     const club = String(row.club || '');
-    const swingClock = String(row.swing_clock || '');
+    const swingClock = sanitizeSwingClockLabel(row.swing_clock);
     const distanceMeters = Number(row.distance_meters);
     const createdAt = String(row.created_at || '');
     const id = Number(row.id);
     const matrixId = Number(row.matrix_id);
-    if (!isClubOption(club) || !isSwingClockOption(swingClock)) {
+    if (!isClubOption(club) || !swingClock) {
       return acc;
     }
     if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
@@ -184,7 +280,18 @@ export const insertWedgeEntry = async ({
   if (!isClubOption(club)) {
     throw new Error('Invalid club');
   }
-  if (!isSwingClockOption(swingClock)) {
+  const safeSwingClock = sanitizeSwingClockLabel(swingClock);
+  if (!safeSwingClock) {
+    throw new Error('Invalid swing clock');
+  }
+
+  const matrixResult = await getPool().query('SELECT swing_clocks FROM wedge_matrices WHERE id = $1', [matrixId]);
+  const matrixRow = matrixResult.rows[0];
+  if (!matrixRow) {
+    throw new Error('Invalid matrix');
+  }
+  const allowedSwingClocks = resolveSwingClockList(matrixRow.swing_clocks);
+  if (!allowedSwingClocks.includes(safeSwingClock)) {
     throw new Error('Invalid swing clock');
   }
 
@@ -200,12 +307,12 @@ export const insertWedgeEntry = async ({
       VALUES ($1, $2, $3, $4, $5::timestamptz)
       RETURNING id, matrix_id, club, swing_clock, distance_meters, created_at
     `,
-    [matrixId, club, swingClock, sanitizedDistance, new Date().toISOString()],
+    [matrixId, club, safeSwingClock, sanitizedDistance, new Date().toISOString()],
   );
 
   const row = result.rows[0] || {};
   const savedClub = String(row.club || '') as ClubOption;
-  const savedSwingClock = String(row.swing_clock || '') as SwingClockOption;
+  const savedSwingClock = sanitizeSwingClockLabel(row.swing_clock);
   return {
     id: Number(row.id),
     matrixId: Number(row.matrix_id),
@@ -240,7 +347,18 @@ export const updateWedgeEntry = async ({
   if (!isClubOption(club)) {
     throw new Error('Invalid club');
   }
-  if (!isSwingClockOption(swingClock)) {
+  const safeSwingClock = sanitizeSwingClockLabel(swingClock);
+  if (!safeSwingClock) {
+    throw new Error('Invalid swing clock');
+  }
+
+  const matrixResult = await getPool().query('SELECT swing_clocks FROM wedge_matrices WHERE id = $1', [matrixId]);
+  const matrixRow = matrixResult.rows[0];
+  if (!matrixRow) {
+    throw new Error('Invalid matrix');
+  }
+  const allowedSwingClocks = resolveSwingClockList(matrixRow.swing_clocks);
+  if (!allowedSwingClocks.includes(safeSwingClock)) {
     throw new Error('Invalid swing clock');
   }
 
@@ -260,7 +378,7 @@ export const updateWedgeEntry = async ({
       WHERE id = $5
       RETURNING id, matrix_id, club, swing_clock, distance_meters, created_at
     `,
-    [matrixId, club, swingClock, sanitizedDistance, id],
+    [matrixId, club, safeSwingClock, sanitizedDistance, id],
   );
 
   const row = result.rows[0];
@@ -272,7 +390,7 @@ export const updateWedgeEntry = async ({
     id: Number(row.id),
     matrixId: Number(row.matrix_id),
     club: String(row.club || '') as ClubOption,
-    swingClock: String(row.swing_clock || '') as SwingClockOption,
+    swingClock: sanitizeSwingClockLabel(row.swing_clock),
     distanceMeters: Number(row.distance_meters),
     createdAt: String(row.created_at || ''),
   } satisfies WedgeEntry;

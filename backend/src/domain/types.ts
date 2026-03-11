@@ -80,7 +80,7 @@ export type WedgeEntry = {
   id: number;
   matrixId: number;
   club: ClubOption;
-  swingClock: SwingClockOption;
+  swingClock: string;
   distanceMeters: number;
   createdAt: string;
 };
@@ -93,5 +93,6 @@ export type WedgeMatrix = {
   ballPosition: string;
   notes: string;
   clubs: ClubOption[];
+  swingClocks: string[];
   createdAt: string;
 };

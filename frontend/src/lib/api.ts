@@ -313,7 +313,7 @@ export const loadWedgeMatricesFromApi = async (token: string): Promise<WedgeMatr
 };
 
 export const createWedgeMatrixInApi = async (
-  payload: { name: string; stanceWidth: string; grip: string; ballPosition: string; notes: string; clubs: string[] },
+  payload: { name: string; stanceWidth: string; grip: string; ballPosition: string; notes: string; clubs: string[]; swingClocks: string[] },
   token: string,
 ): Promise<WedgeMatrix | null> => {
   const response = await requestApi(API_WEDGE_MATRICES_URL, {
@@ -324,6 +324,24 @@ export const createWedgeMatrixInApi = async (
 
   if (!response.ok) {
     throw new ApiError(`Failed to create wedge matrix (${response.status})`, response.status, await getErrorDetails(response));
+  }
+
+  const data = await response.json();
+  return data?.matrix ? normalizeWedgeMatrix(data.matrix) : null;
+};
+
+export const updateWedgeMatrixInApi = async (
+  payload: { id: number; name: string; stanceWidth: string; grip: string; ballPosition: string; notes: string; clubs: string[]; swingClocks: string[] },
+  token: string,
+): Promise<WedgeMatrix | null> => {
+  const response = await requestApi(`${API_WEDGE_MATRICES_URL}/${encodeURIComponent(String(payload.id))}`, {
+    method: 'PUT',
+    body: payload,
+    token,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Failed to update wedge matrix (${response.status})`, response.status, await getErrorDetails(response));
   }
 
   const data = await response.json();

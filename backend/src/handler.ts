@@ -21,6 +21,7 @@ import {
   insertWedgeMatrix,
   listWedgeEntries,
   listWedgeMatrices,
+  updateWedgeMatrix,
   updateWedgeEntry,
 } from './db/wedge.js';
 import { buildInitialByHole, buildInitialCourseMarkers, createCourse, createRound } from './domain/factories.js';
@@ -397,6 +398,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           ballPosition: String((body as any)?.ballPosition || '').trim(),
           notes: String((body as any)?.notes || '').trim(),
           clubs: Array.isArray((body as any)?.clubs) ? (body as any).clubs : [],
+          swingClocks: Array.isArray((body as any)?.swingClocks) ? (body as any).swingClocks : [],
         });
         sendJson(res, 201, { ok: true, matrix });
       } catch (error: any) {
@@ -410,6 +412,30 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       const matrixId = Number(matrixMatch[1]);
       if (!Number.isFinite(matrixId) || matrixId <= 0) {
         sendJson(res, 400, { ok: false, error: 'Invalid matrix id' });
+        return;
+      }
+
+      if (method === 'PUT') {
+        try {
+          const body = await parseBody(req as BodyAwareRequest);
+          const matrix = await updateWedgeMatrix({
+            id: matrixId,
+            name: String((body as any)?.name || '').trim(),
+            stanceWidth: String((body as any)?.stanceWidth || '').trim(),
+            grip: String((body as any)?.grip || '').trim(),
+            ballPosition: String((body as any)?.ballPosition || '').trim(),
+            notes: String((body as any)?.notes || '').trim(),
+            clubs: Array.isArray((body as any)?.clubs) ? (body as any).clubs : [],
+            swingClocks: Array.isArray((body as any)?.swingClocks) ? (body as any).swingClocks : [],
+          });
+          if (!matrix) {
+            sendJson(res, 404, { ok: false, error: 'Matrix not found' });
+            return;
+          }
+          sendJson(res, 200, { ok: true, matrix });
+        } catch (error: any) {
+          sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+        }
         return;
       }
 

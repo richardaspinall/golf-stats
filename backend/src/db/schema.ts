@@ -49,10 +49,12 @@ export const ensureSchema = async () => {
           ball_position TEXT NOT NULL,
           notes TEXT NOT NULL,
           clubs JSONB NOT NULL DEFAULT '[]'::jsonb,
+          swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb,
           created_at TIMESTAMPTZ NOT NULL
         );
         ALTER TABLE wedge_entries ADD COLUMN IF NOT EXISTS matrix_id BIGINT;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS clubs JSONB NOT NULL DEFAULT '[]'::jsonb;
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb;
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS course_id TEXT;
       `)
       .then(() => undefined);
