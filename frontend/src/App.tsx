@@ -133,6 +133,7 @@ export default function App() {
   const [isLoadingWedgeEntries, setIsLoadingWedgeEntries] = useState(false);
   const [wedgeEntriesByMatrix, setWedgeEntriesByMatrix] = useState({});
   const [editingWedgeEntryId, setEditingWedgeEntryId] = useState(null);
+  const [recentEntriesMatrixId, setRecentEntriesMatrixId] = useState(null);
   const [mapSetupHole, setMapSetupHole] = useState(1);
   const [isMapSetupOpen, setIsMapSetupOpen] = useState(false);
 
@@ -226,6 +227,7 @@ export default function App() {
     setIsLoadingWedgeEntries(false);
     setWedgeEntriesByMatrix({});
     setEditingWedgeEntryId(null);
+    setRecentEntriesMatrixId(null);
     resetMapState();
     hasLoadedRef.current = false;
     skipNextSaveRef.current = false;
@@ -1374,6 +1376,7 @@ export default function App() {
                 wedgeDistancePaces,
                 wedgeDistanceMeters,
                 editingWedgeEntryId,
+                recentEntriesMatrixId,
                 wedgeEntryError,
                 isLoadingWedgeEntries,
                 wedgeEntriesError,
@@ -1398,6 +1401,7 @@ export default function App() {
                 setActiveWedgeMatrixId,
                 setIsWedgeFormOpen,
                 setEditingWedgeEntryId,
+                setRecentEntriesMatrixId,
                 setWedgeEntryError,
                 deleteWedgeMatrix,
                 addWedgeEntry,
