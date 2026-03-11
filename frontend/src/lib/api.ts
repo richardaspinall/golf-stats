@@ -154,10 +154,10 @@ export const saveRoundToApi = async (
   return data?.round || null;
 };
 
-export const createRoundInApi = async (name: string, courseId: string, token: string): Promise<Round | null> => {
+export const createRoundInApi = async (name: string, roundDate: string, courseId: string, token: string): Promise<Round | null> => {
   const response = await requestApi(API_ROUNDS_URL, {
     method: 'POST',
-    body: { name, courseId },
+    body: { name, roundDate, courseId },
     token,
   });
 

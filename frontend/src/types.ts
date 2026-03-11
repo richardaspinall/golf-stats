@@ -30,6 +30,7 @@ export interface CourseMarker {
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
   holeIndex: number;
+  par: number;
 }
 
 export type CourseMarkers = Record<number, CourseMarker>;
@@ -46,6 +47,7 @@ export interface RoundSummaryData {
 export interface RoundListItem {
   id: string;
   name: string;
+  roundDate?: string;
   courseId?: string;
   createdAt?: string;
   updatedAt?: string;

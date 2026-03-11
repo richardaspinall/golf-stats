@@ -28,6 +28,7 @@ import { buildInitialByHole, buildInitialCourseMarkers, createCourse, createRoun
 import {
   sanitizeCourseMarkers,
   sanitizeCourseName,
+  sanitizeRoundDate,
   sanitizeRoundName,
   sanitizeRoundNotes,
   sanitizeStats,
@@ -186,6 +187,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         }
         const newRound = createRound(
           roundName,
+          sanitizeRoundDate((body as any)?.roundDate),
           (body as any)?.statsByHole ?? buildInitialByHole(),
           (body as any)?.notes ?? '',
         );
@@ -239,6 +241,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           }
           const updated = await updateRound(roundId, {
             name: sanitizeRoundName((body as any)?.name ?? current.name),
+            roundDate: sanitizeRoundDate((body as any)?.roundDate ?? current.roundDate),
             courseId,
             statsByHole: sanitizeStats((body as any)?.statsByHole ?? current.statsByHole),
             notes: sanitizeRoundNotes((body as any)?.notes ?? current.notes),

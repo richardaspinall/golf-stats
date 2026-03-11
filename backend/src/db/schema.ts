@@ -10,6 +10,7 @@ export const ensureSchema = async () => {
         CREATE TABLE IF NOT EXISTS rounds (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
+          round_date TEXT NOT NULL DEFAULT '',
           course_id TEXT,
           stats_by_hole JSONB NOT NULL,
           notes JSONB NOT NULL,
@@ -55,6 +56,7 @@ export const ensureSchema = async () => {
         ALTER TABLE wedge_entries ADD COLUMN IF NOT EXISTS matrix_id BIGINT;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS clubs JSONB NOT NULL DEFAULT '[]'::jsonb;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb;
+        ALTER TABLE rounds ADD COLUMN IF NOT EXISTS round_date TEXT NOT NULL DEFAULT '';
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS course_id TEXT;
       `)
       .then(() => undefined);
