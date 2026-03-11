@@ -1,6 +1,6 @@
 import type { LatLng } from '../types';
 
-const METERS_PER_PACE = 0.83;
+const METERS_PER_PACE = 0.77;
 
 export const metersToPaces = (meters: number): number => Math.round(meters / METERS_PER_PACE);
 export const pacesToMeters = (paces: number): number => Math.round(paces * METERS_PER_PACE);
