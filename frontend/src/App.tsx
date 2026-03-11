@@ -1,0 +1,1404 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import { PageTabs } from './components/PageTabs';
+import { SavePill } from './components/SavePill';
+import { NotesSection } from './components/NotesSection';
+import { DistancePage } from './components/pages/DistancePage';
+import { CoursesPage } from './components/pages/CoursesPage';
+import { RoundsPage } from './components/pages/RoundsPage';
+import { TotalsPage } from './components/pages/TotalsPage';
+import { TrackPage } from './components/pages/TrackPage';
+import { WedgeMatrixPage } from './components/pages/WedgeMatrixPage';
+import { useCourseManagement } from './hooks/useCourseManagement';
+import { useCourseMap } from './hooks/useCourseMap';
+import { useRoundNotes } from './hooks/useRoundNotes';
+import { useWedgeMatrix } from './hooks/useWedgeMatrix';
+import {
+  ApiError,
+  createRoundInApi,
+  deleteClubActualEntryInApi,
+  deleteRoundInApi,
+  loadClubActualAveragesFromApi,
+  loadClubActualEntriesFromApi,
+  loadClubCarryFromApi,
+  loadCoursesFromApi,
+  loadRoundFromApi,
+  loadRoundsFromApi,
+  loadWedgeEntriesFromApi,
+  loadWedgeMatricesFromApi,
+  loginToApi,
+  saveClubActualToApi,
+  saveClubCarryToApi,
+  saveRoundToApi,
+} from './lib/api';
+import {
+  CLUB_OPTIONS,
+  CLUB_OPTION_SET,
+  COUNTER_OPTIONS,
+  HOLES,
+  HOLE_INDEX_OPTIONS,
+  SWING_CLOCK_OPTIONS,
+} from './lib/constants';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './lib/config';
+import { metersToPaces, pacesToMeters } from './lib/geometry';
+import {
+  buildInitialByHole,
+  computeTotalsForStats,
+  sanitizeCourseMarkers,
+  sanitizeCarryMeters,
+  sanitizeNotesList,
+  sanitizeStats,
+} from './lib/rounds';
+import { clearAuthToken, loadStoredAuthToken, saveAuthToken } from './lib/storage';
+import { buildShotSummary, getDisplayHoleIndex, toggleHoleSelection, updateHoleCounter, updateHoleScoreValue } from './lib/track';
+import { buildWedgeMatrixRows, sortClubsByDefaultOrder } from './lib/wedgeMatrix';
+
+export default function App() {
+  const [authToken, setAuthToken] = useState(() => loadStoredAuthToken());
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [selectedHole, setSelectedHole] = useState(1);
+  const [page, setPage] = useState('track');
+  const [rounds, setRounds] = useState([]);
+  const [roundSummaries, setRoundSummaries] = useState({});
+  const [roundSummariesState, setRoundSummariesState] = useState('idle');
+  const [roundSummariesError, setRoundSummariesError] = useState('');
+  const [isManageMenuOpen, setIsManageMenuOpen] = useState(false);
+  const [showDistanceTracker, setShowDistanceTracker] = useState(false);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [newRoundCourseId, setNewRoundCourseId] = useState('');
+  const [courseEditorId, setCourseEditorId] = useState('');
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [coursesError, setCoursesError] = useState('');
+  const [newRoundTitle, setNewRoundTitle] = useState('');
+  const [courseSaveState, setCourseSaveState] = useState('saved');
+  const [selectedRoundId, setSelectedRoundId] = useState('');
+  const [newCourseName, setNewCourseName] = useState('');
+  const [newRoundDate, setNewRoundDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [showNewRoundForm, setShowNewRoundForm] = useState(false);
+  const [statsByHole, setStatsByHole] = useState(() => buildInitialByHole());
+  const [roundNotes, setRoundNotes] = useState([]);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [saveState, setSaveState] = useState('loading');
+  const [isSwitchingRound, setIsSwitchingRound] = useState(false);
+  const [targetDistanceMeters, setTargetDistanceMeters] = useState(0);
+  const [actualDistanceMeters, setActualDistanceMeters] = useState(120);
+  const [actualDistancePaces, setActualDistancePaces] = useState(() => metersToPaces(120));
+  const [actualDistanceUnit, setActualDistanceUnit] = useState('paces');
+  const [offlineMeters, setOfflineMeters] = useState(0);
+  const [distanceMode, setDistanceMode] = useState('view');
+  const [setupSelection, setSetupSelection] = useState('');
+  const [swingClock, setSwingClock] = useState('');
+  const [clubSelection, setClubSelection] = useState('');
+  const [lieSelection, setLieSelection] = useState('');
+  const [clubAverages, setClubAverages] = useState([]);
+  const [isLoadingClubAverages, setIsLoadingClubAverages] = useState(false);
+  const [clubAveragesError, setClubAveragesError] = useState('');
+  const [clubAveragesDirty, setClubAveragesDirty] = useState(true);
+  const [clubActualEntries, setClubActualEntries] = useState([]);
+  const [isLoadingClubActualEntries, setIsLoadingClubActualEntries] = useState(false);
+  const [clubActualEntriesError, setClubActualEntriesError] = useState('');
+  const [clubActualEntriesDirty, setClubActualEntriesDirty] = useState(true);
+  const [shotLogSaveState, setShotLogSaveState] = useState('idle');
+  const [clubCarryByClub, setClubCarryByClub] = useState({});
+  const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
+  const [isWedgeFormOpen, setIsWedgeFormOpen] = useState(false);
+  const [activeWedgeMatrixId, setActiveWedgeMatrixId] = useState(null);
+  const [wedgeMatrixMode, setWedgeMatrixMode] = useState('view');
+  const [isWedgeMatrixFormOpen, setIsWedgeMatrixFormOpen] = useState(false);
+  const [wedgeMatrixName, setWedgeMatrixName] = useState('');
+  const [wedgeMatrixStanceWidth, setWedgeMatrixStanceWidth] = useState('');
+  const [wedgeMatrixGrip, setWedgeMatrixGrip] = useState('');
+  const [wedgeMatrixBallPosition, setWedgeMatrixBallPosition] = useState('');
+  const [wedgeMatrixNotes, setWedgeMatrixNotes] = useState('');
+  const [wedgeMatrixClubs, setWedgeMatrixClubs] = useState([]);
+  const [wedgeMatrixSaveState, setWedgeMatrixSaveState] = useState('idle');
+  const [wedgeMatricesError, setWedgeMatricesError] = useState('');
+  const [isLoadingWedgeMatrices, setIsLoadingWedgeMatrices] = useState(false);
+  const [wedgeMatrices, setWedgeMatrices] = useState([]);
+  const [wedgeClubSelection, setWedgeClubSelection] = useState('');
+  const [wedgeSwingClock, setWedgeSwingClock] = useState('');
+  const [wedgeDistanceMeters, setWedgeDistanceMeters] = useState(60);
+  const [wedgeDistancePaces, setWedgeDistancePaces] = useState(() => metersToPaces(60));
+  const [wedgeDistanceUnit, setWedgeDistanceUnit] = useState('meters');
+  const [wedgeEntryError, setWedgeEntryError] = useState('');
+  const [wedgeEntrySaveState, setWedgeEntrySaveState] = useState('idle');
+  const [wedgeEntriesError, setWedgeEntriesError] = useState('');
+  const [isLoadingWedgeEntries, setIsLoadingWedgeEntries] = useState(false);
+  const [wedgeEntriesByMatrix, setWedgeEntriesByMatrix] = useState({});
+  const [editingWedgeEntryId, setEditingWedgeEntryId] = useState(null);
+  const [mapSetupHole, setMapSetupHole] = useState(1);
+  const [isMapSetupOpen, setIsMapSetupOpen] = useState(false);
+
+  const hasLoadedRef = useRef(false);
+  const skipNextSaveRef = useRef(false);
+  const hasLoadedClubCarryRef = useRef(false);
+  const skipNextClubCarrySaveRef = useRef(false);
+  const hasLoadedClubAveragesRef = useRef(false);
+
+  const holeStats = statsByHole[selectedHole];
+  const activeRound = rounds.find((round) => round.id === selectedRoundId);
+  const activeCourse = courses.find((course) => course.id === (activeRound?.courseId || selectedCourseId));
+  const courseEditor = courses.find((course) => course.id === courseEditorId);
+  const displayHoleIndex = getDisplayHoleIndex(activeCourse, holeStats, selectedHole);
+  const {
+    mapContainerRef,
+    selectedHoleRef,
+    mapStatus,
+    mapPlacementMode,
+    setMapPlacementMode,
+    teeToGreenMeters,
+    setTeeToGreenMeters,
+    mapDebugInfo,
+    mapStatusLabel,
+    mapPlacementLabel,
+    rotationSupportLabel,
+    resetMapState,
+  } = useCourseMap({
+    page,
+    isMapSetupOpen,
+    mapSetupHole,
+    courseEditorId,
+    courseEditor,
+    setCourses,
+    setCourseSaveState,
+  });
+
+  const handleAuthFailure = (message = 'Session expired. Log in again.') => {
+    clearAuthToken();
+    setAuthToken('');
+    setAuthError(message);
+    setRounds([]);
+    setRoundSummaries({});
+    setRoundSummariesState('idle');
+    setRoundSummariesError('');
+    setIsManageMenuOpen(false);
+    setShowDistanceTracker(false);
+    setCourses([]);
+    setSelectedCourseId('');
+    setNewRoundCourseId('');
+    setCourseEditorId('');
+    setSelectedRoundId('');
+    setStatsByHole(buildInitialByHole());
+    setRoundNotes([]);
+    setNoteDraft('');
+    setClubAverages([]);
+    setClubAveragesError('');
+    setClubAveragesDirty(true);
+    setClubActualEntries([]);
+    setClubActualEntriesError('');
+    setClubActualEntriesDirty(true);
+    setShotLogSaveState('idle');
+    setShowNewRoundForm(false);
+    setSaveState('loading');
+    setClubCarryByClub({});
+    setClubCarrySaveState('saved');
+    setDistanceMode('setup');
+    setIsWedgeFormOpen(false);
+    setActiveWedgeMatrixId(null);
+    setWedgeMatrixMode('setup');
+    setIsWedgeMatrixFormOpen(false);
+    setWedgeMatrixName('');
+    setWedgeMatrixStanceWidth('');
+    setWedgeMatrixGrip('');
+    setWedgeMatrixBallPosition('');
+    setWedgeMatrixNotes('');
+    setWedgeMatrixClubs([]);
+    setWedgeMatrixSaveState('idle');
+    setWedgeMatricesError('');
+    setIsLoadingWedgeMatrices(false);
+    setWedgeMatrices([]);
+    setWedgeClubSelection('');
+    setWedgeSwingClock('');
+    setWedgeDistanceMeters(60);
+    setWedgeEntryError('');
+    setWedgeEntrySaveState('idle');
+    setWedgeEntriesError('');
+    setIsLoadingWedgeEntries(false);
+    setWedgeEntriesByMatrix({});
+    setEditingWedgeEntryId(null);
+    resetMapState();
+    hasLoadedRef.current = false;
+    skipNextSaveRef.current = false;
+    hasLoadedClubCarryRef.current = false;
+    skipNextClubCarrySaveRef.current = false;
+    hasLoadedClubAveragesRef.current = false;
+  };
+
+  const logout = () => {
+    handleAuthFailure('');
+    setLoginPassword('');
+  };
+
+  const applyRoundToState = (round) => {
+    skipNextSaveRef.current = true;
+    hasLoadedRef.current = true;
+    setSelectedRoundId(round.id);
+    setStatsByHole(sanitizeStats(round.statsByHole));
+    setRoundNotes(sanitizeNotesList(round.notes));
+    setSelectedCourseId(round.courseId || '');
+    setNoteDraft('');
+    setSaveState('saved');
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadInitialData = async () => {
+      if (!authToken) {
+        return;
+      }
+
+      setSaveState('loading');
+      setIsLoadingCourses(true);
+      setCoursesError('');
+      try {
+        const [list, coursesList] = await Promise.all([loadRoundsFromApi(authToken), loadCoursesFromApi(authToken)]);
+        if (!isActive) {
+          return;
+        }
+
+        setRounds(list);
+        const sanitizedCourses = coursesList.map((course) => ({
+          id: String(course.id),
+          name: String(course.name || ''),
+          markers: sanitizeCourseMarkers(course.markers),
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+        }));
+        setCourses(sanitizedCourses);
+        if (sanitizedCourses.length > 0 && !courseEditorId) {
+          setCourseEditorId(sanitizedCourses[0].id);
+        }
+        if (list.length === 0) {
+          hasLoadedRef.current = true;
+          setSaveState('saved');
+          setIsLoadingCourses(false);
+          return;
+        }
+
+        const firstRound = await loadRoundFromApi(list[0].id, authToken);
+        if (!isActive || !firstRound) {
+          return;
+        }
+
+        applyRoundToState(firstRound);
+        setIsLoadingCourses(false);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        hasLoadedRef.current = true;
+        setSaveState('error');
+        setIsLoadingCourses(false);
+        setCoursesError(error?.message || 'Failed to load courses');
+      }
+    };
+
+    loadInitialData();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadRoundSummaries = async () => {
+      if (!authToken || page !== 'rounds') {
+        return;
+      }
+
+      const missing = rounds.filter((round) => !roundSummaries[round.id]);
+      if (missing.length === 0) {
+        return;
+      }
+
+      setRoundSummariesState('loading');
+      setRoundSummariesError('');
+      try {
+        const entries = await Promise.all(
+          missing.map(async (round) => {
+            const full = await loadRoundFromApi(round.id, authToken);
+            if (!full) {
+              return null;
+            }
+            const totals = computeTotalsForStats(full.statsByHole);
+            return [round.id, { totals }];
+          }),
+        );
+        if (!isActive) {
+          return;
+        }
+        setRoundSummaries((prev) => {
+          const next = { ...prev };
+          entries.filter(Boolean).forEach(([id, data]) => {
+            next[id] = data;
+          });
+          return next;
+        });
+        setRoundSummariesState('loaded');
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+        setRoundSummariesState('error');
+        setRoundSummariesError('Unable to load round summaries.');
+      }
+    };
+
+    loadRoundSummaries();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken, page, rounds, roundSummaries]);
+
+  useEffect(() => {
+    if (!authToken || !hasLoadedRef.current || !selectedRoundId) {
+      return;
+    }
+
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+
+    setSaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
+  }, [authToken, selectedRoundId, statsByHole, roundNotes, selectedCourseId]);
+
+  const saveCurrentRound = async () => {
+    if (!authToken || !selectedRoundId) {
+      return false;
+    }
+
+    setSaveState('saving');
+    try {
+      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes, selectedCourseId, authToken);
+      setSaveState('saved');
+      setRounds((prev) =>
+        prev.map((round) =>
+          round.id === selectedRoundId
+            ? {
+                ...round,
+                name: savedRound?.name ?? round.name,
+                courseId: savedRound?.courseId ?? round.courseId,
+                updatedAt: savedRound?.updatedAt ?? round.updatedAt,
+              }
+            : round,
+        ),
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return false;
+      }
+
+      setSaveState('error');
+      return false;
+    }
+  };
+
+  const saveAndNextHole = async () => {
+    const didSave = await saveCurrentRound();
+    if (!didSave) {
+      return;
+    }
+    const nextHole = selectedHole >= HOLES.length ? HOLES[0] : selectedHole + 1;
+    setSelectedHole(nextHole);
+  };
+
+  const switchRound = async (roundId) => {
+    if (!roundId || roundId === selectedRoundId) {
+      return;
+    }
+
+    setIsSwitchingRound(true);
+    setSaveState('loading');
+    try {
+      const round = await loadRoundFromApi(roundId, authToken);
+      if (round) {
+        applyRoundToState(round);
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setSaveState('error');
+    } finally {
+      setIsSwitchingRound(false);
+    }
+  };
+
+  const createRound = async (event) => {
+    event?.preventDefault();
+    const roundTitle = newRoundTitle.trim();
+    const roundDate = newRoundDate || new Date().toISOString().slice(0, 10);
+    const roundName = roundTitle ? `${roundTitle} - ${roundDate}` : `Round ${roundDate}`;
+
+    setIsSwitchingRound(true);
+    setSaveState('loading');
+    try {
+      const round = await createRoundInApi(roundName, newRoundCourseId, authToken);
+      if (round) {
+        const summary = {
+          id: round.id,
+          name: round.name,
+          courseId: round.courseId || '',
+          createdAt: round.createdAt,
+          updatedAt: round.updatedAt,
+        };
+        setRounds((prev) => [summary, ...prev]);
+        setNewRoundTitle('');
+        setNewRoundCourseId('');
+        setShowNewRoundForm(false);
+        applyRoundToState(round);
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setSaveState('error');
+    } finally {
+      setIsSwitchingRound(false);
+    }
+  };
+
+  const deleteRound = async () => {
+    if (!authToken || !selectedRoundId || isSwitchingRound) {
+      return;
+    }
+
+    const roundName = activeRound?.name || 'this round';
+    const firstPrompt = window.confirm(`Delete "${roundName}"? This cannot be undone.`);
+    if (!firstPrompt) {
+      return;
+    }
+
+    const secondPrompt = window.confirm(`Final confirmation: permanently delete "${roundName}"?`);
+    if (!secondPrompt) {
+      return;
+    }
+
+    setIsSwitchingRound(true);
+    setSaveState('loading');
+    try {
+      await deleteRoundInApi(selectedRoundId, authToken);
+
+      const updatedRounds = rounds.filter((round) => round.id !== selectedRoundId);
+      setRounds(updatedRounds);
+      setRoundSummaries((prev) => {
+        const next = { ...prev };
+        delete next[selectedRoundId];
+        return next;
+      });
+
+      if (updatedRounds.length === 0) {
+        skipNextSaveRef.current = true;
+        hasLoadedRef.current = true;
+        setSelectedRoundId('');
+        setStatsByHole(buildInitialByHole());
+        setRoundNotes([]);
+        setNoteDraft('');
+        setSaveState('saved');
+        return;
+      }
+
+      const nextRound = await loadRoundFromApi(updatedRounds[0].id, authToken);
+      if (nextRound) {
+        applyRoundToState(nextRound);
+      } else {
+        setSaveState('error');
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setSaveState('error');
+    } finally {
+      setIsSwitchingRound(false);
+    }
+  };
+
+  const totals = useMemo(() => {
+    return computeTotalsForStats(statsByHole);
+  }, [statsByHole]);
+
+  const updateStats = (hole, statKey, delta) => {
+    setStatsByHole((prev) => updateHoleCounter(prev, hole, statKey, delta));
+  };
+
+  const setGirSelection = (hole, girKey) => {
+    setStatsByHole((prev) => toggleHoleSelection(prev, hole, 'girSelection', girKey));
+  };
+
+  const setFairwaySelection = (hole, fairwayKey) => {
+    setStatsByHole((prev) => toggleHoleSelection(prev, hole, 'fairwaySelection', fairwayKey));
+  };
+
+  const updateHoleScore = (hole, delta) => {
+    setStatsByHole((prev) => updateHoleScoreValue(prev, hole, delta));
+  };
+
+  const toggleSetupSelection = (setupKey) => {
+    setSetupSelection((prev) => (prev === setupKey ? '' : setupKey));
+  };
+  const { createCourse, saveCurrentCourse, courseHoleIndexCounts } = useCourseManagement({
+    authToken,
+    newCourseName,
+    setNewCourseName,
+    courses,
+    setCourses,
+    courseEditorId,
+    setCourseEditorId,
+    setSelectedCourseId,
+    setIsLoadingCourses,
+    setCoursesError,
+    setCourseSaveState,
+    courseEditor,
+    handleAuthFailure,
+  });
+  const { addNote, deleteNote } = useRoundNotes({
+    authToken,
+    selectedRoundId,
+    statsByHole,
+    selectedCourseId,
+    noteDraft,
+    roundNotes,
+    setRoundNotes,
+    setNoteDraft,
+    setSaveState,
+    setRounds,
+    handleAuthFailure,
+  });
+
+  const {
+    toggleWedgeSelection,
+    toggleWedgeSwingClock,
+    startWedgeEdit,
+    cancelWedgeEdit,
+    toggleWedgeMatrixClub,
+    createWedgeMatrix,
+    deleteWedgeMatrix,
+    deleteWedgeEntry,
+    addWedgeEntry,
+  } = useWedgeMatrix({
+    authToken,
+    wedgeMatrixName,
+    wedgeMatrixStanceWidth,
+    wedgeMatrixGrip,
+    wedgeMatrixBallPosition,
+    wedgeMatrixNotes,
+    wedgeMatrixClubs,
+    setWedgeMatrices,
+    setWedgeMatrixName,
+    setWedgeMatrixStanceWidth,
+    setWedgeMatrixGrip,
+    setWedgeMatrixBallPosition,
+    setWedgeMatrixNotes,
+    setWedgeMatrixClubs,
+    setIsWedgeMatrixFormOpen,
+    setWedgeMatrixSaveState,
+    setWedgeMatricesError,
+    activeWedgeMatrixId,
+    wedgeMatrices,
+    setActiveWedgeMatrixId,
+    isWedgeFormOpen,
+    setIsWedgeFormOpen,
+    wedgeClubSelection,
+    setWedgeClubSelection,
+    wedgeSwingClock,
+    setWedgeSwingClock,
+    wedgeDistanceMeters,
+    setWedgeDistanceMeters,
+    wedgeDistancePaces,
+    setWedgeDistancePaces,
+    wedgeDistanceUnit,
+    setWedgeDistanceUnit,
+    wedgeEntriesByMatrix,
+    setWedgeEntriesByMatrix,
+    editingWedgeEntryId,
+    setEditingWedgeEntryId,
+    setWedgeEntryError,
+    setWedgeEntrySaveState,
+    setWedgeEntriesError,
+    handleAuthFailure,
+  });
+
+  const addShotPrototypeNote = async () => {
+    const actualDistanceMetersValue =
+      actualDistanceUnit === 'meters' ? Number(actualDistanceMeters) : pacesToMeters(actualDistancePaces);
+    const summary = buildShotSummary({
+      targetDistanceMeters,
+      actualDistanceMeters: actualDistanceMetersValue,
+      offlineMeters,
+      clubSelection,
+      lieSelection,
+      setupSelection,
+      swingClock,
+    });
+    if (!summary) {
+      return;
+    }
+
+    const updatedNotes = [...roundNotes, summary];
+    setRoundNotes(updatedNotes);
+    setShowDistanceTracker(false);
+
+    if (!authToken || !CLUB_OPTION_SET.has(clubSelection) || actualDistanceMetersValue <= 0) {
+      return;
+    }
+
+    if (selectedRoundId) {
+      setSaveState('saving');
+      try {
+        const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, updatedNotes, selectedCourseId, authToken);
+        setSaveState('saved');
+        setRounds((prev) =>
+          prev.map((round) =>
+            round.id === selectedRoundId
+              ? {
+                  ...round,
+                  name: savedRound?.name ?? round.name,
+                  courseId: savedRound?.courseId ?? round.courseId,
+                  updatedAt: savedRound?.updatedAt ?? round.updatedAt,
+                }
+              : round,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setSaveState('error');
+      }
+    }
+
+    setShotLogSaveState('saving');
+    try {
+      await saveClubActualToApi({ club: clubSelection, actualMeters: actualDistanceMetersValue }, authToken);
+      setClubAveragesDirty(true);
+      setClubActualEntriesDirty(true);
+      setShotLogSaveState('saved');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setShotLogSaveState('error');
+    }
+  };
+
+  const deleteClubActualEntry = async (entryId) => {
+    if (!authToken) {
+      return;
+    }
+
+    const previousEntries = clubActualEntries;
+    setClubActualEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+    setClubActualEntriesError('');
+    try {
+      await deleteClubActualEntryInApi(entryId, authToken);
+      setClubAveragesDirty(true);
+      setClubActualEntriesDirty(true);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+      setClubActualEntries(previousEntries);
+      setClubActualEntriesError('Unable to delete shot log right now.');
+    }
+  };
+
+  const login = async (event) => {
+    event?.preventDefault();
+    const username = loginUsername.trim();
+    const password = loginPassword;
+    if (!username || !password) {
+      setAuthError('Enter username and password.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setAuthError('');
+    try {
+      const token = await loginToApi(username, password);
+      if (!token) {
+        setAuthError('No token was returned.');
+        return;
+      }
+
+      saveAuthToken(token);
+      setAuthToken(token);
+      setLoginPassword('');
+      setSaveState('loading');
+      setClubAveragesDirty(true);
+      setClubCarrySaveState('saved');
+      hasLoadedRef.current = false;
+      skipNextSaveRef.current = false;
+      hasLoadedClubCarryRef.current = false;
+      skipNextClubCarrySaveRef.current = false;
+      hasLoadedClubAveragesRef.current = false;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setAuthError(error.details || 'Invalid credentials.');
+      } else {
+        setAuthError('Unable to log in right now.');
+      }
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadClubCarry = async () => {
+      if (!authToken) {
+        return;
+      }
+
+      setClubCarrySaveState('loading');
+      try {
+        const loaded = await loadClubCarryFromApi(authToken);
+        if (!isActive) {
+          return;
+        }
+
+        skipNextClubCarrySaveRef.current = true;
+        hasLoadedClubCarryRef.current = true;
+        setClubCarryByClub(loaded);
+        setClubCarrySaveState('saved');
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        hasLoadedClubCarryRef.current = true;
+        setClubCarryByClub({});
+        setClubCarrySaveState('error');
+      }
+    };
+
+    loadClubCarry();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadWedgeMatrices = async () => {
+      if (!authToken || page !== 'wedgeMatrix') {
+        return;
+      }
+
+      setIsLoadingWedgeMatrices(true);
+      setWedgeMatricesError('');
+      try {
+        const matrices = await loadWedgeMatricesFromApi(authToken);
+        if (!isActive) {
+          return;
+        }
+
+        setWedgeMatrices(matrices);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeMatrices([]);
+        setWedgeMatricesError('Unable to load wedge matrices right now.');
+      } finally {
+        if (isActive) {
+          setIsLoadingWedgeMatrices(false);
+        }
+      }
+    };
+
+    loadWedgeMatrices();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken, page]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadAllWedgeEntries = async () => {
+      if (!authToken || wedgeMatrices.length === 0) {
+        return;
+      }
+
+      setIsLoadingWedgeEntries(true);
+      setWedgeEntriesError('');
+      try {
+        const entriesByMatrix = {};
+        for (const matrix of wedgeMatrices) {
+          const entries = await loadWedgeEntriesFromApi(matrix.id, authToken);
+          entriesByMatrix[matrix.id] = entries;
+        }
+        if (!isActive) {
+          return;
+        }
+
+        setWedgeEntriesByMatrix(entriesByMatrix);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setWedgeEntriesByMatrix({});
+        setWedgeEntriesError('Unable to load wedge entries right now.');
+      } finally {
+        if (isActive) {
+          setIsLoadingWedgeEntries(false);
+        }
+      }
+    };
+
+    loadAllWedgeEntries();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken, wedgeMatrices]);
+
+  useEffect(() => {
+    if (!authToken || !hasLoadedClubCarryRef.current) {
+      return;
+    }
+
+    if (skipNextClubCarrySaveRef.current) {
+      skipNextClubCarrySaveRef.current = false;
+      return;
+    }
+
+    setClubCarrySaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
+  }, [authToken, clubCarryByClub]);
+
+  const saveClubCarry = async () => {
+    if (!authToken) {
+      return;
+    }
+
+    setClubCarrySaveState('saving');
+    try {
+      const saved = await saveClubCarryToApi(clubCarryByClub, authToken);
+      skipNextClubCarrySaveRef.current = true;
+      setClubCarryByClub((prev) => {
+        const prevSerialized = JSON.stringify(prev);
+        const savedSerialized = JSON.stringify(saved);
+        return prevSerialized === savedSerialized ? prev : saved;
+      });
+      setClubCarrySaveState('saved');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setClubCarrySaveState('error');
+    }
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadClubAverages = async () => {
+      if (!authToken || page !== 'distance') {
+        return;
+      }
+
+      if (!clubAveragesDirty && hasLoadedClubAveragesRef.current) {
+        return;
+      }
+
+      setIsLoadingClubAverages(true);
+      setClubAveragesError('');
+      try {
+        const averages = await loadClubActualAveragesFromApi(authToken);
+        if (!isActive) {
+          return;
+        }
+
+        setClubAverages(averages);
+        setClubAveragesDirty(false);
+        hasLoadedClubAveragesRef.current = true;
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setClubAverages([]);
+        setClubAveragesError('Unable to load club averages right now.');
+      } finally {
+        if (isActive) {
+          setIsLoadingClubAverages(false);
+        }
+      }
+    };
+
+    loadClubAverages();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken, page, clubAveragesDirty]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadClubActualEntries = async () => {
+      if (!authToken || page !== 'distance' || distanceMode !== 'setup') {
+        return;
+      }
+
+      if (!clubActualEntriesDirty) {
+        return;
+      }
+
+      setIsLoadingClubActualEntries(true);
+      setClubActualEntriesError('');
+      try {
+        const entries = await loadClubActualEntriesFromApi(authToken);
+        if (!isActive) {
+          return;
+        }
+
+        const sanitized = entries
+          .map((entry) => ({
+            id: Number(entry.id),
+            club: String(entry.club || ''),
+            actualMeters: Number(entry.actualMeters),
+            createdAt: entry.createdAt,
+          }))
+          .filter(
+            (entry) =>
+              Number.isFinite(entry.id) &&
+              entry.id > 0 &&
+              entry.club &&
+              Number.isFinite(entry.actualMeters) &&
+              entry.actualMeters > 0,
+          );
+
+        setClubActualEntries(sanitized);
+        setClubActualEntriesDirty(false);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+
+        setClubActualEntries([]);
+        setClubActualEntriesError('Unable to load shot log right now.');
+      } finally {
+        if (isActive) {
+          setIsLoadingClubActualEntries(false);
+        }
+      }
+    };
+
+    loadClubActualEntries();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken, page, distanceMode, clubActualEntriesDirty]);
+
+  const setCarryForClub = (club, rawValue) => {
+    const sanitized = sanitizeCarryMeters(rawValue);
+    setClubCarryByClub((prev) => {
+      const next = { ...prev };
+      if (sanitized === '') {
+        delete next[club];
+      } else {
+        next[club] = sanitized;
+      }
+      return next;
+    });
+  };
+
+  if (!authToken) {
+    return (
+      <main className="app">
+        <section className="card">
+          <h1>Golf Stat Tracker</h1>
+          <h2>Sign in</h2>
+          <form className="new-round-form" onSubmit={login}>
+            <div className="new-round-fields">
+              <input
+                type="text"
+                value={loginUsername}
+                onChange={(event) => setLoginUsername(event.target.value)}
+                placeholder="Username"
+                autoComplete="username"
+              />
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                placeholder="Password"
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="new-round-actions">
+              <button type="submit" disabled={isLoggingIn}>
+                {isLoggingIn ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
+            {authError ? <p className="hint">{authError}</p> : null}
+          </form>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="app">
+      <header className="header">
+        <h1>Golf Stat Tracker</h1>
+        {!showNewRoundForm ? (
+          <div className="header-controls">
+            <button
+              onClick={() => {
+                setNewRoundCourseId(selectedCourseId);
+                setShowNewRoundForm(true);
+              }}
+              disabled={isSwitchingRound}
+            >
+              New round
+            </button>
+            <button onClick={logout} disabled={isSwitchingRound}>
+              Log out
+            </button>
+            <div className="manage-menu">
+              <button
+                type="button"
+                onClick={() => setIsManageMenuOpen((prev) => !prev)}
+                disabled={isSwitchingRound}
+                aria-expanded={isManageMenuOpen}
+                aria-haspopup="true"
+              >
+                Manage
+              </button>
+              {isManageMenuOpen ? (
+                <div className="manage-dropdown" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setPage('rounds');
+                      setIsManageMenuOpen(false);
+                    }}
+                  >
+                    Rounds
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setPage('courses');
+                      setIsManageMenuOpen(false);
+                    }}
+                  >
+                    Courses
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </header>
+      {showNewRoundForm ? (
+        <form className="new-round-form card" onSubmit={createRound}>
+          <h2>Create round</h2>
+          <div className="new-round-fields">
+            <input
+              type="text"
+              value={newRoundTitle}
+              onChange={(event) => setNewRoundTitle(event.target.value)}
+              placeholder="Round name"
+              maxLength={80}
+            />
+            <select
+              value={newRoundCourseId}
+              onChange={(event) => setNewRoundCourseId(event.target.value)}
+              disabled={isSwitchingRound || isLoadingCourses}
+            >
+              <option value="">No course</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
+            <input type="date" value={newRoundDate} onChange={(event) => setNewRoundDate(event.target.value)} />
+          </div>
+          <div className="new-round-actions">
+            <button type="submit" disabled={isSwitchingRound}>
+              Create
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNewRoundCourseId('');
+                setShowNewRoundForm(false);
+              }}
+              disabled={isSwitchingRound}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+      {!showNewRoundForm ? (
+        <>
+          <SavePill state={saveState} />
+
+          <PageTabs
+            activePage={page}
+            onChange={setPage}
+            tabs={[
+              { key: 'track', label: 'Track' },
+              { key: 'distance', label: 'Distances' },
+              { key: 'wedgeMatrix', label: 'Wedge matrix' },
+              { key: 'totals', label: 'Round totals' },
+            ]}
+          />
+
+          {page === 'track' ? (
+            <TrackPage
+              round={{ selectedHole, displayHoleIndex, activeRound, holeStats, selectedRoundId, saveState }}
+              distance={{
+                showDistanceTracker,
+                targetDistanceMeters,
+                actualDistanceUnit,
+                actualDistanceMeters,
+                actualDistancePaces,
+                offlineMeters,
+                clubSelection,
+                lieSelection,
+                setupSelection,
+                swingClock,
+                shotLogSaveState,
+              }}
+              actions={{
+                setSelectedHole,
+                setShowDistanceTracker,
+                setDistanceMode,
+                setTargetDistanceMeters,
+                setActualDistanceUnit,
+                setActualDistanceMeters,
+                setActualDistancePaces,
+                setOfflineMeters,
+                setClubSelection,
+                setLieSelection,
+                toggleSetupSelection,
+                setSwingClock,
+                addShotPrototypeNote,
+                updateHoleScore,
+                setFairwaySelection,
+                updateStats,
+                setGirSelection,
+                saveCurrentRound,
+                saveAndNextHole,
+              }}
+              helpers={{ metersToPaces, pacesToMeters }}
+            />
+          ) : page === 'courses' ? (
+            <CoursesPage
+              state={{
+                newCourseName,
+                isLoadingCourses,
+                coursesError,
+                courses,
+                courseEditorId,
+                courseEditor,
+                courseSaveState,
+                courseHoleIndexCounts,
+                isMapSetupOpen,
+                mapSetupHole,
+                teeToGreenMeters,
+                mapStatus,
+                mapStatusLabel,
+                rotationSupportLabel,
+                mapPlacementLabel,
+                mapPlacementMode,
+                mapDebugInfo,
+              }}
+              actions={{
+                setNewCourseName,
+                createCourse,
+                setCourseEditorId,
+                setIsMapSetupOpen,
+                setMapPlacementMode,
+                setMapSetupHole,
+                setCourseSaveState,
+                setCourses,
+                saveCurrentCourse,
+                setTeeToGreenMeters,
+              }}
+              map={{
+                googleMapsMapId: GOOGLE_MAPS_MAP_ID,
+                googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+                selectedHoleRef,
+                mapContainerRef,
+              }}
+            />
+          ) : page === 'totals' ? (
+            <TotalsPage activeRoundName={activeRound?.name} totals={totals} />
+          ) : page === 'rounds' ? (
+            <RoundsPage
+              selectedRoundId={selectedRoundId}
+              switchRound={switchRound}
+              isSwitchingRound={isSwitchingRound}
+              rounds={rounds}
+              deleteRound={deleteRound}
+              roundSummariesError={roundSummariesError}
+              roundSummaries={roundSummaries}
+              roundSummariesState={roundSummariesState}
+            />
+          ) : page === 'distance' ? (
+            <DistancePage
+              state={{
+                distanceMode,
+                isLoadingClubActualEntries,
+                clubActualEntriesError,
+                clubActualEntries,
+                isLoadingClubAverages,
+                clubAveragesError,
+                clubAverages,
+                clubCarryByClub,
+                clubCarrySaveState,
+              }}
+              actions={{
+                setDistanceMode,
+                setClubActualEntriesDirty,
+                deleteClubActualEntry,
+                setCarryForClub,
+                saveClubCarry,
+              }}
+            />
+          ) : page === 'wedgeMatrix' ? (
+            <WedgeMatrixPage
+              state={{
+                wedgeMatrixMode,
+                isWedgeMatrixFormOpen,
+                wedgeMatrixName,
+                wedgeMatrixClubs,
+                wedgeMatrixStanceWidth,
+                wedgeMatrixGrip,
+                wedgeMatrixBallPosition,
+                wedgeMatrixNotes,
+                isLoadingWedgeMatrices,
+                wedgeMatricesError,
+                wedgeMatrices,
+                wedgeEntriesByMatrix,
+                activeWedgeMatrixId,
+                isWedgeFormOpen,
+                wedgeClubSelection,
+                wedgeSwingClock,
+                wedgeDistanceUnit,
+                wedgeDistancePaces,
+                wedgeDistanceMeters,
+                editingWedgeEntryId,
+                wedgeEntryError,
+                isLoadingWedgeEntries,
+                wedgeEntriesError,
+                wedgeEntrySaveState,
+              }}
+              actions={{
+                setWedgeMatrixMode,
+                setIsWedgeMatrixFormOpen,
+                setWedgeMatricesError,
+                createWedgeMatrix,
+                setWedgeMatrixName,
+                toggleWedgeMatrixClub,
+                setWedgeMatrixStanceWidth,
+                setWedgeMatrixGrip,
+                setWedgeMatrixBallPosition,
+                setWedgeMatrixNotes,
+                setActiveWedgeMatrixId,
+                setIsWedgeFormOpen,
+                setEditingWedgeEntryId,
+                setWedgeEntryError,
+                deleteWedgeMatrix,
+                addWedgeEntry,
+                toggleWedgeSelection,
+                toggleWedgeSwingClock,
+                setWedgeDistanceUnit,
+                setWedgeDistancePaces,
+                setWedgeDistanceMeters,
+                cancelWedgeEdit,
+                startWedgeEdit,
+                deleteWedgeEntry,
+              }}
+              helpers={{ buildWedgeMatrixRows, sortClubsByDefaultOrder, metersToPaces, pacesToMeters }}
+            />
+          ) : null}
+
+          <NotesSection
+            noteDraft={noteDraft}
+            setNoteDraft={setNoteDraft}
+            addNote={addNote}
+            roundNotes={roundNotes}
+            deleteNote={deleteNote}
+          />
+        </>
+      ) : null}
+    </main>
+  );
+}
