@@ -8,8 +8,11 @@ type WedgeMatrixPageProps = {
   state: {
     wedgeMatrixMode: string;
     isWedgeMatrixFormOpen: boolean;
+    editingWedgeMatrixId: number | null;
     wedgeMatrixName: string;
     wedgeMatrixClubs: string[];
+    wedgeMatrixSwingClocks: string[];
+    wedgeMatrixEnabledColumns: boolean[];
     wedgeMatrixStanceWidth: string;
     wedgeMatrixGrip: string;
     wedgeMatrixBallPosition: string;
@@ -35,9 +38,14 @@ type WedgeMatrixPageProps = {
     setWedgeMatrixMode: (value: string) => void;
     setIsWedgeMatrixFormOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
     setWedgeMatricesError: (value: string) => void;
-    createWedgeMatrix: (event: React.FormEvent<HTMLFormElement>) => void;
+    saveWedgeMatrix: (event: React.FormEvent<HTMLFormElement>) => void;
+    startWedgeMatrixEdit: (matrix: WedgeMatrix) => void;
+    cancelWedgeMatrixEdit: () => void;
+    setEditingWedgeMatrixId: (value: number | null) => void;
     setWedgeMatrixName: (value: string) => void;
     toggleWedgeMatrixClub: (club: string) => void;
+    setWedgeMatrixSwingClockValue: (index: number, value: string) => void;
+    setWedgeMatrixColumnEnabled: (index: number, enabled: boolean) => void;
     setWedgeMatrixStanceWidth: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixGrip: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixBallPosition: (value: string | ((prev: string) => string)) => void;
@@ -58,7 +66,7 @@ type WedgeMatrixPageProps = {
     deleteWedgeEntry: (entryId: number, matrixId: number) => void;
   };
   helpers: {
-    buildWedgeMatrixRows: (entries: WedgeEntry[], clubs: string[]) => WedgeMatrixRow[];
+    buildWedgeMatrixRows: (entries: WedgeEntry[], clubs: string[], swingClocks: string[]) => WedgeMatrixRow[];
     sortClubsByDefaultOrder: (clubs: string[]) => string[];
     metersToPaces: (meters: number) => number;
     pacesToMeters: (paces: number) => number;
@@ -66,11 +74,17 @@ type WedgeMatrixPageProps = {
 };
 
 type WedgeMatrixCreateFormProps = {
-  createWedgeMatrix: WedgeMatrixPageProps['actions']['createWedgeMatrix'];
+  saveWedgeMatrix: WedgeMatrixPageProps['actions']['saveWedgeMatrix'];
+  editingWedgeMatrixId: WedgeMatrixPageProps['state']['editingWedgeMatrixId'];
+  cancelWedgeMatrixEdit: WedgeMatrixPageProps['actions']['cancelWedgeMatrixEdit'];
   wedgeMatrixName: WedgeMatrixPageProps['state']['wedgeMatrixName'];
   setWedgeMatrixName: WedgeMatrixPageProps['actions']['setWedgeMatrixName'];
   wedgeMatrixClubs: WedgeMatrixPageProps['state']['wedgeMatrixClubs'];
   toggleWedgeMatrixClub: WedgeMatrixPageProps['actions']['toggleWedgeMatrixClub'];
+  wedgeMatrixSwingClocks: WedgeMatrixPageProps['state']['wedgeMatrixSwingClocks'];
+  wedgeMatrixEnabledColumns: WedgeMatrixPageProps['state']['wedgeMatrixEnabledColumns'];
+  setWedgeMatrixSwingClockValue: WedgeMatrixPageProps['actions']['setWedgeMatrixSwingClockValue'];
+  setWedgeMatrixColumnEnabled: WedgeMatrixPageProps['actions']['setWedgeMatrixColumnEnabled'];
   wedgeMatrixStanceWidth: WedgeMatrixPageProps['state']['wedgeMatrixStanceWidth'];
   setWedgeMatrixStanceWidth: WedgeMatrixPageProps['actions']['setWedgeMatrixStanceWidth'];
   wedgeMatrixGrip: WedgeMatrixPageProps['state']['wedgeMatrixGrip'];
@@ -84,6 +98,7 @@ type WedgeMatrixCreateFormProps = {
 type WedgeEntryFormProps = {
   addWedgeEntry: WedgeMatrixPageProps['actions']['addWedgeEntry'];
   matrixClubs: string[];
+  matrixSwingClocks: string[];
   wedgeClubSelection: WedgeMatrixPageProps['state']['wedgeClubSelection'];
   toggleWedgeSelection: WedgeMatrixPageProps['actions']['toggleWedgeSelection'];
   wedgeSwingClock: WedgeMatrixPageProps['state']['wedgeSwingClock'];
@@ -109,6 +124,7 @@ type WedgeMatrixCardProps = {
   wedgeMatrixMode: WedgeMatrixPageProps['state']['wedgeMatrixMode'];
   activeWedgeMatrixId: WedgeMatrixPageProps['state']['activeWedgeMatrixId'];
   setActiveWedgeMatrixId: WedgeMatrixPageProps['actions']['setActiveWedgeMatrixId'];
+  startWedgeMatrixEdit: WedgeMatrixPageProps['actions']['startWedgeMatrixEdit'];
   setIsWedgeFormOpen: WedgeMatrixPageProps['actions']['setIsWedgeFormOpen'];
   setEditingWedgeEntryId: WedgeMatrixPageProps['actions']['setEditingWedgeEntryId'];
   setWedgeEntryError: WedgeMatrixPageProps['actions']['setWedgeEntryError'];
@@ -140,11 +156,17 @@ type WedgeMatrixCardProps = {
 };
 
 function WedgeMatrixCreateForm({
-  createWedgeMatrix,
+  saveWedgeMatrix,
+  editingWedgeMatrixId,
+  cancelWedgeMatrixEdit,
   wedgeMatrixName,
   setWedgeMatrixName,
   wedgeMatrixClubs,
   toggleWedgeMatrixClub,
+  wedgeMatrixSwingClocks,
+  wedgeMatrixEnabledColumns,
+  setWedgeMatrixSwingClockValue,
+  setWedgeMatrixColumnEnabled,
   wedgeMatrixStanceWidth,
   setWedgeMatrixStanceWidth,
   wedgeMatrixGrip,
@@ -155,7 +177,7 @@ function WedgeMatrixCreateForm({
   setWedgeMatrixNotes,
 }: WedgeMatrixCreateFormProps) {
   return (
-    <form className="wedge-form" onSubmit={createWedgeMatrix}>
+    <form className="wedge-form" onSubmit={saveWedgeMatrix}>
       <div className="prototype-block">
         <label className="wedge-distance-field">
           Matrix name
@@ -183,6 +205,36 @@ function WedgeMatrixCreateForm({
           ))}
         </div>
         <p className="hint">Pick the clubs you want in this matrix.</p>
+      </div>
+      <div className="prototype-block">
+        <h3 className="section-title">Clock headings</h3>
+        <div role="group" aria-label="Clock headings">
+          {wedgeMatrixSwingClocks.map((clock, index) => (
+            <div key={index} className="manual-save-row">
+              <label className="wedge-distance-field">
+                {`Column ${index + 1}`}
+                <input
+                  type="text"
+                  maxLength={40}
+                  value={clock}
+                  disabled={index > 0 && !wedgeMatrixEnabledColumns[index]}
+                  onChange={(event) => setWedgeMatrixSwingClockValue(index, event.target.value)}
+                  placeholder={SWING_CLOCK_OPTIONS[index] || `Heading ${index + 1}`}
+                />
+              </label>
+              {index > 0 ? (
+                <button
+                  type="button"
+                  className={wedgeMatrixEnabledColumns[index] ? 'club-btn active' : 'club-btn'}
+                  onClick={() => setWedgeMatrixColumnEnabled(index, !wedgeMatrixEnabledColumns[index])}
+                >
+                  {wedgeMatrixEnabledColumns[index] ? 'On' : 'Off'}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        <p className="hint">Column 1 is always on. Columns 2 to 4 can be toggled on or off.</p>
       </div>
       <div className="prototype-block">
         <h3 className="section-title">Stance width</h3>
@@ -244,8 +296,13 @@ function WedgeMatrixCreateForm({
       </div>
       <div className="manual-save-row">
         <button type="submit" className="save-btn">
-          Create matrix
+          {editingWedgeMatrixId ? 'Save matrix changes' : 'Create matrix'}
         </button>
+        {editingWedgeMatrixId ? (
+          <button type="button" className="reset-btn" onClick={cancelWedgeMatrixEdit}>
+            Cancel edit
+          </button>
+        ) : null}
       </div>
     </form>
   );
@@ -254,6 +311,7 @@ function WedgeMatrixCreateForm({
 function WedgeEntryForm({
   addWedgeEntry,
   matrixClubs,
+  matrixSwingClocks,
   wedgeClubSelection,
   toggleWedgeSelection,
   wedgeSwingClock,
@@ -292,7 +350,7 @@ function WedgeEntryForm({
       <div className="prototype-block">
         <h3 className="section-title">Clock system</h3>
         <div className="clock-row" role="group" aria-label="Swing clock">
-          {SWING_CLOCK_OPTIONS.map((clock) => (
+          {matrixSwingClocks.map((clock) => (
             <button
               type="button"
               key={clock}
@@ -391,6 +449,7 @@ function WedgeMatrixCard({
   wedgeMatrixMode,
   activeWedgeMatrixId,
   setActiveWedgeMatrixId,
+  startWedgeMatrixEdit,
   setIsWedgeFormOpen,
   setEditingWedgeEntryId,
   setWedgeEntryError,
@@ -420,8 +479,10 @@ function WedgeMatrixCard({
   buildWedgeMatrixRows,
   sortClubsByDefaultOrder,
 }: WedgeMatrixCardProps) {
-  const rows = buildWedgeMatrixRows(entries, matrix.clubs);
+  const rows = buildWedgeMatrixRows(entries, matrix.clubs, matrix.swingClocks);
   const matrixClubs = sortClubsByDefaultOrder(matrix.clubs);
+  const matrixSwingClocks =
+    Array.isArray(matrix.swingClocks) && matrix.swingClocks.length > 0 ? matrix.swingClocks : SWING_CLOCK_OPTIONS;
   const recentEntries = entries.slice(0, 12);
   const isActiveMatrix = activeWedgeMatrixId === matrix.id;
 
@@ -448,6 +509,9 @@ function WedgeMatrixCard({
             >
               Add wedge result
             </button>
+            <button type="button" onClick={() => startWedgeMatrixEdit(matrix)}>
+              Edit matrix
+            </button>
             <button type="button" className="reset-btn" onClick={() => deleteWedgeMatrix(matrix.id)}>
               Delete matrix
             </button>
@@ -458,6 +522,7 @@ function WedgeMatrixCard({
         <WedgeEntryForm
           addWedgeEntry={addWedgeEntry}
           matrixClubs={matrixClubs}
+          matrixSwingClocks={matrixSwingClocks}
           wedgeClubSelection={wedgeClubSelection}
           toggleWedgeSelection={toggleWedgeSelection}
           wedgeSwingClock={wedgeSwingClock}
@@ -482,7 +547,7 @@ function WedgeMatrixCard({
           <thead>
             <tr>
               <th>Club</th>
-              {SWING_CLOCK_OPTIONS.map((clock) => (
+              {matrixSwingClocks.map((clock) => (
                 <th key={clock}>{clock}</th>
               ))}
             </tr>
@@ -544,8 +609,11 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
   const {
     wedgeMatrixMode,
     isWedgeMatrixFormOpen,
+    editingWedgeMatrixId,
     wedgeMatrixName,
     wedgeMatrixClubs,
+    wedgeMatrixSwingClocks,
+    wedgeMatrixEnabledColumns,
     wedgeMatrixStanceWidth,
     wedgeMatrixGrip,
     wedgeMatrixBallPosition,
@@ -571,15 +639,20 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
     setWedgeMatrixMode,
     setIsWedgeMatrixFormOpen,
     setWedgeMatricesError,
-    createWedgeMatrix,
+    saveWedgeMatrix,
+    startWedgeMatrixEdit,
+    cancelWedgeMatrixEdit,
     setWedgeMatrixName,
     toggleWedgeMatrixClub,
+    setWedgeMatrixSwingClockValue,
+    setWedgeMatrixColumnEnabled,
     setWedgeMatrixStanceWidth,
     setWedgeMatrixGrip,
     setWedgeMatrixBallPosition,
     setWedgeMatrixNotes,
     setActiveWedgeMatrixId,
     setIsWedgeFormOpen,
+    setEditingWedgeMatrixId,
     setEditingWedgeEntryId,
     setWedgeEntryError,
     deleteWedgeMatrix,
@@ -606,19 +679,28 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
             onClick={() => {
               setIsWedgeMatrixFormOpen((prev) => !prev);
               setWedgeMatricesError('');
+              if (isWedgeMatrixFormOpen && editingWedgeMatrixId) {
+                cancelWedgeMatrixEdit();
+              }
             }}
           >
-            {isWedgeMatrixFormOpen ? 'Close new matrix' : 'Create new matrix'}
+            {isWedgeMatrixFormOpen ? 'Close matrix form' : 'Create new matrix'}
           </button>
         </div>
       ) : null}
       {wedgeMatrixMode === 'setup' && isWedgeMatrixFormOpen ? (
         <WedgeMatrixCreateForm
-          createWedgeMatrix={createWedgeMatrix}
+          saveWedgeMatrix={saveWedgeMatrix}
+          editingWedgeMatrixId={editingWedgeMatrixId}
+          cancelWedgeMatrixEdit={cancelWedgeMatrixEdit}
           wedgeMatrixName={wedgeMatrixName}
           setWedgeMatrixName={setWedgeMatrixName}
           wedgeMatrixClubs={wedgeMatrixClubs}
           toggleWedgeMatrixClub={toggleWedgeMatrixClub}
+          wedgeMatrixSwingClocks={wedgeMatrixSwingClocks}
+          wedgeMatrixEnabledColumns={wedgeMatrixEnabledColumns}
+          setWedgeMatrixSwingClockValue={setWedgeMatrixSwingClockValue}
+          setWedgeMatrixColumnEnabled={setWedgeMatrixColumnEnabled}
           wedgeMatrixStanceWidth={wedgeMatrixStanceWidth}
           setWedgeMatrixStanceWidth={setWedgeMatrixStanceWidth}
           wedgeMatrixGrip={wedgeMatrixGrip}
@@ -641,6 +723,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
             wedgeMatrixMode={wedgeMatrixMode}
             activeWedgeMatrixId={activeWedgeMatrixId}
             setActiveWedgeMatrixId={setActiveWedgeMatrixId}
+            startWedgeMatrixEdit={startWedgeMatrixEdit}
             setIsWedgeFormOpen={setIsWedgeFormOpen}
             setEditingWedgeEntryId={setEditingWedgeEntryId}
             setWedgeEntryError={setWedgeEntryError}
@@ -680,6 +763,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
             onClick={() => {
               setWedgeMatrixMode('view');
               setIsWedgeFormOpen(false);
+              setEditingWedgeMatrixId(null);
               setEditingWedgeEntryId(null);
             }}
           >

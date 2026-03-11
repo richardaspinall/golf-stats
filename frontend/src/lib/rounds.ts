@@ -170,7 +170,7 @@ export const sanitizeWedgeEntry = (entry: unknown): WedgeEntry | null => {
   if (!CLUB_OPTIONS.includes(raw.club)) {
     return null;
   }
-  if (!SWING_CLOCK_OPTIONS.includes(raw.swingClock)) {
+  if (typeof raw.swingClock !== 'string' || !raw.swingClock.trim()) {
     return null;
   }
   if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
@@ -184,7 +184,7 @@ export const sanitizeWedgeEntry = (entry: unknown): WedgeEntry | null => {
     id: Math.floor(id),
     matrixId: Math.floor(matrixId),
     club: raw.club,
-    swingClock: raw.swingClock,
+    swingClock: raw.swingClock.trim().slice(0, 40),
     distanceMeters: Math.round(distanceMeters),
     createdAt: String(raw.createdAt || ''),
   };
@@ -192,6 +192,10 @@ export const sanitizeWedgeEntry = (entry: unknown): WedgeEntry | null => {
 
 export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
   const raw = (matrix || {}) as WedgeMatrix;
+  const swingClocks =
+    Array.isArray(raw.swingClocks) && raw.swingClocks.length > 0
+      ? raw.swingClocks.map((clock) => String(clock || '').trim().slice(0, 40)).filter((clock, index, arr) => Boolean(clock) && arr.indexOf(clock) === index)
+      : SWING_CLOCK_OPTIONS;
   return {
     id: Number(raw.id),
     name: String(raw.name || ''),
@@ -200,6 +204,7 @@ export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
     ballPosition: String(raw.ballPosition || ''),
     notes: String(raw.notes || ''),
     clubs: Array.isArray(raw.clubs) ? raw.clubs : [],
+    swingClocks,
     createdAt: String(raw.createdAt || ''),
   };
 };

@@ -87,6 +87,7 @@ export interface WedgeMatrix {
   ballPosition: string;
   notes: string;
   clubs: string[];
+  swingClocks: string[];
   createdAt: string;
 }
 

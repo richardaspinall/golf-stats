@@ -16,10 +16,14 @@ export const sortClubsByDefaultOrder = (clubs: string[]): string[] => {
   );
 };
 
-export const buildWedgeMatrixRows = (entries: WedgeEntry[], clubs: string[]): WedgeMatrixRow[] => {
+export const buildWedgeMatrixRows = (entries: WedgeEntry[], clubs: string[], swingClocks: string[]): WedgeMatrixRow[] => {
   const clubsForMatrix = sortClubsByDefaultOrder(clubs);
+  const clocksForMatrix =
+    Array.isArray(swingClocks) && swingClocks.length > 0
+      ? swingClocks.map((clock) => String(clock || '').trim()).filter((clock, index, arr) => Boolean(clock) && arr.indexOf(clock) === index)
+      : SWING_CLOCK_OPTIONS;
   const buckets = clubsForMatrix.reduce((acc, club) => {
-    acc[club] = SWING_CLOCK_OPTIONS.reduce((clockAcc, clock) => {
+    acc[club] = clocksForMatrix.reduce((clockAcc, clock) => {
       clockAcc[clock] = { total: 0, count: 0 };
       return clockAcc;
     }, {} as Record<string, { total: number; count: number }>);
@@ -27,7 +31,7 @@ export const buildWedgeMatrixRows = (entries: WedgeEntry[], clubs: string[]): We
   }, {} as Record<string, Record<string, { total: number; count: number }>>);
 
   entries.forEach((entry) => {
-    if (!CLUB_OPTIONS.includes(entry.club) || !SWING_CLOCK_OPTIONS.includes(entry.swingClock)) {
+    if (!CLUB_OPTIONS.includes(entry.club) || !clocksForMatrix.includes(entry.swingClock)) {
       return;
     }
     if (!Number.isFinite(entry.distanceMeters) || entry.distanceMeters <= 0) {
@@ -43,7 +47,7 @@ export const buildWedgeMatrixRows = (entries: WedgeEntry[], clubs: string[]): We
 
   return clubsForMatrix.map((club) => ({
     club,
-    cells: SWING_CLOCK_OPTIONS.map((clock) => {
+    cells: clocksForMatrix.map((clock) => {
       const bucket = buckets[club][clock];
       if (!bucket || bucket.count === 0) {
         return { clock, avgMeters: null, count: 0 };

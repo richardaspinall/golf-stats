@@ -6,6 +6,7 @@ import {
   deleteWedgeEntryInApi,
   deleteWedgeMatrixInApi,
   saveWedgeEntryToApi,
+  updateWedgeMatrixInApi,
   updateWedgeEntryInApi,
 } from '../lib/api';
 import { CLUB_OPTIONS, SWING_CLOCK_OPTIONS } from '../lib/constants';
@@ -31,6 +32,8 @@ type UseWedgeMatrixArgs = {
   wedgeMatrixBallPosition: string;
   wedgeMatrixNotes: string;
   wedgeMatrixClubs: string[];
+  wedgeMatrixSwingClocks: string[];
+  wedgeMatrixEnabledColumns: boolean[];
   setWedgeMatrices: Dispatch<SetStateAction<WedgeMatrix[]>>;
   setWedgeMatrixName: Dispatch<SetStateAction<string>>;
   setWedgeMatrixStanceWidth: Dispatch<SetStateAction<string>>;
@@ -38,9 +41,13 @@ type UseWedgeMatrixArgs = {
   setWedgeMatrixBallPosition: Dispatch<SetStateAction<string>>;
   setWedgeMatrixNotes: Dispatch<SetStateAction<string>>;
   setWedgeMatrixClubs: Dispatch<SetStateAction<string[]>>;
+  setWedgeMatrixSwingClocks: Dispatch<SetStateAction<string[]>>;
+  setWedgeMatrixEnabledColumns: Dispatch<SetStateAction<boolean[]>>;
   setIsWedgeMatrixFormOpen: Dispatch<SetStateAction<boolean>>;
   setWedgeMatrixSaveState: Dispatch<SetStateAction<string>>;
   setWedgeMatricesError: Dispatch<SetStateAction<string>>;
+  editingWedgeMatrixId: number | null;
+  setEditingWedgeMatrixId: Dispatch<SetStateAction<number | null>>;
   activeWedgeMatrixId: number | null;
   wedgeMatrices: WedgeMatrix[];
   setActiveWedgeMatrixId: Dispatch<SetStateAction<number | null>>;
@@ -74,6 +81,8 @@ export function useWedgeMatrix({
   wedgeMatrixBallPosition,
   wedgeMatrixNotes,
   wedgeMatrixClubs,
+  wedgeMatrixSwingClocks,
+  wedgeMatrixEnabledColumns,
   setWedgeMatrices,
   setWedgeMatrixName,
   setWedgeMatrixStanceWidth,
@@ -81,9 +90,13 @@ export function useWedgeMatrix({
   setWedgeMatrixBallPosition,
   setWedgeMatrixNotes,
   setWedgeMatrixClubs,
+  setWedgeMatrixSwingClocks,
+  setWedgeMatrixEnabledColumns,
   setIsWedgeMatrixFormOpen,
   setWedgeMatrixSaveState,
   setWedgeMatricesError,
+  editingWedgeMatrixId,
+  setEditingWedgeMatrixId,
   activeWedgeMatrixId,
   wedgeMatrices,
   setActiveWedgeMatrixId,
@@ -140,38 +153,112 @@ export function useWedgeMatrix({
     setWedgeMatrixClubs((prev) => (prev.includes(club) ? prev.filter((item) => item !== club) : [...prev, club]));
   };
 
-  const createWedgeMatrix = (event?: FormEvent<HTMLFormElement>) => {
+  const setWedgeMatrixSwingClockValue = (index: number, value: string) => {
+    if (!Number.isInteger(index) || index < 0) {
+      return;
+    }
+    setWedgeMatrixSwingClocks((prev) => {
+      const next = prev.length > 0 ? [...prev] : [...SWING_CLOCK_OPTIONS];
+      while (next.length <= index) {
+        next.push('');
+      }
+      next[index] = value.slice(0, 40);
+      return next;
+    });
+  };
+
+  const setWedgeMatrixColumnEnabled = (index: number, enabled: boolean) => {
+    if (!Number.isInteger(index) || index <= 0 || index >= SWING_CLOCK_OPTIONS.length) {
+      return;
+    }
+
+    setWedgeMatrixEnabledColumns((prev) => {
+      const next = prev.length === SWING_CLOCK_OPTIONS.length ? [...prev] : [true, true, true, true];
+      next[0] = true;
+      next[index] = enabled;
+      return next;
+    });
+  };
+
+  const resetWedgeMatrixForm = () => {
+    setWedgeMatrixName('');
+    setWedgeMatrixStanceWidth('');
+    setWedgeMatrixGrip('');
+    setWedgeMatrixBallPosition('');
+    setWedgeMatrixNotes('');
+    setWedgeMatrixClubs([]);
+    setWedgeMatrixSwingClocks([...SWING_CLOCK_OPTIONS]);
+    setWedgeMatrixEnabledColumns([true, true, true, true]);
+    setEditingWedgeMatrixId(null);
+  };
+
+  const startWedgeMatrixEdit = (matrix: WedgeMatrix) => {
+    const savedSwingClocks = Array.isArray(matrix.swingClocks) && matrix.swingClocks.length > 0 ? matrix.swingClocks : [...SWING_CLOCK_OPTIONS];
+    const nextSwingClocks = Array.from({ length: SWING_CLOCK_OPTIONS.length }, (_, index) => savedSwingClocks[index] || SWING_CLOCK_OPTIONS[index]);
+
+    setEditingWedgeMatrixId(matrix.id);
+    setWedgeMatrixName(matrix.name || '');
+    setWedgeMatrixStanceWidth(matrix.stanceWidth || '');
+    setWedgeMatrixGrip(matrix.grip || '');
+    setWedgeMatrixBallPosition(matrix.ballPosition || '');
+    setWedgeMatrixNotes(matrix.notes || '');
+    setWedgeMatrixClubs(Array.isArray(matrix.clubs) ? matrix.clubs : []);
+    setWedgeMatrixSwingClocks(nextSwingClocks);
+    setWedgeMatrixEnabledColumns(
+      Array.from({ length: SWING_CLOCK_OPTIONS.length }, (_, index) =>
+        index === 0 ? true : Boolean(savedSwingClocks[index]),
+      ),
+    );
+    setWedgeMatricesError('');
+    setWedgeMatrixSaveState('idle');
+    setIsWedgeMatrixFormOpen(true);
+  };
+
+  const cancelWedgeMatrixEdit = () => {
+    resetWedgeMatrixForm();
+    setIsWedgeMatrixFormOpen(false);
+    setWedgeMatricesError('');
+    setWedgeMatrixSaveState('idle');
+  };
+
+  const saveWedgeMatrix = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     if (!authToken) {
       return;
     }
 
     setWedgeMatrixSaveState('saving');
-    createWedgeMatrixInApi(
-      {
-        name: wedgeMatrixName || 'Wedge matrix',
-        stanceWidth: wedgeMatrixStanceWidth,
-        grip: wedgeMatrixGrip,
-        ballPosition: wedgeMatrixBallPosition,
-        notes: wedgeMatrixNotes,
-        clubs: wedgeMatrixClubs,
-      },
-      authToken,
-    )
+    const payload = {
+      name: wedgeMatrixName || 'Wedge matrix',
+      stanceWidth: wedgeMatrixStanceWidth,
+      grip: wedgeMatrixGrip,
+      ballPosition: wedgeMatrixBallPosition,
+      notes: wedgeMatrixNotes,
+      clubs: wedgeMatrixClubs,
+      swingClocks: wedgeMatrixSwingClocks.reduce<string[]>((acc, clock, index) => {
+        if (index > 0 && !wedgeMatrixEnabledColumns[index]) {
+          return acc;
+        }
+        acc.push(clock.trim() ? clock : SWING_CLOCK_OPTIONS[index]);
+        return acc;
+      }, []),
+    };
+    const request = editingWedgeMatrixId
+      ? updateWedgeMatrixInApi({ id: editingWedgeMatrixId, ...payload }, authToken)
+      : createWedgeMatrixInApi(payload, authToken);
+
+    request
       .then((matrix) => {
         if (!matrix) {
           setWedgeMatrixSaveState('error');
-          setWedgeMatricesError('Unable to create wedge matrix right now.');
+          setWedgeMatricesError(editingWedgeMatrixId ? 'Unable to update wedge matrix right now.' : 'Unable to create wedge matrix right now.');
           return;
         }
 
-        setWedgeMatrices((prev) => [matrix, ...prev]);
-        setWedgeMatrixName('');
-        setWedgeMatrixStanceWidth('');
-        setWedgeMatrixGrip('');
-        setWedgeMatrixBallPosition('');
-        setWedgeMatrixNotes('');
-        setWedgeMatrixClubs([]);
+        setWedgeMatrices((prev) =>
+          editingWedgeMatrixId ? prev.map((item) => (item.id === editingWedgeMatrixId ? matrix : item)) : [matrix, ...prev],
+        );
+        resetWedgeMatrixForm();
         setIsWedgeMatrixFormOpen(false);
         setWedgeMatrixSaveState('saved');
       })
@@ -182,7 +269,7 @@ export function useWedgeMatrix({
         }
 
         setWedgeMatrixSaveState('error');
-        setWedgeMatricesError('Unable to create wedge matrix right now.');
+        setWedgeMatricesError(editingWedgeMatrixId ? 'Unable to update wedge matrix right now.' : 'Unable to create wedge matrix right now.');
       });
   };
 
@@ -207,6 +294,10 @@ export function useWedgeMatrix({
           setActiveWedgeMatrixId(null);
           setIsWedgeFormOpen(false);
           setEditingWedgeEntryId(null);
+        }
+        if (editingWedgeMatrixId === matrixId) {
+          resetWedgeMatrixForm();
+          setIsWedgeMatrixFormOpen(false);
         }
         setWedgeMatrixSaveState('saved');
       })
@@ -270,12 +361,16 @@ export function useWedgeMatrix({
     const activeMatrix = wedgeMatrices.find((matrix) => matrix.id === activeWedgeMatrixId);
     const activeMatrixClubs =
       activeMatrix && Array.isArray(activeMatrix.clubs) && activeMatrix.clubs.length > 0 ? activeMatrix.clubs : CLUB_OPTIONS;
+    const activeMatrixSwingClocks =
+      activeMatrix && Array.isArray(activeMatrix.swingClocks) && activeMatrix.swingClocks.length > 0
+        ? activeMatrix.swingClocks
+        : SWING_CLOCK_OPTIONS;
 
     if (!activeMatrixClubs.includes(wedgeClubSelection)) {
       setWedgeEntryError('Select a club.');
       return;
     }
-    if (!SWING_CLOCK_OPTIONS.includes(wedgeSwingClock)) {
+    if (!activeMatrixSwingClocks.includes(wedgeSwingClock)) {
       setWedgeEntryError('Select a swing clock.');
       return;
     }
@@ -400,7 +495,11 @@ export function useWedgeMatrix({
     startWedgeEdit,
     cancelWedgeEdit,
     toggleWedgeMatrixClub,
-    createWedgeMatrix,
+    setWedgeMatrixSwingClockValue,
+    setWedgeMatrixColumnEnabled,
+    saveWedgeMatrix,
+    startWedgeMatrixEdit,
+    cancelWedgeMatrixEdit,
     deleteWedgeMatrix,
     deleteWedgeEntry,
     addWedgeEntry,

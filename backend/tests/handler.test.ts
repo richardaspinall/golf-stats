@@ -73,13 +73,34 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
     listClubActualAverages: vi.fn().mockResolvedValue({}),
     insertClubActualDistance: vi.fn().mockResolvedValue(undefined),
   }));
+  const updateWedgeMatrix = vi.fn().mockResolvedValue({
+    id: 7,
+    name: 'Flighted wedges',
+    stanceWidth: 'Medium',
+    grip: 'Mid',
+    ballPosition: 'Back',
+    notes: 'Keep hands quiet',
+    clubs: ['50', '54', '58'],
+    swingClocks: ['7:30', '9:00', '10:30'],
+    createdAt: 'now',
+  });
+  vi.doMock('../src/db/wedge.js', () => ({
+    listWedgeEntries: vi.fn().mockResolvedValue([]),
+    insertWedgeEntry: vi.fn(),
+    updateWedgeEntry: vi.fn(),
+    deleteWedgeEntry: vi.fn(),
+    listWedgeMatrices: vi.fn().mockResolvedValue([]),
+    insertWedgeMatrix: vi.fn(),
+    updateWedgeMatrix,
+    deleteWedgeMatrix: vi.fn(),
+  }));
   vi.doMock('../src/db/debug.js', () => ({
     getDbDebugStatus: vi.fn().mockResolvedValue({ ok: true, configured: true, message: 'ok' }),
   }));
 
   const { handleRequest } = await import('../src/handler.js');
   const { signToken } = await import('../src/auth/jwt.js');
-  return { handleRequest, signToken };
+  return { handleRequest, signToken, updateWedgeMatrix };
 };
 
 describe('handler', () => {
@@ -141,5 +162,46 @@ describe('handler', () => {
     expect(res.statusCode).toBe(200);
     const payload = JSON.parse(getBody());
     expect(payload.rounds).toHaveLength(1);
+  });
+
+  it('updates wedge matrix metadata with valid token', async () => {
+    const { handleRequest, signToken, updateWedgeMatrix } = await loadHandler();
+    const token = signToken('demo');
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'PUT',
+      url: '/api/wedge-matrices/7',
+      headers: { Authorization: `Bearer ${token}` },
+      body: {
+        name: 'Flighted wedges',
+        stanceWidth: 'Medium',
+        grip: 'Mid',
+        ballPosition: 'Back',
+        notes: 'Keep hands quiet',
+        clubs: ['50', '54', '58'],
+        swingClocks: ['7:30', '9:00', '10:30'],
+      },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(updateWedgeMatrix).toHaveBeenCalledWith({
+      id: 7,
+      name: 'Flighted wedges',
+      stanceWidth: 'Medium',
+      grip: 'Mid',
+      ballPosition: 'Back',
+      notes: 'Keep hands quiet',
+      clubs: ['50', '54', '58'],
+      swingClocks: ['7:30', '9:00', '10:30'],
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toMatchObject({
+      ok: true,
+      matrix: {
+        id: 7,
+        name: 'Flighted wedges',
+      },
+    });
   });
 });
