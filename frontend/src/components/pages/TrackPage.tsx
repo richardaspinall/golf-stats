@@ -12,10 +12,13 @@ import {
 } from '../../lib/constants';
 import type { HoleStats, RoundListItem } from '../../types';
 
+const OFFLINE_OPTIONS = [-15, -10, -5, 0, 5, 10, 15];
+
 type TrackPageProps = {
   round: {
     selectedHole: number;
     displayHoleIndex: number;
+    displayHolePar: number | null;
     activeRound?: RoundListItem;
     holeStats: HoleStats;
     selectedRoundId: string;
@@ -62,7 +65,9 @@ type TrackPageProps = {
 };
 
 export function TrackPage({ round, distance, actions, helpers }: TrackPageProps) {
-  const { selectedHole, displayHoleIndex, activeRound, holeStats, selectedRoundId, saveState } = round;
+  const { selectedHole, displayHoleIndex, displayHolePar, activeRound, holeStats, selectedRoundId, saveState } = round;
+  const holeIndexClass =
+    displayHoleIndex <= 6 ? 'hole-index hole-index-hard' : displayHoleIndex <= 12 ? 'hole-index hole-index-mid' : 'hole-index hole-index-easy';
   const {
     showDistanceTracker,
     targetDistanceMeters,
@@ -105,7 +110,9 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
       <section className="card" aria-label="hole stats">
         <div className="hole-header">
           <h2>Hole {selectedHole}</h2>
-          <span className="hole-index">Index {displayHoleIndex}</span>
+          <span className={holeIndexClass}>
+            Index {displayHoleIndex} | Par {displayHolePar ?? '—'}
+          </span>
         </div>
         <p className="hint">Round: {activeRound?.name || '...'}</p>
         <div className="track-distance-row">
@@ -198,14 +205,22 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                 <span>Offline</span>
                 <strong>{offlineMeters === 0 ? 'Off' : `${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`}</strong>
               </div>
-              <input
-                type="range"
-                min={-50}
-                max={50}
-                step={1}
-                value={offlineMeters}
-                onChange={(event) => setOfflineMeters(Number(event.target.value))}
-              />
+              <div className="club-row" role="group" aria-label="Offline distance">
+                {OFFLINE_OPTIONS.map((value) => {
+                  const magnitudeLabel = Math.abs(value) === 15 ? '15m +' : `${Math.abs(value)}m`;
+                  const label = value === 0 ? 'On line' : `${magnitudeLabel} ${value < 0 ? 'L' : 'R'}`;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      className={offlineMeters === value ? 'club-btn active' : 'club-btn'}
+                      onClick={() => setOfflineMeters(value)}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="prototype-block">

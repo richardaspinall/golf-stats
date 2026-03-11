@@ -80,6 +80,7 @@ describe('sanitizeCourseMarkers', () => {
         teePosition: { lat: 91, lng: 0 },
         greenPosition: { lat: -37.9, lng: 145.1 },
         holeIndex: 0,
+        par: 9,
       },
     });
 
@@ -90,6 +91,8 @@ describe('sanitizeCourseMarkers', () => {
     expect(markers[1].teePosition).toBeNull();
     expect(markers[1].greenPosition).toEqual({ lat: -37.9, lng: 145.1 });
     expect(markers[1].holeIndex).toBe(1);
+    expect(markers[1].par).toBe(6);
+    expect(markers[2].par).toBe(4);
   });
 });
 

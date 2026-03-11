@@ -49,7 +49,7 @@ export const buildInitialByHole = (): StatsByHole =>
 
 export const buildInitialCourseMarkers = (): CourseMarkers =>
   HOLES.reduce((acc, hole) => {
-    acc[hole] = { teePosition: null, greenPosition: null, holeIndex: hole };
+    acc[hole] = { teePosition: null, greenPosition: null, holeIndex: hole, par: 4 };
     return acc;
   }, {} as CourseMarkers);
 
@@ -129,6 +129,8 @@ export const sanitizeCourseMarkers = (raw: unknown): CourseMarkers => {
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
     const holeIndex = Number(holeRaw.holeIndex);
     safe[hole].holeIndex = Number.isFinite(holeIndex) ? Math.min(18, Math.max(1, Math.floor(holeIndex))) : hole;
+    const par = Number(holeRaw.par);
+    safe[hole].par = Number.isFinite(par) ? Math.min(6, Math.max(3, Math.floor(par))) : 4;
   });
 
   return safe;

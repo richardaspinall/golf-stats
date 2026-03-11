@@ -76,7 +76,8 @@ body {
 }
 
 .round-select,
-.new-round-form input {
+.new-round-form input,
+.new-round-form select {
   min-height: 40px;
   border: 1px solid #9db08f;
   border-radius: 8px;
@@ -128,7 +129,7 @@ body {
 
 .new-round-fields {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
@@ -139,6 +140,30 @@ body {
 
 .tab-btn {
   min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tab-btn-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.tab-btn-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tab-btn-label {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.15;
 }
 
 .tab-btn.active {
@@ -362,8 +387,28 @@ button:active {
 
 .hole-index {
   font-weight: 600;
-  color: #5b6f63;
   font-size: 0.95rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.hole-index-hard {
+  color: #7a2e2a;
+  background: #f8dfdb;
+  border-color: #ebc0ba;
+}
+
+.hole-index-mid {
+  color: #7b4c16;
+  background: #f8ead2;
+  border-color: #ebd0a8;
+}
+
+.hole-index-easy {
+  color: #2d5a33;
+  background: #dff1df;
+  border-color: #b9dcbf;
 }
 
 .gir-menu {
@@ -1191,6 +1236,10 @@ button:active {
 }
 
 @media (max-width: 520px) {
+  .app {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
   .header-controls {
     width: 100%;
     align-items: stretch;
@@ -1214,7 +1263,48 @@ button:active {
   }
 
   .page-tabs {
-    grid-template-columns: 1fr;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: rgba(250, 252, 248, 0.96);
+    border-top: 1px solid #d4decc;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 -10px 28px rgba(45, 70, 50, 0.12);
+  }
+
+  .tab-btn {
+    min-height: 64px;
+    border: none;
+    background: transparent;
+    border-radius: 14px;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 4px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #4d5d52;
+  }
+
+  .tab-btn-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .tab-btn-label {
+    justify-content: center;
+    text-align: center;
+    font-size: 0.72rem;
+  }
+
+  .tab-btn.active {
+    background: #e7f3ea;
+    color: #1f6a38;
+    border-color: transparent;
   }
 
   .club-groups {

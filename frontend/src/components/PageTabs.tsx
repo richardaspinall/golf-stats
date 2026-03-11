@@ -1,6 +1,9 @@
+import type { ReactNode } from 'react';
+
 type Tab = {
   key: string;
   label: string;
+  icon?: ReactNode;
 };
 
 type PageTabsProps = {
@@ -18,10 +21,10 @@ export function PageTabs({ activePage, tabs, onChange }: PageTabsProps) {
           className={activePage === tab.key ? 'tab-btn active' : 'tab-btn'}
           onClick={() => onChange(tab.key)}
         >
-          {tab.label}
+          {tab.icon ? <span className="tab-btn-icon" aria-hidden="true">{tab.icon}</span> : null}
+          <span className="tab-btn-label">{tab.label}</span>
         </button>
       ))}
     </nav>
   );
 }
-

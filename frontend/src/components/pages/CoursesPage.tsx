@@ -2,6 +2,8 @@ import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import { SavePill } from '../SavePill';
 import { HOLE_INDEX_OPTIONS, HOLES } from '../../lib/constants';
+
+const PAR_OPTIONS = [3, 4, 5, 6];
 import type { Course } from '../../types';
 
 type CoursesPageProps = {
@@ -169,6 +171,38 @@ function CourseEditorPanel({ state, actions }: CourseEditorPanelProps) {
                       {HOLE_INDEX_OPTIONS.map((indexOption) => (
                         <option key={indexOption} value={indexOption}>
                           {indexOption}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="course-index-field">
+                    Par
+                    <select
+                      value={holeMarkers?.par ?? 4}
+                      onChange={(event) => {
+                        const nextValue = Math.min(6, Math.max(3, Math.floor(Number(event.target.value))));
+                        setCourses((prev) =>
+                          prev.map((entry) =>
+                            entry.id === courseEditor.id
+                              ? {
+                                  ...entry,
+                                  markers: {
+                                    ...entry.markers,
+                                    [hole]: {
+                                      ...(entry.markers?.[hole] || {}),
+                                      par: nextValue,
+                                    },
+                                  },
+                                }
+                              : entry,
+                          ),
+                        );
+                        setCourseSaveState('unsaved');
+                      }}
+                    >
+                      {PAR_OPTIONS.map((parOption) => (
+                        <option key={parOption} value={parOption}>
+                          {parOption}
                         </option>
                       ))}
                     </select>

@@ -53,6 +53,56 @@ import { clearAuthToken, loadStoredAuthToken, saveAuthToken } from './lib/storag
 import { buildShotSummary, getDisplayHoleIndex, toggleHoleSelection, updateHoleCounter, updateHoleScoreValue } from './lib/track';
 import { buildWedgeMatrixRows, sortClubsByDefaultOrder } from './lib/wedgeMatrix';
 
+function TrackTabIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 20v-8" />
+      <path d="M17 20v-8" />
+      <path d="M12 20V7" />
+      <path d="M5 12h4" />
+      <path d="M15 9h4" />
+      <path d="M10 7h4" />
+    </svg>
+  );
+}
+
+function DistanceTabIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 18L18 4" />
+      <path d="M14 4h4v4" />
+      <path d="M6 20h14" />
+      <path d="M6 16v4" />
+      <path d="M10 18v2" />
+      <path d="M14 18v2" />
+      <path d="M18 16v4" />
+    </svg>
+  );
+}
+
+function WedgeMatrixTabIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <path d="M9.5 5v14" />
+      <path d="M14.5 5v14" />
+      <path d="M4 10h16" />
+      <path d="M4 14h16" />
+    </svg>
+  );
+}
+
+function TotalsTabIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 19V9" />
+      <path d="M12 19V5" />
+      <path d="M18 19v-7" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [authToken, setAuthToken] = useState(() => loadStoredAuthToken());
   const [loginUsername, setLoginUsername] = useState('');
@@ -148,6 +198,7 @@ export default function App() {
   const activeCourse = courses.find((course) => course.id === (activeRound?.courseId || selectedCourseId));
   const courseEditor = courses.find((course) => course.id === courseEditorId);
   const displayHoleIndex = getDisplayHoleIndex(activeCourse, holeStats, selectedHole);
+  const displayHolePar = activeCourse?.markers?.[selectedHole]?.par ?? null;
   const {
     mapContainerRef,
     selectedHoleRef,
@@ -459,16 +510,17 @@ export default function App() {
     event?.preventDefault();
     const roundTitle = newRoundTitle.trim();
     const roundDate = newRoundDate || new Date().toISOString().slice(0, 10);
-    const roundName = roundTitle ? `${roundTitle} - ${roundDate}` : `Round ${roundDate}`;
+    const roundName = roundTitle || 'Round';
 
     setIsSwitchingRound(true);
     setSaveState('loading');
     try {
-      const round = await createRoundInApi(roundName, newRoundCourseId, authToken);
+      const round = await createRoundInApi(roundName, roundDate, newRoundCourseId, authToken);
       if (round) {
         const summary = {
           id: round.id,
           name: round.name,
+          roundDate: round.roundDate,
           courseId: round.courseId || '',
           createdAt: round.createdAt,
           updatedAt: round.updatedAt,
@@ -1230,16 +1282,16 @@ export default function App() {
             activePage={page}
             onChange={setPage}
             tabs={[
-              { key: 'track', label: 'Track' },
-              { key: 'distance', label: 'Distances' },
-              { key: 'wedgeMatrix', label: 'Wedge matrix' },
-              { key: 'totals', label: 'Round totals' },
+              { key: 'track', label: 'Track', icon: <TrackTabIcon /> },
+              { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
+              { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
+              { key: 'totals', label: 'Round totals', icon: <TotalsTabIcon /> },
             ]}
           />
 
           {page === 'track' ? (
             <TrackPage
-              round={{ selectedHole, displayHoleIndex, activeRound, holeStats, selectedRoundId, saveState }}
+              round={{ selectedHole, displayHoleIndex, displayHolePar, activeRound, holeStats, selectedRoundId, saveState }}
               distance={{
                 showDistanceTracker,
                 targetDistanceMeters,

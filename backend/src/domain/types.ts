@@ -39,12 +39,14 @@ export type CourseMarkersByHole = Record<
     teePosition: LatLng | null;
     greenPosition: LatLng | null;
     holeIndex: number;
+    par: number;
   }
 >;
 
 export type Round = {
   id: string;
   name: string;
+  roundDate: string;
   courseId: string | null;
   statsByHole: StatsByHole;
   notes: string[];

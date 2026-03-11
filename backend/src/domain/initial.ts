@@ -29,6 +29,6 @@ export const buildInitialByHole = (): StatsByHole =>
 
 export const buildInitialCourseMarkers = (): CourseMarkersByHole =>
   HOLES.reduce((acc, hole) => {
-    acc[hole] = { teePosition: null, greenPosition: null, holeIndex: hole };
+    acc[hole] = { teePosition: null, greenPosition: null, holeIndex: hole, par: 4 };
     return acc;
   }, {} as CourseMarkersByHole);

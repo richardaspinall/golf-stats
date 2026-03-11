@@ -71,6 +71,8 @@ export const sanitizeCourseMarkers = (raw: unknown): CourseMarkersByHole => {
     safe[hole].holeIndex = Number.isFinite(holeIndex)
       ? Math.min(18, Math.max(1, Math.floor(holeIndex)))
       : hole;
+    const par = Number(holeRaw.par);
+    safe[hole].par = Number.isFinite(par) ? Math.min(6, Math.max(3, Math.floor(par))) : 4;
   });
 
   return safe;
@@ -79,6 +81,19 @@ export const sanitizeCourseMarkers = (raw: unknown): CourseMarkersByHole => {
 export const sanitizeRoundName = (raw: unknown, fallbackIndex = 1) => {
   const value = String(raw || '').trim();
   return value ? value.slice(0, 80) : `Round ${fallbackIndex}`;
+};
+
+export const sanitizeRoundDate = (raw: unknown) => {
+  const value = String(raw || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 export const sanitizeCourseName = (raw: unknown, fallbackIndex = 1) => {
