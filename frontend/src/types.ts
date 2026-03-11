@@ -1,0 +1,93 @@
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+export interface StatOption {
+  key: string;
+  label: string;
+  position?: string;
+}
+
+export interface StatSection {
+  title: string;
+  options: StatOption[];
+}
+
+export interface HoleStats {
+  score: number;
+  holeIndex: number;
+  fairwaySelection: string | null;
+  girSelection: string | null;
+  teePosition: LatLng | null;
+  greenPosition: LatLng | null;
+  [key: string]: number | string | LatLng | null;
+}
+
+export type StatsByHole = Record<number, HoleStats>;
+
+export interface CourseMarker {
+  teePosition: LatLng | null;
+  greenPosition: LatLng | null;
+  holeIndex: number;
+}
+
+export type CourseMarkers = Record<number, CourseMarker>;
+
+export interface RoundSummaryTotals {
+  score: number;
+  [key: string]: number;
+}
+
+export interface RoundSummaryData {
+  totals: RoundSummaryTotals;
+}
+
+export interface RoundListItem {
+  id: string;
+  name: string;
+  courseId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Round extends RoundListItem {
+  statsByHole: StatsByHole;
+  notes: string[];
+}
+
+export interface Course {
+  id: string;
+  name: string;
+  markers: CourseMarkers;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ClubAverage {
+  club: string;
+  avgMeters: number | null;
+  shots: number;
+}
+
+export interface WedgeEntry {
+  id: number;
+  matrixId: number;
+  club: string;
+  swingClock: string;
+  distanceMeters: number;
+  createdAt: string;
+}
+
+export interface WedgeMatrix {
+  id: number;
+  name: string;
+  stanceWidth: string;
+  grip: string;
+  ballPosition: string;
+  notes: string;
+  clubs: string[];
+  createdAt: string;
+}
+
+export type CarryByClub = Record<string, number>;
