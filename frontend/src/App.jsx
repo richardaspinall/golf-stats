@@ -1826,8 +1826,17 @@ export default function App() {
     return computeTotalsForStats(statsByHole);
   }, [statsByHole]);
 
+  const sortClubsByDefaultOrder = (clubs) => {
+    if (!Array.isArray(clubs) || clubs.length === 0) {
+      return CLUB_OPTIONS;
+    }
+    return Array.from(new Set(clubs.filter((club) => CLUB_OPTIONS.includes(club)))).sort(
+      (a, b) => CLUB_OPTIONS.indexOf(a) - CLUB_OPTIONS.indexOf(b),
+    );
+  };
+
   const buildWedgeMatrixRows = (entries, clubs) => {
-    const clubsForMatrix = clubs && clubs.length > 0 ? clubs : CLUB_OPTIONS;
+    const clubsForMatrix = sortClubsByDefaultOrder(clubs);
     const buckets = clubsForMatrix.reduce((acc, club) => {
       acc[club] = SWING_CLOCK_OPTIONS.reduce((clockAcc, clock) => {
         clockAcc[clock] = { total: 0, count: 0 };
@@ -3788,7 +3797,7 @@ export default function App() {
               {wedgeMatrices.map((matrix) => {
                 const entries = wedgeEntriesByMatrix[matrix.id] || [];
                 const rows = buildWedgeMatrixRows(entries, matrix.clubs);
-                const matrixClubs = Array.isArray(matrix.clubs) && matrix.clubs.length > 0 ? matrix.clubs : CLUB_OPTIONS;
+                const matrixClubs = sortClubsByDefaultOrder(matrix.clubs);
                 const recentEntries = entries.slice(0, 12);
                 const isActiveMatrix = activeWedgeMatrixId === matrix.id;
 
