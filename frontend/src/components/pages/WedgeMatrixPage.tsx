@@ -79,6 +79,7 @@ type WedgeMatrixCreateFormProps = {
   saveWedgeMatrix: WedgeMatrixPageProps['actions']['saveWedgeMatrix'];
   editingWedgeMatrixId: WedgeMatrixPageProps['state']['editingWedgeMatrixId'];
   cancelWedgeMatrixEdit: WedgeMatrixPageProps['actions']['cancelWedgeMatrixEdit'];
+  closeWedgeMatrixForm: () => void;
   wedgeMatrixName: WedgeMatrixPageProps['state']['wedgeMatrixName'];
   setWedgeMatrixName: WedgeMatrixPageProps['actions']['setWedgeMatrixName'];
   wedgeMatrixClubs: WedgeMatrixPageProps['state']['wedgeMatrixClubs'];
@@ -116,8 +117,7 @@ type WedgeEntryFormProps = {
   editingWedgeEntryId: WedgeMatrixPageProps['state']['editingWedgeEntryId'];
   cancelWedgeEdit: WedgeMatrixPageProps['actions']['cancelWedgeEdit'];
   wedgeEntryError: WedgeMatrixPageProps['state']['wedgeEntryError'];
-  setIsWedgeFormOpen: WedgeMatrixPageProps['actions']['setIsWedgeFormOpen'];
-  setEditingWedgeEntryId: WedgeMatrixPageProps['actions']['setEditingWedgeEntryId'];
+  closeWedgeEntryForm: () => void;
 };
 
 type WedgeMatrixCardProps = {
@@ -163,6 +163,7 @@ function WedgeMatrixCreateForm({
   saveWedgeMatrix,
   editingWedgeMatrixId,
   cancelWedgeMatrixEdit,
+  closeWedgeMatrixForm,
   wedgeMatrixName,
   setWedgeMatrixName,
   wedgeMatrixClubs,
@@ -182,6 +183,12 @@ function WedgeMatrixCreateForm({
 }: WedgeMatrixCreateFormProps) {
   return (
     <form className="wedge-form" onSubmit={saveWedgeMatrix}>
+      <div className="card-header close-header">
+        <h3 className="section-title">{editingWedgeMatrixId ? 'Edit matrix' : 'Create matrix'}</h3>
+        <button type="button" className="icon-close-btn" aria-label="Close matrix form" onClick={closeWedgeMatrixForm}>
+          ×
+        </button>
+      </div>
       <div className="prototype-block">
         <label className="wedge-distance-field">
           Matrix name
@@ -331,11 +338,25 @@ function WedgeEntryForm({
   editingWedgeEntryId,
   cancelWedgeEdit,
   wedgeEntryError,
-  setIsWedgeFormOpen,
-  setEditingWedgeEntryId,
+  closeWedgeEntryForm,
 }: WedgeEntryFormProps) {
+  const adjustWedgeDistanceMeters = (delta: number) => {
+    setWedgeDistanceMeters(Math.max(5, Math.min(150, wedgeDistanceMeters + delta)));
+  };
+  const adjustWedgeDistancePaces = (delta: number) => {
+    const minPaces = metersToPaces(5);
+    const maxPaces = metersToPaces(150);
+    setWedgeDistancePaces(Math.max(minPaces, Math.min(maxPaces, wedgeDistancePaces + delta)));
+  };
+
   return (
-    <form className="wedge-form" onSubmit={addWedgeEntry}>
+    <form className="wedge-form active-panel" onSubmit={addWedgeEntry}>
+      <div className="card-header close-header">
+        <h3 className="section-title">{editingWedgeEntryId ? 'Edit wedge result' : 'Add wedge result'}</h3>
+        <button type="button" className="icon-close-btn" aria-label="Close wedge result form" onClick={closeWedgeEntryForm}>
+          ×
+        </button>
+      </div>
       <div className="prototype-block">
         <h3 className="section-title">Club</h3>
         <div className="club-row" role="group" aria-label="Club selection">
@@ -393,8 +414,16 @@ function WedgeEntryForm({
         {wedgeDistanceUnit === 'paces' ? (
           <>
             <div className="distance-header">
-              <span>Paces</span>
-              <strong>{wedgeDistancePaces}</strong>
+              <span />
+              <div className="distance-value-actions">
+                <button type="button" onClick={() => adjustWedgeDistancePaces(-1)} aria-label="Decrease paces">
+                  -
+                </button>
+                <strong>{wedgeDistancePaces}</strong>
+                <button type="button" onClick={() => adjustWedgeDistancePaces(1)} aria-label="Increase paces">
+                  +
+                </button>
+              </div>
             </div>
             <input
               type="range"
@@ -408,8 +437,16 @@ function WedgeEntryForm({
         ) : (
           <>
             <div className="distance-header">
-              <span>Meters</span>
-              <strong>{wedgeDistanceMeters}m</strong>
+              <span />
+              <div className="distance-value-actions">
+                <button type="button" onClick={() => adjustWedgeDistanceMeters(-1)} aria-label="Decrease meters">
+                  -
+                </button>
+                <strong>{wedgeDistanceMeters}m</strong>
+                <button type="button" onClick={() => adjustWedgeDistanceMeters(1)} aria-label="Increase meters">
+                  +
+                </button>
+              </div>
             </div>
             <input
               type="range"
@@ -424,23 +461,13 @@ function WedgeEntryForm({
       </div>
       <div className="manual-save-row">
         <button type="submit" className="save-btn">
-          {editingWedgeEntryId ? 'Save changes' : 'Save wedge result'}
+          Save
         </button>
         {editingWedgeEntryId ? (
           <button type="button" className="reset-btn" onClick={cancelWedgeEdit}>
             Cancel edit
           </button>
         ) : null}
-        <button
-          type="button"
-          className="reset-btn"
-          onClick={() => {
-            setIsWedgeFormOpen(false);
-            setEditingWedgeEntryId(null);
-          }}
-        >
-          Close form
-        </button>
       </div>
       {wedgeEntryError ? <p className="hint">{wedgeEntryError}</p> : null}
     </form>
@@ -492,6 +519,10 @@ function WedgeMatrixCard({
   const recentEntries = entries.slice(0, 12);
   const isActiveMatrix = activeWedgeMatrixId === matrix.id;
   const isRecentEntriesOpen = recentEntriesMatrixId === matrix.id;
+  const closeWedgeEntryForm = () => {
+    setIsWedgeFormOpen(false);
+    setEditingWedgeEntryId(null);
+  };
 
   return (
     <div className="wedge-matrix-card">
@@ -503,20 +534,30 @@ function WedgeMatrixCard({
           </p>
           {matrix.notes ? <p className="hint">Notes: {matrix.notes}</p> : null}
         </div>
+        {wedgeMatrixMode !== 'setup' && !(isWedgeFormOpen && isActiveMatrix) ? (
+          <button
+            type="button"
+            className="icon-action-btn"
+            aria-label={`Add wedge result for ${matrix.name || 'wedge matrix'}`}
+            onClick={() => {
+              setActiveWedgeMatrixId(matrix.id);
+              setIsWedgeFormOpen(true);
+              setEditingWedgeEntryId(null);
+              setWedgeEntryError('');
+            }}
+          >
+            +
+          </button>
+        ) : null}
         {wedgeMatrixMode === 'setup' ? (
           <div className="wedge-matrix-actions">
             <button
               type="button"
               onClick={() => {
                 setActiveWedgeMatrixId(matrix.id);
-                setIsWedgeFormOpen(true);
-                setEditingWedgeEntryId(null);
-                setWedgeEntryError('');
+                startWedgeMatrixEdit(matrix);
               }}
             >
-              Add wedge result
-            </button>
-            <button type="button" onClick={() => startWedgeMatrixEdit(matrix)}>
               Edit matrix
             </button>
             {recentEntries.length > 0 ? (
@@ -533,7 +574,7 @@ function WedgeMatrixCard({
           </div>
         ) : null}
       </div>
-      {wedgeMatrixMode === 'setup' && isWedgeFormOpen && isActiveMatrix ? (
+      {isWedgeFormOpen && isActiveMatrix ? (
         <WedgeEntryForm
           addWedgeEntry={addWedgeEntry}
           matrixClubs={matrixClubs}
@@ -553,8 +594,7 @@ function WedgeMatrixCard({
           editingWedgeEntryId={editingWedgeEntryId}
           cancelWedgeEdit={cancelWedgeEdit}
           wedgeEntryError={wedgeEntryError}
-          setIsWedgeFormOpen={setIsWedgeFormOpen}
-          setEditingWedgeEntryId={setEditingWedgeEntryId}
+          closeWedgeEntryForm={closeWedgeEntryForm}
         />
       ) : null}
       <div className="wedge-matrix">
@@ -586,7 +626,7 @@ function WedgeMatrixCard({
         {isLoadingWedgeEntries ? <p className="hint">Loading wedge results...</p> : null}
         {!isLoadingWedgeEntries && wedgeEntriesError ? <p className="hint">{wedgeEntriesError}</p> : null}
         {!isLoadingWedgeEntries && !wedgeEntriesError && entries.length === 0 ? <p className="hint">No wedge results yet.</p> : null}
-        {wedgeMatrixMode === 'setup' && wedgeEntrySaveState !== 'idle' ? <p className="hint">Wedge save: {wedgeEntrySaveState}</p> : null}
+        {isWedgeFormOpen && isActiveMatrix && wedgeEntrySaveState !== 'idle' ? <p className="hint">Wedge save: {wedgeEntrySaveState}</p> : null}
       </div>
       {wedgeMatrixMode === 'setup' && recentEntries.length > 0 && isRecentEntriesOpen ? (
         <div className="wedge-recent">
@@ -603,7 +643,14 @@ function WedgeMatrixCard({
                     {!isPersisted ? <span className="matrix-count">Saving...</span> : null}
                   </div>
                   <div className="wedge-recent-actions">
-                    <button type="button" onClick={() => startWedgeEdit(entry)} disabled={!isPersisted}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveWedgeMatrixId(matrix.id);
+                        startWedgeEdit(entry);
+                      }}
+                      disabled={!isPersisted}
+                    >
                       Edit
                     </button>
                     <button type="button" className="reset-btn" onClick={() => deleteWedgeEntry(entry.id, matrix.id)} disabled={!isPersisted}>
@@ -683,24 +730,70 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
     deleteWedgeEntry,
   } = actions;
   const { buildWedgeMatrixRows, sortClubsByDefaultOrder, metersToPaces, pacesToMeters } = helpers;
+  const closeWedgeSetup = () => {
+    setWedgeMatrixMode('view');
+    setIsWedgeMatrixFormOpen(false);
+    setIsWedgeFormOpen(false);
+    if (editingWedgeMatrixId) {
+      cancelWedgeMatrixEdit();
+    }
+    setEditingWedgeEntryId(null);
+    setRecentEntriesMatrixId(null);
+    setActiveWedgeMatrixId(null);
+  };
+  const closeWedgeMatrixForm = () => {
+    setIsWedgeMatrixFormOpen(false);
+    if (editingWedgeMatrixId) {
+      cancelWedgeMatrixEdit();
+    }
+  };
+  const focusedMatrixId =
+    (wedgeMatrixMode === 'setup' && editingWedgeMatrixId) ||
+    (wedgeMatrixMode === 'setup' && recentEntriesMatrixId) ||
+    ((isWedgeFormOpen || editingWedgeEntryId !== null) && activeWedgeMatrixId) ||
+    null;
+  const visibleMatrices = focusedMatrixId ? wedgeMatrices.filter((matrix) => matrix.id === focusedMatrixId) : wedgeMatrices;
   return (
     <section className="card" aria-label="wedge matrix">
-      <div className="card-header">
+      <div className="card-header close-header">
         <h2>Wedge matrix</h2>
+        {wedgeMatrixMode !== 'setup' ? (
+          <button
+            type="button"
+            className="icon-action-btn"
+            aria-label="Open wedge settings"
+            onClick={() => {
+              setWedgeMatrixMode('setup');
+              setRecentEntriesMatrixId(null);
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.54V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.54-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.54V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.54h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.54 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.54 1z" />
+            </svg>
+          </button>
+        ) : null}
+        {wedgeMatrixMode === 'setup' && !focusedMatrixId && !isWedgeMatrixFormOpen ? (
+          <button
+            type="button"
+            className="icon-close-btn"
+            aria-label="Close wedge setup"
+            onClick={closeWedgeSetup}
+          >
+            ×
+          </button>
+        ) : null}
       </div>
       <p className="hint">Capture wedge distances by clock system and compare setups.</p>
-      {wedgeMatrixMode === 'setup' ? (
+      {wedgeMatrixMode === 'setup' && !isWedgeMatrixFormOpen ? (
         <div className="manual-save-row">
           <button
             onClick={() => {
-              setIsWedgeMatrixFormOpen((prev) => !prev);
+              setIsWedgeMatrixFormOpen(true);
               setWedgeMatricesError('');
-              if (isWedgeMatrixFormOpen && editingWedgeMatrixId) {
-                cancelWedgeMatrixEdit();
-              }
             }}
           >
-            {isWedgeMatrixFormOpen ? 'Close matrix form' : 'Create new matrix'}
+            Create new matrix
           </button>
         </div>
       ) : null}
@@ -709,6 +802,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
           saveWedgeMatrix={saveWedgeMatrix}
           editingWedgeMatrixId={editingWedgeMatrixId}
           cancelWedgeMatrixEdit={cancelWedgeMatrixEdit}
+          closeWedgeMatrixForm={closeWedgeMatrixForm}
           wedgeMatrixName={wedgeMatrixName}
           setWedgeMatrixName={setWedgeMatrixName}
           wedgeMatrixClubs={wedgeMatrixClubs}
@@ -727,80 +821,56 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
           setWedgeMatrixNotes={setWedgeMatrixNotes}
         />
       ) : null}
-      {isLoadingWedgeMatrices ? <p className="hint">Loading wedge matrices...</p> : null}
-      {!isLoadingWedgeMatrices && wedgeMatricesError ? <p className="hint">{wedgeMatricesError}</p> : null}
-      {wedgeMatrices.length === 0 ? <p className="hint">No wedge matrices yet.</p> : null}
-      {wedgeMatrices.map((matrix) => {
-        return (
-          <WedgeMatrixCard
-            key={matrix.id}
-            matrix={matrix}
-            entries={wedgeEntriesByMatrix[matrix.id] || []}
-            wedgeMatrixMode={wedgeMatrixMode}
-            activeWedgeMatrixId={activeWedgeMatrixId}
-            setActiveWedgeMatrixId={setActiveWedgeMatrixId}
-            startWedgeMatrixEdit={startWedgeMatrixEdit}
-            setIsWedgeFormOpen={setIsWedgeFormOpen}
-            setEditingWedgeEntryId={setEditingWedgeEntryId}
-            recentEntriesMatrixId={recentEntriesMatrixId}
-            setRecentEntriesMatrixId={setRecentEntriesMatrixId}
-            setWedgeEntryError={setWedgeEntryError}
-            deleteWedgeMatrix={deleteWedgeMatrix}
-            isWedgeFormOpen={isWedgeFormOpen}
-            addWedgeEntry={addWedgeEntry}
-            wedgeClubSelection={wedgeClubSelection}
-            toggleWedgeSelection={toggleWedgeSelection}
-            wedgeSwingClock={wedgeSwingClock}
-            toggleWedgeSwingClock={toggleWedgeSwingClock}
-            wedgeDistanceUnit={wedgeDistanceUnit}
-            setWedgeDistanceUnit={setWedgeDistanceUnit}
-            wedgeDistancePaces={wedgeDistancePaces}
-            setWedgeDistancePaces={setWedgeDistancePaces}
-            wedgeDistanceMeters={wedgeDistanceMeters}
-            setWedgeDistanceMeters={setWedgeDistanceMeters}
-            metersToPaces={metersToPaces}
-            pacesToMeters={pacesToMeters}
-            editingWedgeEntryId={editingWedgeEntryId}
-            cancelWedgeEdit={cancelWedgeEdit}
-            wedgeEntryError={wedgeEntryError}
-            isLoadingWedgeEntries={isLoadingWedgeEntries}
-            wedgeEntriesError={wedgeEntriesError}
-            wedgeEntrySaveState={wedgeEntrySaveState}
-            startWedgeEdit={startWedgeEdit}
-            deleteWedgeEntry={deleteWedgeEntry}
-            buildWedgeMatrixRows={buildWedgeMatrixRows}
-            sortClubsByDefaultOrder={sortClubsByDefaultOrder}
-          />
-        );
-      })}
-      <div className="setup-footer">
-        {wedgeMatrixMode === 'setup' ? (
-          <button
-            type="button"
-            className="setup-toggle"
-            onClick={() => {
-              setWedgeMatrixMode('view');
-              setIsWedgeFormOpen(false);
-              setEditingWedgeMatrixId(null);
-              setEditingWedgeEntryId(null);
-              setRecentEntriesMatrixId(null);
-            }}
-          >
-            Close setup
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="setup-toggle"
-            onClick={() => {
-              setWedgeMatrixMode('setup');
-              setRecentEntriesMatrixId(null);
-            }}
-          >
-            Set up
-          </button>
-        )}
-      </div>
+      {!isWedgeMatrixFormOpen ? (
+        <>
+          {isLoadingWedgeMatrices ? <p className="hint">Loading wedge matrices...</p> : null}
+          {!isLoadingWedgeMatrices && wedgeMatricesError ? <p className="hint">{wedgeMatricesError}</p> : null}
+          {visibleMatrices.length === 0 ? <p className="hint">No wedge matrices yet.</p> : null}
+          {visibleMatrices.map((matrix) => {
+            return (
+              <WedgeMatrixCard
+                key={matrix.id}
+                matrix={matrix}
+                entries={wedgeEntriesByMatrix[matrix.id] || []}
+                wedgeMatrixMode={wedgeMatrixMode}
+                activeWedgeMatrixId={activeWedgeMatrixId}
+                setActiveWedgeMatrixId={setActiveWedgeMatrixId}
+                startWedgeMatrixEdit={startWedgeMatrixEdit}
+                setIsWedgeFormOpen={setIsWedgeFormOpen}
+                setEditingWedgeEntryId={setEditingWedgeEntryId}
+                recentEntriesMatrixId={recentEntriesMatrixId}
+                setRecentEntriesMatrixId={setRecentEntriesMatrixId}
+                setWedgeEntryError={setWedgeEntryError}
+                deleteWedgeMatrix={deleteWedgeMatrix}
+                isWedgeFormOpen={isWedgeFormOpen}
+                addWedgeEntry={addWedgeEntry}
+                wedgeClubSelection={wedgeClubSelection}
+                toggleWedgeSelection={toggleWedgeSelection}
+                wedgeSwingClock={wedgeSwingClock}
+                toggleWedgeSwingClock={toggleWedgeSwingClock}
+                wedgeDistanceUnit={wedgeDistanceUnit}
+                setWedgeDistanceUnit={setWedgeDistanceUnit}
+                wedgeDistancePaces={wedgeDistancePaces}
+                setWedgeDistancePaces={setWedgeDistancePaces}
+                wedgeDistanceMeters={wedgeDistanceMeters}
+                setWedgeDistanceMeters={setWedgeDistanceMeters}
+                metersToPaces={metersToPaces}
+                pacesToMeters={pacesToMeters}
+                editingWedgeEntryId={editingWedgeEntryId}
+                cancelWedgeEdit={cancelWedgeEdit}
+                wedgeEntryError={wedgeEntryError}
+                isLoadingWedgeEntries={isLoadingWedgeEntries}
+                wedgeEntriesError={wedgeEntriesError}
+                wedgeEntrySaveState={wedgeEntrySaveState}
+                startWedgeEdit={startWedgeEdit}
+                deleteWedgeEntry={deleteWedgeEntry}
+                buildWedgeMatrixRows={buildWedgeMatrixRows}
+                sortClubsByDefaultOrder={sortClubsByDefaultOrder}
+              />
+            );
+          })}
+        </>
+      ) : null}
     </section>
   );
 }

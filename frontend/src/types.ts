@@ -37,6 +37,8 @@ export type CourseMarkers = Record<number, CourseMarker>;
 
 export interface RoundSummaryTotals {
   score: number;
+  par: number;
+  stableford: number;
   [key: string]: number;
 }
 
@@ -47,6 +49,7 @@ export interface RoundSummaryData {
 export interface RoundListItem {
   id: string;
   name: string;
+  handicap?: number;
   roundDate?: string;
   courseId?: string;
   createdAt?: string;

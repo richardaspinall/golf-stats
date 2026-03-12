@@ -55,6 +55,7 @@ export function RoundsPage({
             <tr>
               <th>Round</th>
               <th>Total score</th>
+              <th>Up & down</th>
               <th>OOP total</th>
               <th>Fairway hit</th>
               <th>GIR hit</th>
@@ -64,7 +65,7 @@ export function RoundsPage({
           <tbody>
             {rounds.length === 0 ? (
               <tr>
-                <td colSpan={6} className="rounds-empty">
+                <td colSpan={7} className="rounds-empty">
                   No rounds yet.
                 </td>
               </tr>
@@ -80,6 +81,9 @@ export function RoundsPage({
                     <td data-label="Round">{round.name}</td>
                     <td data-label="Total score" className="numeric">
                       {totals ? totals.score : fallback}
+                    </td>
+                    <td data-label="Up & down" className="numeric">
+                      {totals ? totals.upAndDown || 0 : fallback}
                     </td>
                     <td data-label="OOP total" className="numeric">
                       {totals ? (totals.oopLook || 0) + (totals.oopNoLook || 0) : fallback}

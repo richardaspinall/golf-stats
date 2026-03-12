@@ -47,6 +47,7 @@ export type Round = {
   id: string;
   name: string;
   roundDate: string;
+  handicap: number;
   courseId: string | null;
   statsByHole: StatsByHole;
   notes: string[];

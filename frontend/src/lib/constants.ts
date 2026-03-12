@@ -21,6 +21,10 @@ export const COUNTER_SECTIONS: StatSection[] = [
     ],
   },
   {
+    title: 'Up & Down',
+    options: [{ key: 'upAndDown', label: 'Up & down' }],
+  },
+  {
     title: 'Putting',
     options: [
       { key: 'totalPutts', label: 'Total putts' },
@@ -70,6 +74,7 @@ const getStatSectionOrder = (counterSections: StatSection[]): StatSection[] => {
 
   addIfFound('Out of Position (OOP)');
   addIfFound('Inside 100 (Over 3 within 100m score)');
+  addIfFound('Up & Down');
   addIfFound('Putting');
   addIfFound('Penalties');
 

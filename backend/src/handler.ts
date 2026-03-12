@@ -29,6 +29,7 @@ import {
   sanitizeCourseMarkers,
   sanitizeCourseName,
   sanitizeRoundDate,
+  sanitizeRoundHandicap,
   sanitizeRoundName,
   sanitizeRoundNotes,
   sanitizeStats,
@@ -188,6 +189,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         const newRound = createRound(
           roundName,
           sanitizeRoundDate((body as any)?.roundDate),
+          sanitizeRoundHandicap((body as any)?.handicap),
           (body as any)?.statsByHole ?? buildInitialByHole(),
           (body as any)?.notes ?? '',
         );
@@ -224,7 +226,9 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           }
 
           const body = await parseBody(req as BodyAwareRequest);
+          const hasHandicap = Object.prototype.hasOwnProperty.call(body || {}, 'handicap');
           const hasCourseId = Object.prototype.hasOwnProperty.call(body || {}, 'courseId');
+          const handicap = hasHandicap ? sanitizeRoundHandicap((body as any)?.handicap) : current.handicap;
           let courseId = current.courseId || null;
           if (hasCourseId) {
             const rawCourseId = String((body as any)?.courseId || '').trim();
@@ -242,6 +246,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           const updated = await updateRound(roundId, {
             name: sanitizeRoundName((body as any)?.name ?? current.name),
             roundDate: sanitizeRoundDate((body as any)?.roundDate ?? current.roundDate),
+            handicap,
             courseId,
             statsByHole: sanitizeStats((body as any)?.statsByHole ?? current.statsByHole),
             notes: sanitizeRoundNotes((body as any)?.notes ?? current.notes),

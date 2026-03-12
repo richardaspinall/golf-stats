@@ -2,14 +2,17 @@ import { STAT_SECTIONS } from '../../lib/constants';
 
 type TotalsPageProps = {
   activeRoundName?: string;
+  activeRoundHandicap?: number;
   totals: Record<string, number>;
 };
 
-export function TotalsPage({ activeRoundName, totals }: TotalsPageProps) {
+export function TotalsPage({ activeRoundName, activeRoundHandicap = 0, totals }: TotalsPageProps) {
   return (
     <section className="card" aria-label="round totals">
       <h2>Round totals: {activeRoundName || '...'}</h2>
-      <p className="hint">Total score: {totals.score}</p>
+      <p className="hint">
+        Score {totals.score} | Par {totals.par} | Stableford {totals.stableford} | Handicap {activeRoundHandicap}
+      </p>
       <div className="stat-section-list">
         {STAT_SECTIONS.map((section) => (
           <div key={section.title} className="stat-section">

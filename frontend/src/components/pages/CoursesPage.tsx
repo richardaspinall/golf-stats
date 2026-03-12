@@ -258,6 +258,11 @@ function CourseMapCard({ state, actions, map }: CourseMapCardProps) {
           </p>
         </div>
         <div className="map-controls">
+          {isMapSetupOpen ? (
+            <button type="button" className="icon-close-btn" aria-label="Close map" onClick={() => setIsMapSetupOpen(false)}>
+              ×
+            </button>
+          ) : null}
           <button
             type="button"
             className={mapPlacementMode === 'tee' ? 'active' : ''}
@@ -305,9 +310,6 @@ function CourseMapCard({ state, actions, map }: CourseMapCardProps) {
             disabled={!courseEditor || !isMapSetupOpen}
           >
             Clear hole
-          </button>
-          <button type="button" className="reset-btn" onClick={() => setIsMapSetupOpen(false)} disabled={!isMapSetupOpen}>
-            Close map
           </button>
         </div>
       </div>

@@ -36,7 +36,38 @@ export const emptyTotals = (): RoundSummaryTotals =>
   TOTAL_OPTIONS.reduce((acc, option) => {
     acc[option.key] = 0;
     return acc;
-  }, { score: 0 } as RoundSummaryTotals);
+  }, { score: 0, par: 0, stableford: 0 } as RoundSummaryTotals);
+
+export const sanitizeRoundHandicap = (rawValue: unknown): number | '' => {
+  if (rawValue === '') {
+    return '';
+  }
+
+  const value = Number(rawValue);
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+
+  return Math.min(54, Math.max(0, Math.round(value)));
+};
+
+const getHandicapStrokesForHole = (handicap: number, holeIndex: number): number => {
+  if (handicap <= 0) {
+    return 0;
+  }
+
+  const baseStrokes = Math.floor(handicap / 18);
+  const remainder = handicap % 18;
+  return baseStrokes + (remainder > 0 && holeIndex <= remainder ? 1 : 0);
+};
+
+const computeStablefordPoints = (score: number, par: number, handicapStrokes: number): number => {
+  if (score <= 0 || par <= 0) {
+    return 0;
+  }
+
+  return Math.max(0, par + 2 - score + handicapStrokes);
+};
 
 export const buildInitialByHole = (): StatsByHole =>
   HOLES.reduce((acc, hole) => {
@@ -53,10 +84,20 @@ export const buildInitialCourseMarkers = (): CourseMarkers =>
     return acc;
   }, {} as CourseMarkers);
 
-export const computeTotalsForStats = (statsByHole: StatsByHole): RoundSummaryTotals =>
+export const computeTotalsForStats = (
+  statsByHole: StatsByHole,
+  courseMarkers?: CourseMarkers,
+  handicap = 0,
+): RoundSummaryTotals =>
   HOLES.reduce(
     (acc, hole) => {
-      acc.score += Number(statsByHole[hole]?.score || 0);
+      const score = Number(statsByHole[hole]?.score || 0);
+      const par = Number(courseMarkers?.[hole]?.par || 0);
+      const holeIndex = Number(courseMarkers?.[hole]?.holeIndex || hole);
+
+      acc.score += score;
+      acc.par += par;
+      acc.stableford += computeStablefordPoints(score, par, getHandicapStrokesForHole(handicap, holeIndex));
       COUNTER_OPTIONS.forEach(({ key }) => {
         acc[key] += Number(statsByHole[hole]?.[key] || 0);
       });
