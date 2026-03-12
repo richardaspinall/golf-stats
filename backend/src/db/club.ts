@@ -3,11 +3,9 @@ import { isClubOption } from '../domain/guards.js';
 import type { ClubActualEntry, ClubAveragesByClub, ClubCarryByClub } from '../domain/types.js';
 import { getPool } from './pool.js';
 
-export const listClubCarry = async () => {
+export const listClubCarry = async (userId: string) => {
   const db = getPool();
-  const result = await db.query(
-    'SELECT club, carry_meters FROM club_carry ORDER BY updated_at DESC, club ASC',
-  );
+  const result = await db.query('SELECT club, carry_meters FROM club_carry WHERE user_id = $1 ORDER BY updated_at DESC, club ASC', [userId]);
 
   return result.rows.reduce((acc: ClubCarryByClub, row: any) => {
     const club = String(row.club);
@@ -21,7 +19,7 @@ export const listClubCarry = async () => {
   }, {} as ClubCarryByClub);
 };
 
-export const saveClubCarry = async (carryByClub: unknown) => {
+export const saveClubCarry = async (userId: string, carryByClub: unknown) => {
   const db = getPool();
   const entries = Object.entries(sanitizeClubCarryPayload(carryByClub));
   const now = new Date().toISOString();
@@ -33,24 +31,25 @@ export const saveClubCarry = async (carryByClub: unknown) => {
       await db.query(
         `
           DELETE FROM club_carry
-          WHERE club <> ALL($1::text[])
+          WHERE user_id = $1
+            AND club <> ALL($2::text[])
         `,
-        [clubs],
+        [userId, clubs],
       );
     } else {
-      await db.query('DELETE FROM club_carry');
+      await db.query('DELETE FROM club_carry WHERE user_id = $1', [userId]);
     }
 
     for (const [club, carryMeters] of entries) {
       await db.query(
         `
-          INSERT INTO club_carry (club, carry_meters, updated_at)
-          VALUES ($1, $2, $3::timestamptz)
-          ON CONFLICT (club)
+          INSERT INTO club_carry (user_id, club, carry_meters, updated_at)
+          VALUES ($1, $2, $3, $4::timestamptz)
+          ON CONFLICT (user_id, club)
           DO UPDATE SET carry_meters = EXCLUDED.carry_meters,
                         updated_at = EXCLUDED.updated_at
         `,
-        [club, carryMeters, now],
+        [userId, club, carryMeters, now],
       );
     }
 
@@ -60,10 +59,18 @@ export const saveClubCarry = async (carryByClub: unknown) => {
     throw error;
   }
 
-  return listClubCarry();
+  return listClubCarry(userId);
 };
 
-export const insertClubActualDistance = async ({ club, actualMeters }: { club: string; actualMeters: unknown }) => {
+export const insertClubActualDistance = async ({
+  userId,
+  club,
+  actualMeters,
+}: {
+  userId: string;
+  club: string;
+  actualMeters: unknown;
+}) => {
   if (!isClubOption(club)) {
     throw new Error('Invalid club');
   }
@@ -76,14 +83,14 @@ export const insertClubActualDistance = async ({ club, actualMeters }: { club: s
   const db = getPool();
   await db.query(
     `
-      INSERT INTO club_actual_distances (club, actual_meters, created_at)
-      VALUES ($1, $2, $3::timestamptz)
+      INSERT INTO club_actual_distances (user_id, club, actual_meters, created_at)
+      VALUES ($1, $2, $3, $4::timestamptz)
     `,
-    [club, sanitizedActual, new Date().toISOString()],
+    [userId, club, sanitizedActual, new Date().toISOString()],
   );
 };
 
-export const listClubActualAverages = async () => {
+export const listClubActualAverages = async (userId: string) => {
   const db = getPool();
   const result = await db.query(
     `
@@ -91,8 +98,10 @@ export const listClubActualAverages = async () => {
              COUNT(*)::int AS shots,
              ROUND(AVG(actual_meters))::int AS avg_meters
       FROM club_actual_distances
+      WHERE user_id = $1
       GROUP BY club
     `,
+    [userId],
   );
 
   return result.rows.reduce((acc: ClubAveragesByClub, row: any) => {
@@ -115,15 +124,17 @@ export const listClubActualAverages = async () => {
   }, {} as ClubAveragesByClub);
 };
 
-export const listClubActualEntries = async () => {
+export const listClubActualEntries = async (userId: string) => {
   const db = getPool();
   const result = await db.query(
     `
       SELECT id, club, actual_meters, created_at
       FROM club_actual_distances
+      WHERE user_id = $1
       ORDER BY created_at DESC
       LIMIT 20
     `,
+    [userId],
   );
 
   return result.rows.reduce((acc: ClubActualEntry[], row: any) => {
@@ -145,8 +156,8 @@ export const listClubActualEntries = async () => {
   }, []);
 };
 
-export const deleteClubActualEntry = async (entryId: number) => {
+export const deleteClubActualEntry = async (entryId: number, userId: string) => {
   const db = getPool();
-  const result = await db.query('DELETE FROM club_actual_distances WHERE id = $1 RETURNING id', [entryId]);
+  const result = await db.query('DELETE FROM club_actual_distances WHERE id = $1 AND user_id = $2 RETURNING id', [entryId, userId]);
   return result.rows.length > 0;
 };
