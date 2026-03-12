@@ -19,6 +19,7 @@ export const API_CLUB_ACTUALS_URL = `${API_BASE_URL}/api/club-actuals`;
 export const API_WEDGE_ENTRIES_URL = `${API_BASE_URL}/api/wedge-entries`;
 export const API_WEDGE_MATRICES_URL = `${API_BASE_URL}/api/wedge-matrices`;
 export const API_LOGIN_URL = `${API_BASE_URL}/api/auth/login`;
+export const API_USERS_URL = `${API_BASE_URL}/api/users`;
 export const GOOGLE_MAPS_API_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
 export const GOOGLE_MAPS_MAP_ID = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || '').trim();
 export const DEFAULT_MAP_CENTER = { lat: -37.815, lng: 144.963 };

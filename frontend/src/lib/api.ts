@@ -4,6 +4,7 @@ import {
   API_COURSES_URL,
   API_LOGIN_URL,
   API_ROUNDS_URL,
+  API_USERS_URL,
   API_WEDGE_ENTRIES_URL,
   API_WEDGE_MATRICES_URL,
 } from './config';
@@ -80,7 +81,7 @@ export const createUserInApi = async ({
   password: string;
   displayName?: string;
 }): Promise<UserProfile> => {
-  const response = await requestApi('/api/users', {
+  const response = await requestApi(API_USERS_URL, {
     method: 'POST',
     body: { username, password, displayName },
   });
