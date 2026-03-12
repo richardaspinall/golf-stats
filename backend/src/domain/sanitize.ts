@@ -96,6 +96,15 @@ export const sanitizeRoundDate = (raw: unknown) => {
   return `${year}-${month}-${day}`;
 };
 
+export const sanitizeRoundHandicap = (raw: unknown) => {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(54, Math.max(0, Math.round(value)));
+};
+
 export const sanitizeCourseName = (raw: unknown, fallbackIndex = 1) => {
   const value = String(raw || '').trim();
   return value ? value.slice(0, 80) : `Course ${fallbackIndex}`;

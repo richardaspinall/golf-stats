@@ -5,6 +5,7 @@ import {
   sanitizeCarryMeters,
   sanitizeClubCarryPayload,
   sanitizeCourseMarkers,
+  sanitizeRoundHandicap,
   sanitizeRoundName,
   sanitizeRoundNotes,
   sanitizeStats,
@@ -111,6 +112,15 @@ describe('sanitizeRoundNotes', () => {
 describe('sanitizeRoundName', () => {
   it('uses fallback when blank', () => {
     expect(sanitizeRoundName('', 3)).toBe('Round 3');
+  });
+});
+
+describe('sanitizeRoundHandicap', () => {
+  it('rounds and clamps handicap values', () => {
+    expect(sanitizeRoundHandicap('11.6')).toBe(12);
+    expect(sanitizeRoundHandicap(-3)).toBe(0);
+    expect(sanitizeRoundHandicap(99)).toBe(54);
+    expect(sanitizeRoundHandicap('bad')).toBe(0);
   });
 });
 

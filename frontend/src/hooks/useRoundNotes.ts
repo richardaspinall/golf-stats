@@ -8,6 +8,7 @@ type UseRoundNotesArgs = {
   authToken: string;
   selectedRoundId: string;
   statsByHole: StatsByHole;
+  roundHandicap: number;
   selectedCourseId: string;
   noteDraft: string;
   roundNotes: string[];
@@ -20,7 +21,7 @@ type UseRoundNotesArgs = {
 
 const applySavedRoundSummary = (
   roundId: string,
-  savedRound: { name?: string; courseId?: string; updatedAt?: string } | null,
+  savedRound: { name?: string; handicap?: number; courseId?: string; updatedAt?: string } | null,
   setRounds: Dispatch<SetStateAction<RoundListItem[]>>,
 ) => {
   setRounds((prev) =>
@@ -29,6 +30,7 @@ const applySavedRoundSummary = (
         ? {
             ...round,
             name: savedRound?.name ?? round.name,
+            handicap: savedRound?.handicap ?? round.handicap,
             courseId: savedRound?.courseId ?? round.courseId,
             updatedAt: savedRound?.updatedAt ?? round.updatedAt,
           }
@@ -41,6 +43,7 @@ export function useRoundNotes({
   authToken,
   selectedRoundId,
   statsByHole,
+  roundHandicap,
   selectedCourseId,
   noteDraft,
   roundNotes,
@@ -57,7 +60,7 @@ export function useRoundNotes({
 
     setSaveState('saving');
     try {
-      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, nextNotes, selectedCourseId, authToken);
+      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, nextNotes, roundHandicap, selectedCourseId, authToken);
       setSaveState('saved');
       applySavedRoundSummary(selectedRoundId, savedRound, setRounds);
     } catch (error) {

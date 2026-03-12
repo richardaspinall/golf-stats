@@ -8,7 +8,7 @@ import {
   API_WEDGE_MATRICES_URL,
 } from './config';
 import { CLUB_OPTIONS } from './constants';
-import { normalizeWedgeMatrix, sanitizeCarryByClub, sanitizeWedgeEntry } from './rounds';
+import { normalizeWedgeMatrix, sanitizeCarryByClub, sanitizeRoundHandicap, sanitizeWedgeEntry } from './rounds';
 import type { CarryByClub, ClubAverage, CourseMarkers, Round, RoundListItem, WedgeEntry, WedgeMatrix } from '../types';
 
 type RequestOptions = {
@@ -75,7 +75,14 @@ export const loadRoundsFromApi = async (token: string): Promise<RoundListItem[]>
   }
 
   const data = await response.json();
-  return Array.isArray(data?.rounds) ? data.rounds : [];
+  if (!Array.isArray(data?.rounds)) {
+    return [];
+  }
+
+  return data.rounds.map((round) => ({
+    ...round,
+    handicap: sanitizeRoundHandicap(round?.handicap) || 0,
+  }));
 };
 
 export const loadCoursesFromApi = async (token: string): Promise<Array<Record<string, unknown>>> => {
@@ -130,19 +137,27 @@ export const loadRoundFromApi = async (roundId: string, token: string): Promise<
   }
 
   const data = await response.json();
-  return data?.round || null;
+  if (!data?.round) {
+    return null;
+  }
+
+  return {
+    ...data.round,
+    handicap: sanitizeRoundHandicap(data.round?.handicap) || 0,
+  };
 };
 
 export const saveRoundToApi = async (
   roundId: string,
   statsByHole: Round['statsByHole'],
   notes: string[],
+  handicap: number,
   courseId: string,
   token: string,
 ): Promise<Round | null> => {
   const response = await requestApi(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, {
     method: 'PUT',
-    body: { statsByHole, notes, courseId },
+    body: { statsByHole, notes, handicap, courseId },
     token,
   });
 
@@ -151,13 +166,26 @@ export const saveRoundToApi = async (
   }
 
   const data = await response.json();
-  return data?.round || null;
+  if (!data?.round) {
+    return null;
+  }
+
+  return {
+    ...data.round,
+    handicap: sanitizeRoundHandicap(data.round?.handicap) || 0,
+  };
 };
 
-export const createRoundInApi = async (name: string, roundDate: string, courseId: string, token: string): Promise<Round | null> => {
+export const createRoundInApi = async (
+  name: string,
+  roundDate: string,
+  handicap: number,
+  courseId: string,
+  token: string,
+): Promise<Round | null> => {
   const response = await requestApi(API_ROUNDS_URL, {
     method: 'POST',
-    body: { name, roundDate, courseId },
+    body: { name, roundDate, handicap, courseId },
     token,
   });
 
@@ -166,7 +194,14 @@ export const createRoundInApi = async (name: string, roundDate: string, courseId
   }
 
   const data = await response.json();
-  return data?.round || null;
+  if (!data?.round) {
+    return null;
+  }
+
+  return {
+    ...data.round,
+    handicap: sanitizeRoundHandicap(data.round?.handicap) || 0,
+  };
 };
 
 export const deleteRoundInApi = async (roundId: string, token: string): Promise<void> => {

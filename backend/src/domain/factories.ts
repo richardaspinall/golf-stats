@@ -1,15 +1,22 @@
 import type { Course, CourseMarkersByHole, Round, StatsByHole } from './types.js';
-import { sanitizeCourseMarkers, sanitizeRoundDate, sanitizeRoundNotes, sanitizeStats } from './sanitize.js';
+import { sanitizeCourseMarkers, sanitizeRoundDate, sanitizeRoundHandicap, sanitizeRoundNotes, sanitizeStats } from './sanitize.js';
 import { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
 
 export { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
 
-export const createRound = (name: string, roundDate: string, statsByHole: StatsByHole, notes: string[] | string = ''): Round => {
+export const createRound = (
+  name: string,
+  roundDate: string,
+  handicap: number,
+  statsByHole: StatsByHole,
+  notes: string[] | string = '',
+): Round => {
   const now = new Date().toISOString();
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     name,
     roundDate: sanitizeRoundDate(roundDate),
+    handicap: sanitizeRoundHandicap(handicap),
     courseId: null,
     statsByHole: sanitizeStats(statsByHole),
     notes: sanitizeRoundNotes(notes),

@@ -42,8 +42,13 @@ export function DistancePage({ state, actions }: DistancePageProps) {
   const { setDistanceMode, setClubActualEntriesDirty, deleteClubActualEntry, setCarryForClub, saveClubCarry } = actions;
   return (
     <section className="card" aria-label="distance setup prototype">
-      <div className="card-header">
+      <div className="card-header close-header">
         <h2>Distances</h2>
+        {distanceMode === 'setup' ? (
+          <button type="button" className="icon-close-btn" aria-label="Close distance setup" onClick={() => setDistanceMode('view')}>
+            ×
+          </button>
+        ) : null}
       </div>
       <p className="hint">Use this tab to capture distance, setup choices, and swing clock feel.</p>
       {distanceMode === 'setup' ? (
@@ -146,15 +151,11 @@ export function DistancePage({ state, actions }: DistancePageProps) {
         ) : null}
       </div>
       <div className="setup-footer">
-        {distanceMode === 'setup' ? (
-          <button type="button" className="setup-toggle" onClick={() => setDistanceMode('view')}>
-            Close setup
-          </button>
-        ) : (
+        {distanceMode !== 'setup' ? (
           <button type="button" className="setup-toggle" onClick={() => setDistanceMode('setup')}>
             Set up
           </button>
-        )}
+        ) : null}
       </div>
     </section>
   );

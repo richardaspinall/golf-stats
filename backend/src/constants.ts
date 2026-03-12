@@ -1,6 +1,7 @@
 export const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
 
 export const COUNTER_OPTIONS = [
+  'upAndDown',
   'inside100Over3',
   'inside100Bunkers',
   'inside100Wedges',

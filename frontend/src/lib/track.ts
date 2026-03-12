@@ -42,7 +42,7 @@ export const updateHoleScoreValue = (statsByHole: StatsByHole, hole: number, del
 type BuildShotSummaryOptions = {
   targetDistanceMeters: number;
   actualDistanceMeters: number;
-  offlineMeters: number;
+  offlineMeters: number | null;
   clubSelection: string;
   lieSelection: string;
   setupSelection: string;
@@ -64,7 +64,11 @@ export const buildShotSummary = ({
   const lieText = lieSelection || 'No lie selected';
   const targetText = targetDistanceMeters > 0 ? `Target ${targetDistanceMeters}m` : null;
   const offlineText =
-    offlineMeters === 0 ? null : `Offline ${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`;
+    offlineMeters == null
+      ? null
+      : offlineMeters === 0
+        ? 'On line'
+        : `Offline ${Math.abs(offlineMeters)}m ${offlineMeters < 0 ? 'left' : 'right'}`;
   const swingText = swingClock ? `Swing ${swingClock}` : 'No swing clock';
 
   return sanitizeNoteText(

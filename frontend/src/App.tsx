@@ -47,6 +47,7 @@ import {
   sanitizeCourseMarkers,
   sanitizeCarryMeters,
   sanitizeNotesList,
+  sanitizeRoundHandicap,
   sanitizeStats,
 } from './lib/rounds';
 import { clearAuthToken, loadStoredAuthToken, saveAuthToken } from './lib/storage';
@@ -124,12 +125,14 @@ export default function App() {
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [coursesError, setCoursesError] = useState('');
   const [newRoundTitle, setNewRoundTitle] = useState('');
+  const [newRoundHandicap, setNewRoundHandicap] = useState('');
   const [courseSaveState, setCourseSaveState] = useState('saved');
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
   const [newRoundDate, setNewRoundDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showNewRoundForm, setShowNewRoundForm] = useState(false);
   const [statsByHole, setStatsByHole] = useState(() => buildInitialByHole());
+  const [roundHandicap, setRoundHandicap] = useState(0);
   const [roundNotes, setRoundNotes] = useState([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [saveState, setSaveState] = useState('loading');
@@ -138,7 +141,7 @@ export default function App() {
   const [actualDistanceMeters, setActualDistanceMeters] = useState(120);
   const [actualDistancePaces, setActualDistancePaces] = useState(() => metersToPaces(120));
   const [actualDistanceUnit, setActualDistanceUnit] = useState('paces');
-  const [offlineMeters, setOfflineMeters] = useState(0);
+  const [offlineMeters, setOfflineMeters] = useState<number | null>(null);
   const [distanceMode, setDistanceMode] = useState('view');
   const [setupSelection, setSetupSelection] = useState('');
   const [swingClock, setSwingClock] = useState('');
@@ -235,9 +238,11 @@ export default function App() {
     setCourses([]);
     setSelectedCourseId('');
     setNewRoundCourseId('');
+    setNewRoundHandicap('');
     setCourseEditorId('');
     setSelectedRoundId('');
     setStatsByHole(buildInitialByHole());
+    setRoundHandicap(0);
     setRoundNotes([]);
     setNoteDraft('');
     setClubAverages([]);
@@ -297,6 +302,7 @@ export default function App() {
     hasLoadedRef.current = true;
     setSelectedRoundId(round.id);
     setStatsByHole(sanitizeStats(round.statsByHole));
+    setRoundHandicap(sanitizeRoundHandicap(round.handicap) || 0);
     setRoundNotes(sanitizeNotesList(round.notes));
     setSelectedCourseId(round.courseId || '');
     setNoteDraft('');
@@ -392,7 +398,8 @@ export default function App() {
             if (!full) {
               return null;
             }
-            const totals = computeTotalsForStats(full.statsByHole);
+            const roundCourse = courses.find((course) => course.id === (full.courseId || ''));
+            const totals = computeTotalsForStats(full.statsByHole, roundCourse?.markers, full.handicap || 0);
             return [round.id, { totals }];
           }),
         );
@@ -425,7 +432,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [authToken, page, rounds, roundSummaries]);
+  }, [authToken, courses, page, rounds, roundSummaries]);
 
   useEffect(() => {
     if (!authToken || !hasLoadedRef.current || !selectedRoundId) {
@@ -438,7 +445,7 @@ export default function App() {
     }
 
     setSaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
-  }, [authToken, selectedRoundId, statsByHole, roundNotes, selectedCourseId]);
+  }, [authToken, selectedRoundId, statsByHole, roundHandicap, roundNotes, selectedCourseId]);
 
   const saveCurrentRound = async () => {
     if (!authToken || !selectedRoundId) {
@@ -447,7 +454,8 @@ export default function App() {
 
     setSaveState('saving');
     try {
-      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes, selectedCourseId, authToken);
+      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes, roundHandicap, selectedCourseId, authToken);
+      const savedCourse = courses.find((course) => course.id === (savedRound?.courseId || selectedCourseId));
       setSaveState('saved');
       setRounds((prev) =>
         prev.map((round) =>
@@ -455,12 +463,19 @@ export default function App() {
             ? {
                 ...round,
                 name: savedRound?.name ?? round.name,
+                handicap: savedRound?.handicap ?? round.handicap,
                 courseId: savedRound?.courseId ?? round.courseId,
                 updatedAt: savedRound?.updatedAt ?? round.updatedAt,
               }
             : round,
         ),
       );
+      setRoundSummaries((prev) => ({
+        ...prev,
+        [selectedRoundId]: {
+          totals: computeTotalsForStats(savedRound?.statsByHole ?? statsByHole, savedCourse?.markers, savedRound?.handicap ?? roundHandicap),
+        },
+      }));
       return true;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -508,6 +523,7 @@ export default function App() {
 
   const createRound = async (event) => {
     event?.preventDefault();
+    const handicap = sanitizeRoundHandicap(newRoundHandicap);
     const roundTitle = newRoundTitle.trim();
     const roundDate = newRoundDate || new Date().toISOString().slice(0, 10);
     const roundName = roundTitle || 'Round';
@@ -515,18 +531,27 @@ export default function App() {
     setIsSwitchingRound(true);
     setSaveState('loading');
     try {
-      const round = await createRoundInApi(roundName, roundDate, newRoundCourseId, authToken);
+      const round = await createRoundInApi(roundName, roundDate, handicap === '' ? 0 : handicap, newRoundCourseId, authToken);
       if (round) {
+        const roundCourse = courses.find((course) => course.id === (round.courseId || ''));
         const summary = {
           id: round.id,
           name: round.name,
           roundDate: round.roundDate,
+          handicap: round.handicap || 0,
           courseId: round.courseId || '',
           createdAt: round.createdAt,
           updatedAt: round.updatedAt,
         };
         setRounds((prev) => [summary, ...prev]);
+        setRoundSummaries((prev) => ({
+          ...prev,
+          [round.id]: {
+            totals: computeTotalsForStats(round.statsByHole, roundCourse?.markers, round.handicap || 0),
+          },
+        }));
         setNewRoundTitle('');
+        setNewRoundHandicap('');
         setNewRoundCourseId('');
         setShowNewRoundForm(false);
         applyRoundToState(round);
@@ -577,6 +602,7 @@ export default function App() {
         hasLoadedRef.current = true;
         setSelectedRoundId('');
         setStatsByHole(buildInitialByHole());
+        setRoundHandicap(0);
         setRoundNotes([]);
         setNoteDraft('');
         setSaveState('saved');
@@ -602,8 +628,8 @@ export default function App() {
   };
 
   const totals = useMemo(() => {
-    return computeTotalsForStats(statsByHole);
-  }, [statsByHole]);
+    return computeTotalsForStats(statsByHole, activeCourse?.markers, roundHandicap);
+  }, [activeCourse?.markers, roundHandicap, statsByHole]);
 
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => updateHoleCounter(prev, hole, statKey, delta));
@@ -643,6 +669,7 @@ export default function App() {
     authToken,
     selectedRoundId,
     statsByHole,
+    roundHandicap,
     selectedCourseId,
     noteDraft,
     roundNotes,
@@ -743,17 +770,18 @@ export default function App() {
     if (selectedRoundId) {
       setSaveState('saving');
       try {
-        const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, updatedNotes, selectedCourseId, authToken);
+        const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, updatedNotes, roundHandicap, selectedCourseId, authToken);
         setSaveState('saved');
         setRounds((prev) =>
           prev.map((round) =>
             round.id === selectedRoundId
               ? {
-                  ...round,
-                  name: savedRound?.name ?? round.name,
-                  courseId: savedRound?.courseId ?? round.courseId,
-                  updatedAt: savedRound?.updatedAt ?? round.updatedAt,
-                }
+                ...round,
+                name: savedRound?.name ?? round.name,
+                handicap: savedRound?.handicap ?? round.handicap,
+                courseId: savedRound?.courseId ?? round.courseId,
+                updatedAt: savedRound?.updatedAt ?? round.updatedAt,
+              }
               : round,
           ),
         );
@@ -781,6 +809,11 @@ export default function App() {
 
       setShotLogSaveState('error');
     }
+  };
+
+  const closeDistanceTracker = () => {
+    setShowDistanceTracker(false);
+    setShotLogSaveState('idle');
   };
 
   const deleteClubActualEntry = async (entryId) => {
@@ -1185,6 +1218,7 @@ export default function App() {
             <button
               onClick={() => {
                 setNewRoundCourseId(selectedCourseId);
+                setNewRoundHandicap('');
                 setShowNewRoundForm(true);
               }}
               disabled={isSwitchingRound}
@@ -1256,6 +1290,19 @@ export default function App() {
               ))}
             </select>
             <input type="date" value={newRoundDate} onChange={(event) => setNewRoundDate(event.target.value)} />
+            <input
+              type="number"
+              min="0"
+              max="54"
+              step="1"
+              value={newRoundHandicap}
+              onChange={(event) => {
+                const nextHandicap = sanitizeRoundHandicap(event.target.value);
+                setNewRoundHandicap(nextHandicap === '' ? '' : String(nextHandicap));
+              }}
+              placeholder="Handicap"
+              inputMode="numeric"
+            />
           </div>
           <div className="new-round-actions">
             <button type="submit" disabled={isSwitchingRound}>
@@ -1265,6 +1312,7 @@ export default function App() {
               type="button"
               onClick={() => {
                 setNewRoundCourseId('');
+                setNewRoundHandicap('');
                 setShowNewRoundForm(false);
               }}
               disabled={isSwitchingRound}
@@ -1318,6 +1366,7 @@ export default function App() {
                 setLieSelection,
                 toggleSetupSelection,
                 setSwingClock,
+                closeDistanceTracker,
                 addShotPrototypeNote,
                 updateHoleScore,
                 setFairwaySelection,
@@ -1369,7 +1418,11 @@ export default function App() {
               }}
             />
           ) : page === 'totals' ? (
-            <TotalsPage activeRoundName={activeRound?.name} totals={totals} />
+            <TotalsPage
+              activeRoundName={activeRound?.name}
+              activeRoundHandicap={roundHandicap}
+              totals={totals}
+            />
           ) : page === 'rounds' ? (
             <RoundsPage
               selectedRoundId={selectedRoundId}
