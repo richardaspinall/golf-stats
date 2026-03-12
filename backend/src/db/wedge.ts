@@ -29,7 +29,7 @@ const resolveSwingClockList = (value: unknown): string[] => {
   return sanitized.length > 0 ? sanitized : [...SWING_CLOCK_OPTIONS];
 };
 
-export const listWedgeMatrices = async () => {
+export const listWedgeMatrices = async (userId: string) => {
   const db = getPool();
   const result = await db.query(
     `
@@ -43,8 +43,10 @@ export const listWedgeMatrices = async () => {
              swing_clocks,
              created_at
       FROM wedge_matrices
+      WHERE user_id = $1
       ORDER BY created_at DESC, id DESC
     `,
+    [userId],
   );
 
   return result.rows.reduce((acc: WedgeMatrix[], row: any) => {
@@ -68,6 +70,7 @@ export const listWedgeMatrices = async () => {
 };
 
 export const insertWedgeMatrix = async ({
+  userId,
   name,
   stanceWidth,
   grip,
@@ -76,6 +79,7 @@ export const insertWedgeMatrix = async ({
   clubs,
   swingClocks,
 }: {
+  userId: string;
   name: string;
   stanceWidth: string;
   grip: string;
@@ -95,11 +99,12 @@ export const insertWedgeMatrix = async ({
   const db = getPool();
   const result = await db.query(
     `
-      INSERT INTO wedge_matrices (name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::timestamptz)
+      INSERT INTO wedge_matrices (user_id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::timestamptz)
       RETURNING id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at
     `,
     [
+      userId,
       safeName,
       safeStanceWidth,
       safeGrip,
@@ -127,6 +132,7 @@ export const insertWedgeMatrix = async ({
 
 export const updateWedgeMatrix = async ({
   id,
+  userId,
   name,
   stanceWidth,
   grip,
@@ -136,6 +142,7 @@ export const updateWedgeMatrix = async ({
   swingClocks,
 }: {
   id: number;
+  userId: string;
   name: string;
   stanceWidth: string;
   grip: string;
@@ -167,10 +174,10 @@ export const updateWedgeMatrix = async ({
           notes = $5,
           clubs = $6::jsonb,
           swing_clocks = $7::jsonb
-      WHERE id = $8
+      WHERE id = $8 AND user_id = $9
       RETURNING id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at
     `,
-    [safeName, safeStanceWidth, safeGrip, safeBallPosition, safeNotes, JSON.stringify(safeClubs), JSON.stringify(resolvedSwingClocks), id],
+    [safeName, safeStanceWidth, safeGrip, safeBallPosition, safeNotes, JSON.stringify(safeClubs), JSON.stringify(resolvedSwingClocks), id, userId],
   );
 
   const row = result.rows[0];
@@ -191,7 +198,7 @@ export const updateWedgeMatrix = async ({
   } satisfies WedgeMatrix;
 };
 
-export const deleteWedgeMatrix = async (id: number) => {
+export const deleteWedgeMatrix = async (id: number, userId: string) => {
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error('Invalid id');
   }
@@ -199,8 +206,8 @@ export const deleteWedgeMatrix = async (id: number) => {
   const db = getPool();
   await db.query('BEGIN');
   try {
-    await db.query('DELETE FROM wedge_entries WHERE matrix_id = $1', [id]);
-    const result = await db.query('DELETE FROM wedge_matrices WHERE id = $1', [id]);
+    await db.query('DELETE FROM wedge_entries WHERE matrix_id = $1 AND user_id = $2', [id, userId]);
+    const result = await db.query('DELETE FROM wedge_matrices WHERE id = $1 AND user_id = $2', [id, userId]);
     await db.query('COMMIT');
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
@@ -209,13 +216,13 @@ export const deleteWedgeMatrix = async (id: number) => {
   }
 };
 
-export const listWedgeEntries = async (matrixId?: number | null) => {
+export const listWedgeEntries = async (userId: string, matrixId?: number | null) => {
   const db = getPool();
-  const params = [];
-  let filterClause = '';
+  const params: Array<number | string> = [userId];
+  let filterClause = 'WHERE user_id = $1';
   if (Number.isFinite(matrixId)) {
-    filterClause = 'WHERE matrix_id = $1';
-    params.push(matrixId);
+    filterClause += ' AND matrix_id = $2';
+    params.push(Number(matrixId));
   }
   const result = await db.query(
     `
@@ -263,11 +270,13 @@ export const listWedgeEntries = async (matrixId?: number | null) => {
 };
 
 export const insertWedgeEntry = async ({
+  userId,
   matrixId,
   club,
   swingClock,
   distanceMeters,
 }: {
+  userId: string;
   matrixId: number;
   club: string;
   swingClock: string;
@@ -285,7 +294,7 @@ export const insertWedgeEntry = async ({
     throw new Error('Invalid swing clock');
   }
 
-  const matrixResult = await getPool().query('SELECT swing_clocks FROM wedge_matrices WHERE id = $1', [matrixId]);
+  const matrixResult = await getPool().query('SELECT swing_clocks FROM wedge_matrices WHERE id = $1 AND user_id = $2', [matrixId, userId]);
   const matrixRow = matrixResult.rows[0];
   if (!matrixRow) {
     throw new Error('Invalid matrix');
@@ -303,11 +312,11 @@ export const insertWedgeEntry = async ({
   const db = getPool();
   const result = await db.query(
     `
-      INSERT INTO wedge_entries (matrix_id, club, swing_clock, distance_meters, created_at)
-      VALUES ($1, $2, $3, $4, $5::timestamptz)
+      INSERT INTO wedge_entries (user_id, matrix_id, club, swing_clock, distance_meters, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
       RETURNING id, matrix_id, club, swing_clock, distance_meters, created_at
     `,
-    [matrixId, club, safeSwingClock, sanitizedDistance, new Date().toISOString()],
+    [userId, matrixId, club, safeSwingClock, sanitizedDistance, new Date().toISOString()],
   );
 
   const row = result.rows[0] || {};
@@ -325,12 +334,14 @@ export const insertWedgeEntry = async ({
 
 export const updateWedgeEntry = async ({
   id,
+  userId,
   matrixId,
   club,
   swingClock,
   distanceMeters,
 }: {
   id: number;
+  userId: string;
   matrixId: number;
   club: string;
   swingClock: string;
@@ -352,7 +363,7 @@ export const updateWedgeEntry = async ({
     throw new Error('Invalid swing clock');
   }
 
-  const matrixResult = await getPool().query('SELECT swing_clocks FROM wedge_matrices WHERE id = $1', [matrixId]);
+  const matrixResult = await getPool().query('SELECT swing_clocks FROM wedge_matrices WHERE id = $1 AND user_id = $2', [matrixId, userId]);
   const matrixRow = matrixResult.rows[0];
   if (!matrixRow) {
     throw new Error('Invalid matrix');
@@ -375,10 +386,10 @@ export const updateWedgeEntry = async ({
           club = $2,
           swing_clock = $3,
           distance_meters = $4
-      WHERE id = $5
+      WHERE id = $5 AND user_id = $6
       RETURNING id, matrix_id, club, swing_clock, distance_meters, created_at
     `,
-    [matrixId, club, safeSwingClock, sanitizedDistance, id],
+    [matrixId, club, safeSwingClock, sanitizedDistance, id, userId],
   );
 
   const row = result.rows[0];
@@ -396,12 +407,12 @@ export const updateWedgeEntry = async ({
   } satisfies WedgeEntry;
 };
 
-export const deleteWedgeEntry = async (id: number) => {
+export const deleteWedgeEntry = async (id: number, userId: string) => {
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error('Invalid id');
   }
 
   const db = getPool();
-  const result = await db.query('DELETE FROM wedge_entries WHERE id = $1', [id]);
+  const result = await db.query('DELETE FROM wedge_entries WHERE id = $1 AND user_id = $2', [id, userId]);
   return (result.rowCount ?? 0) > 0;
 };

@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { AUTH_CONFIGURED, AUTH_PASSWORD, AUTH_USERNAME, DB_CONFIGURED, JWT_TTL_SECONDS } from './config/env.js';
-import { safeCompare } from './auth/crypto.js';
+import { AUTH_CONFIGURED, DB_CONFIGURED, JWT_TTL_SECONDS } from './config/env.js';
 import { signToken, verifyToken } from './auth/jwt.js';
 import { getDbDebugStatus } from './db/debug.js';
 import { ensureSchema } from './db/schema.js';
@@ -14,6 +13,7 @@ import {
   listClubCarry,
   saveClubCarry,
 } from './db/club.js';
+import { createUser, getUserByCredentials, getUserById } from './db/users.js';
 import {
   deleteWedgeEntry,
   deleteWedgeMatrix,
@@ -52,6 +52,25 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       return;
     }
 
+    if (pathname === '/api/users' || pathname === '/api/me' || pathname === '/api/auth/login') {
+      await ensureSchema();
+    }
+
+    if (pathname === '/api/users' && method === 'POST') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const user = await createUser({
+          username: (body as any)?.username,
+          password: (body as any)?.password,
+          displayName: (body as any)?.displayName,
+        });
+        sendJson(res, 201, { ok: true, user });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
+      return;
+    }
+
     if (pathname === '/api/auth/login' && method === 'POST') {
       if (!AUTH_CONFIGURED) {
         sendJson(res, 500, { ok: false, error: 'Auth is not configured on the server' });
@@ -60,23 +79,26 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
 
       try {
         const body = await parseBody(req as BodyAwareRequest);
-        const username = String((body as any)?.username || '').trim();
-        const password = String((body as any)?.password || '');
+        const user = await getUserByCredentials({
+          username: (body as any)?.username,
+          password: (body as any)?.password,
+        });
 
-        if (!safeCompare(username, AUTH_USERNAME) || !safeCompare(password, AUTH_PASSWORD)) {
+        if (!user) {
           sendJson(res, 401, { ok: false, error: 'Invalid credentials' });
           return;
         }
 
-        const token = signToken(AUTH_USERNAME);
-        sendJson(res, 200, { ok: true, token, expiresIn: Math.max(60, Math.floor(JWT_TTL_SECONDS)) });
+        const token = signToken({ subject: user.username, userId: user.id });
+        sendJson(res, 200, { ok: true, token, user, expiresIn: Math.max(60, Math.floor(JWT_TTL_SECONDS)) });
       } catch (error: any) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
       return;
     }
 
-    if (pathname.startsWith('/api/') && pathname !== '/api/health') {
+    let authUser: { id: string; username: string } | null = null;
+    if (pathname.startsWith('/api/') && pathname !== '/api/health' && !(pathname === '/api/users' && method === 'POST')) {
       if (!AUTH_CONFIGURED) {
         sendJson(res, 500, { ok: false, error: 'Auth is not configured on the server' });
         return;
@@ -88,6 +110,21 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         sendJson(res, 401, { ok: false, error: 'Unauthorized' });
         return;
       }
+
+      authUser = {
+        id: String(tokenState.payload.uid),
+        username: String(tokenState.payload.sub),
+      };
+    }
+
+    if (pathname === '/api/me' && method === 'GET') {
+      const user = authUser ? await getUserById(authUser.id) : null;
+      if (!user) {
+        sendJson(res, 404, { ok: false, error: 'User not found' });
+        return;
+      }
+      sendJson(res, 200, { user });
+      return;
     }
 
     if (pathname === '/api/debug/db' && method === 'GET') {
@@ -102,6 +139,8 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       pathname === '/api/courses' ||
       pathname.startsWith('/api/courses/') ||
       pathname === '/api/club-carry' ||
+      pathname === '/api/club-actuals/entries' ||
+      pathname.startsWith('/api/club-actuals/entries/') ||
       pathname === '/api/club-actuals' ||
       pathname === '/api/wedge-entries' ||
       pathname.startsWith('/api/wedge-entries/') ||
@@ -110,6 +149,13 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     ) {
       await ensureSchema();
     }
+
+    if (!authUser && pathname.startsWith('/api/')) {
+      sendJson(res, 401, { ok: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const currentUserId = authUser?.id || '';
 
     if (pathname === '/api/courses' && method === 'GET') {
       sendJson(res, 200, { courses: await listCourses() });
@@ -169,14 +215,14 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/rounds' && method === 'GET') {
-      sendJson(res, 200, { rounds: await listRounds() });
+      sendJson(res, 200, { rounds: await listRounds(currentUserId) });
       return;
     }
 
     if (pathname === '/api/rounds' && method === 'POST') {
       try {
         const body = await parseBody(req as BodyAwareRequest);
-        const existingRounds = await listRounds();
+        const existingRounds = await listRounds(currentUserId);
         const roundName = sanitizeRoundName((body as any)?.name, existingRounds.length + 1);
         const rawCourseId = String((body as any)?.courseId || '').trim();
         if (rawCourseId) {
@@ -187,6 +233,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           }
         }
         const newRound = createRound(
+          currentUserId,
           roundName,
           sanitizeRoundDate((body as any)?.roundDate),
           sanitizeRoundHandicap((body as any)?.handicap),
@@ -207,7 +254,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       const roundId = decodeURIComponent(roundMatch[1]);
 
       if (method === 'GET') {
-        const round = await getRoundById(roundId);
+        const round = await getRoundById(roundId, currentUserId);
         if (!round) {
           sendJson(res, 404, { ok: false, error: 'Round not found' });
           return;
@@ -219,7 +266,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
 
       if (method === 'PUT') {
         try {
-          const current = await getRoundById(roundId);
+          const current = await getRoundById(roundId, currentUserId);
           if (!current) {
             sendJson(res, 404, { ok: false, error: 'Round not found' });
             return;
@@ -244,6 +291,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
             }
           }
           const updated = await updateRound(roundId, {
+            userId: currentUserId,
             name: sanitizeRoundName((body as any)?.name ?? current.name),
             roundDate: sanitizeRoundDate((body as any)?.roundDate ?? current.roundDate),
             handicap,
@@ -261,7 +309,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       }
 
       if (method === 'DELETE') {
-        const deleted = await deleteRoundById(roundId);
+        const deleted = await deleteRoundById(roundId, currentUserId);
         if (!deleted) {
           sendJson(res, 404, { ok: false, error: 'Round not found' });
           return;
@@ -273,14 +321,14 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/club-carry' && method === 'GET') {
-      sendJson(res, 200, { carryByClub: await listClubCarry() });
+      sendJson(res, 200, { carryByClub: await listClubCarry(currentUserId) });
       return;
     }
 
     if (pathname === '/api/club-carry' && method === 'PUT') {
       try {
         const body = await parseBody(req as BodyAwareRequest);
-        const saved = await saveClubCarry((body as any)?.carryByClub);
+        const saved = await saveClubCarry(currentUserId, (body as any)?.carryByClub);
         sendJson(res, 200, { ok: true, carryByClub: saved });
       } catch (error: any) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
@@ -289,7 +337,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/club-actuals/entries' && method === 'GET') {
-      sendJson(res, 200, { entries: await listClubActualEntries() });
+      sendJson(res, 200, { entries: await listClubActualEntries(currentUserId) });
       return;
     }
 
@@ -300,13 +348,13 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         sendJson(res, 400, { ok: false, error: 'Invalid entry id' });
         return;
       }
-      const deleted = await deleteClubActualEntry(entryId);
+      const deleted = await deleteClubActualEntry(entryId, currentUserId);
       sendJson(res, deleted ? 200 : 404, { ok: deleted });
       return;
     }
 
     if (pathname === '/api/club-actuals' && method === 'GET') {
-      sendJson(res, 200, { averagesByClub: await listClubActualAverages() });
+      sendJson(res, 200, { averagesByClub: await listClubActualAverages(currentUserId) });
       return;
     }
 
@@ -314,6 +362,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       try {
         const body = await parseBody(req as BodyAwareRequest);
         await insertClubActualDistance({
+          userId: currentUserId,
           club: String((body as any)?.club || '').trim(),
           actualMeters: (body as any)?.actualMeters,
         });
@@ -327,7 +376,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     if (pathname === '/api/wedge-entries' && method === 'GET') {
       const matrixIdRaw = requestUrl.searchParams.get('matrixId');
       const matrixId = matrixIdRaw ? Number(matrixIdRaw) : null;
-      sendJson(res, 200, { entries: await listWedgeEntries(matrixId) });
+      sendJson(res, 200, { entries: await listWedgeEntries(currentUserId, matrixId) });
       return;
     }
 
@@ -335,6 +384,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       try {
         const body = await parseBody(req as BodyAwareRequest);
         const entry = await insertWedgeEntry({
+          userId: currentUserId,
           matrixId: Number((body as any)?.matrixId),
           club: String((body as any)?.club || '').trim(),
           swingClock: String((body as any)?.swingClock || '').trim(),
@@ -360,6 +410,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           const body = await parseBody(req as BodyAwareRequest);
           const entry = await updateWedgeEntry({
             id: entryId,
+            userId: currentUserId,
             matrixId: Number((body as any)?.matrixId),
             club: String((body as any)?.club || '').trim(),
             swingClock: String((body as any)?.swingClock || '').trim(),
@@ -378,7 +429,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
 
       if (method === 'DELETE') {
         try {
-          const deleted = await deleteWedgeEntry(entryId);
+          const deleted = await deleteWedgeEntry(entryId, currentUserId);
           if (!deleted) {
             sendJson(res, 404, { ok: false, error: 'Entry not found' });
             return;
@@ -392,7 +443,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/wedge-matrices' && method === 'GET') {
-      sendJson(res, 200, { matrices: await listWedgeMatrices() });
+      sendJson(res, 200, { matrices: await listWedgeMatrices(currentUserId) });
       return;
     }
 
@@ -400,6 +451,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       try {
         const body = await parseBody(req as BodyAwareRequest);
         const matrix = await insertWedgeMatrix({
+          userId: currentUserId,
           name: String((body as any)?.name || '').trim(),
           stanceWidth: String((body as any)?.stanceWidth || '').trim(),
           grip: String((body as any)?.grip || '').trim(),
@@ -428,6 +480,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           const body = await parseBody(req as BodyAwareRequest);
           const matrix = await updateWedgeMatrix({
             id: matrixId,
+            userId: currentUserId,
             name: String((body as any)?.name || '').trim(),
             stanceWidth: String((body as any)?.stanceWidth || '').trim(),
             grip: String((body as any)?.grip || '').trim(),
@@ -449,7 +502,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
 
       if (method === 'DELETE') {
         try {
-          const deleted = await deleteWedgeMatrix(matrixId);
+          const deleted = await deleteWedgeMatrix(matrixId, currentUserId);
           if (!deleted) {
             sendJson(res, 404, { ok: false, error: 'Matrix not found' });
             return;

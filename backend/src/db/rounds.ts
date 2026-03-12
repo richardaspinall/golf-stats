@@ -4,6 +4,7 @@ import { sanitizeRoundDate, sanitizeRoundHandicap, sanitizeRoundName, sanitizeRo
 import type { Round, StatsByHole } from '../domain/types.js';
 
 type RoundUpdate = {
+  userId: string;
   name: string;
   roundDate: string;
   handicap: number;
@@ -15,6 +16,7 @@ type RoundUpdate = {
 
 const mapDbRound = (row: any): Round => ({
   id: String(row.id),
+  userId: String(row.user_id || ''),
   name: sanitizeRoundName(row.name),
   roundDate: sanitizeRoundDate(row.round_date),
   handicap: sanitizeRoundHandicap(row.handicap),
@@ -25,14 +27,16 @@ const mapDbRound = (row: any): Round => ({
   updatedAt: toIso(row.updated_at),
 });
 
-export const listRounds = async () => {
+export const listRounds = async (userId: string) => {
   const db = getPool();
   const result = await db.query(
-    'SELECT id, name, round_date, handicap, course_id, created_at, updated_at FROM rounds ORDER BY updated_at DESC, created_at DESC',
+    'SELECT id, user_id, name, round_date, handicap, course_id, created_at, updated_at FROM rounds WHERE user_id = $1 ORDER BY updated_at DESC, created_at DESC',
+    [userId],
   );
 
   return result.rows.map((row: any) => ({
     id: String(row.id),
+    userId: String(row.user_id || ''),
     name: sanitizeRoundName(row.name),
     roundDate: sanitizeRoundDate(row.round_date),
     handicap: sanitizeRoundHandicap(row.handicap),
@@ -42,11 +46,11 @@ export const listRounds = async () => {
   }));
 };
 
-export const getRoundById = async (roundId: string) => {
+export const getRoundById = async (roundId: string, userId: string) => {
   const db = getPool();
   const result = await db.query(
-    'SELECT id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at FROM rounds WHERE id = $1 LIMIT 1',
-    [roundId],
+    'SELECT id, user_id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at FROM rounds WHERE id = $1 AND user_id = $2 LIMIT 1',
+    [roundId, userId],
   );
 
   if (result.rows.length === 0) {
@@ -60,12 +64,13 @@ export const insertRound = async (round: Round) => {
   const db = getPool();
   const result = await db.query(
     `
-      INSERT INTO rounds (id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::timestamptz, $9::timestamptz)
-      RETURNING id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at
+      INSERT INTO rounds (id, user_id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::timestamptz, $10::timestamptz)
+      RETURNING id, user_id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at
     `,
     [
       round.id,
+      round.userId,
       round.name,
       round.roundDate,
       round.handicap,
@@ -92,8 +97,8 @@ export const updateRound = async (roundId: string, updates: RoundUpdate) => {
           stats_by_hole = $6::jsonb,
           notes = $7::jsonb,
           updated_at = $8::timestamptz
-      WHERE id = $1
-      RETURNING id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at
+      WHERE id = $1 AND user_id = $9
+      RETURNING id, user_id, name, round_date, handicap, course_id, stats_by_hole, notes, created_at, updated_at
     `,
     [
       roundId,
@@ -104,6 +109,7 @@ export const updateRound = async (roundId: string, updates: RoundUpdate) => {
       JSON.stringify(updates.statsByHole),
       JSON.stringify(updates.notes),
       updates.updatedAt,
+      updates.userId,
     ],
   );
 
@@ -114,8 +120,8 @@ export const updateRound = async (roundId: string, updates: RoundUpdate) => {
   return mapDbRound(result.rows[0]);
 };
 
-export const deleteRoundById = async (roundId: string) => {
+export const deleteRoundById = async (roundId: string, userId: string) => {
   const db = getPool();
-  const result = await db.query('DELETE FROM rounds WHERE id = $1 RETURNING id', [roundId]);
+  const result = await db.query('DELETE FROM rounds WHERE id = $1 AND user_id = $2 RETURNING id', [roundId, userId]);
   return result.rows.length > 0;
 };

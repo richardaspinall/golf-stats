@@ -48,6 +48,7 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
       DATABASE_URL: (overrides.DATABASE_URL as string) ?? DATABASE_URL,
       AUTH_CONFIGURED: true,
       DB_CONFIGURED: true,
+      LEGACY_BOOTSTRAP_AUTH: true,
     };
   });
 
@@ -72,6 +73,30 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
     saveClubCarry: vi.fn().mockResolvedValue({}),
     listClubActualAverages: vi.fn().mockResolvedValue({}),
     insertClubActualDistance: vi.fn().mockResolvedValue(undefined),
+    listClubActualEntries: vi.fn().mockResolvedValue([]),
+    deleteClubActualEntry: vi.fn().mockResolvedValue(false),
+  }));
+  vi.doMock('../src/db/users.js', () => ({
+    createUser: vi.fn(),
+    getUserByCredentials: vi.fn().mockImplementation(async ({ username, password }) => {
+      if (username === 'demo' && password === 'secret') {
+        return {
+          id: 'user-1',
+          username: 'demo',
+          displayName: 'Demo',
+          createdAt: 'now',
+          updatedAt: 'now',
+        };
+      }
+      return null;
+    }),
+    getUserById: vi.fn().mockResolvedValue({
+      id: 'user-1',
+      username: 'demo',
+      displayName: 'Demo',
+      createdAt: 'now',
+      updatedAt: 'now',
+    }),
   }));
   const updateWedgeMatrix = vi.fn().mockResolvedValue({
     id: 7,
@@ -149,7 +174,7 @@ describe('handler', () => {
 
   it('returns rounds with valid token', async () => {
     const { handleRequest, signToken } = await loadHandler();
-    const token = signToken('demo');
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
     const { res, getBody } = createMockRes();
     const req = createMockReq({
       method: 'GET',
@@ -166,7 +191,7 @@ describe('handler', () => {
 
   it('updates wedge matrix metadata with valid token', async () => {
     const { handleRequest, signToken, updateWedgeMatrix } = await loadHandler();
-    const token = signToken('demo');
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
     const { res, getBody } = createMockRes();
     const req = createMockReq({
       method: 'PUT',
@@ -187,6 +212,7 @@ describe('handler', () => {
 
     expect(updateWedgeMatrix).toHaveBeenCalledWith({
       id: 7,
+      userId: 'user-1',
       name: 'Flighted wedges',
       stanceWidth: 'Medium',
       grip: 'Mid',

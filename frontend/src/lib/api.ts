@@ -9,7 +9,7 @@ import {
 } from './config';
 import { CLUB_OPTIONS } from './constants';
 import { normalizeWedgeMatrix, sanitizeCarryByClub, sanitizeRoundHandicap, sanitizeWedgeEntry } from './rounds';
-import type { CarryByClub, ClubAverage, CourseMarkers, Round, RoundListItem, WedgeEntry, WedgeMatrix } from '../types';
+import type { CarryByClub, ClubAverage, CourseMarkers, Round, RoundListItem, UserProfile, WedgeEntry, WedgeMatrix } from '../types';
 
 type RequestOptions = {
   method?: string;
@@ -54,7 +54,7 @@ const requestApi = async (url: string, { method = 'GET', body, token }: RequestO
   });
 };
 
-export const loginToApi = async (username: string, password: string): Promise<string> => {
+export const loginToApi = async (username: string, password: string): Promise<{ token: string; user: UserProfile | null }> => {
   const response = await requestApi(API_LOGIN_URL, {
     method: 'POST',
     body: { username, password },
@@ -65,7 +65,32 @@ export const loginToApi = async (username: string, password: string): Promise<st
   }
 
   const data = await response.json();
-  return String(data?.token || '');
+  return {
+    token: String(data?.token || ''),
+    user: data?.user || null,
+  };
+};
+
+export const createUserInApi = async ({
+  username,
+  password,
+  displayName,
+}: {
+  username: string;
+  password: string;
+  displayName?: string;
+}): Promise<UserProfile> => {
+  const response = await requestApi('/api/users', {
+    method: 'POST',
+    body: { username, password, displayName },
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Failed to create user (${response.status})`, response.status, await getErrorDetails(response));
+  }
+
+  const data = await response.json();
+  return data?.user;
 };
 
 export const loadRoundsFromApi = async (token: string): Promise<RoundListItem[]> => {

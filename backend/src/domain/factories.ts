@@ -5,6 +5,7 @@ import { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
 export { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
 
 export const createRound = (
+  userId: string,
   name: string,
   roundDate: string,
   handicap: number,
@@ -14,6 +15,7 @@ export const createRound = (
   const now = new Date().toISOString();
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    userId,
     name,
     roundDate: sanitizeRoundDate(roundDate),
     handicap: sanitizeRoundHandicap(handicap),

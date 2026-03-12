@@ -15,6 +15,7 @@ import { useRoundNotes } from './hooks/useRoundNotes';
 import { useWedgeMatrix } from './hooks/useWedgeMatrix';
 import {
   ApiError,
+  createUserInApi,
   createRoundInApi,
   deleteClubActualEntryInApi,
   deleteRoundInApi,
@@ -31,6 +32,7 @@ import {
   saveClubCarryToApi,
   saveRoundToApi,
 } from './lib/api';
+import type { UserProfile } from './types';
 import {
   CLUB_OPTIONS,
   CLUB_OPTION_SET,
@@ -106,10 +108,17 @@ function TotalsTabIcon() {
 
 export default function App() {
   const [authToken, setAuthToken] = useState(() => loadStoredAuthToken());
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [signupUsername, setSignupUsername] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupDisplayName, setSignupDisplayName] = useState('');
+  const [signupError, setSignupError] = useState('');
+  const [signupSuccess, setSignupSuccess] = useState('');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [selectedHole, setSelectedHole] = useState(1);
   const [page, setPage] = useState('track');
   const [rounds, setRounds] = useState([]);
@@ -228,7 +237,10 @@ export default function App() {
   const handleAuthFailure = (message = 'Session expired. Log in again.') => {
     clearAuthToken();
     setAuthToken('');
+    setCurrentUser(null);
     setAuthError(message);
+    setSignupError('');
+    setSignupSuccess('');
     setRounds([]);
     setRoundSummaries({});
     setRoundSummariesState('idle');
@@ -850,7 +862,7 @@ export default function App() {
     setIsLoggingIn(true);
     setAuthError('');
     try {
-      const token = await loginToApi(username, password);
+      const { token, user } = await loginToApi(username, password);
       if (!token) {
         setAuthError('No token was returned.');
         return;
@@ -858,7 +870,10 @@ export default function App() {
 
       saveAuthToken(token);
       setAuthToken(token);
+      setCurrentUser(user);
       setLoginPassword('');
+      setSignupError('');
+      setSignupSuccess('');
       setSaveState('loading');
       setClubAveragesDirty(true);
       setClubCarrySaveState('saved');
@@ -875,6 +890,36 @@ export default function App() {
       }
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  const createUserProfile = async (event) => {
+    event?.preventDefault();
+    const username = signupUsername.trim();
+    const password = signupPassword;
+    const displayName = signupDisplayName.trim();
+    if (!username || !password) {
+      setSignupError('Enter a username and password for the new profile.');
+      return;
+    }
+
+    setIsCreatingUser(true);
+    setSignupError('');
+    setSignupSuccess('');
+    try {
+      const user = await createUserInApi({ username, password, displayName });
+      setSignupSuccess(`Created profile for ${user.displayName || user.username}. You can sign in now.`);
+      setLoginUsername(user.username);
+      setLoginPassword('');
+      setSignupPassword('');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setSignupError(error.details || 'Unable to create profile right now.');
+      } else {
+        setSignupError('Unable to create profile right now.');
+      }
+    } finally {
+      setIsCreatingUser(false);
     }
   };
 
@@ -1204,6 +1249,39 @@ export default function App() {
             </div>
             {authError ? <p className="hint">{authError}</p> : null}
           </form>
+          <h2>Create profile</h2>
+          <form className="new-round-form" onSubmit={createUserProfile}>
+            <div className="new-round-fields">
+              <input
+                type="text"
+                value={signupDisplayName}
+                onChange={(event) => setSignupDisplayName(event.target.value)}
+                placeholder="Display name (optional)"
+                autoComplete="name"
+              />
+              <input
+                type="text"
+                value={signupUsername}
+                onChange={(event) => setSignupUsername(event.target.value)}
+                placeholder="New username"
+                autoComplete="username"
+              />
+              <input
+                type="password"
+                value={signupPassword}
+                onChange={(event) => setSignupPassword(event.target.value)}
+                placeholder="New password"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="new-round-actions">
+              <button type="submit" disabled={isCreatingUser}>
+                {isCreatingUser ? 'Creating...' : 'Create profile'}
+              </button>
+            </div>
+            {signupError ? <p className="hint">{signupError}</p> : null}
+            {signupSuccess ? <p className="hint">{signupSuccess}</p> : null}
+          </form>
         </section>
       </main>
     );
@@ -1213,6 +1291,7 @@ export default function App() {
     <main className="app">
       <header className="header">
         <h1>Golf Stat Tracker</h1>
+        {currentUser ? <p className="hint">Signed in as {currentUser.displayName || currentUser.username}</p> : null}
         {!showNewRoundForm ? (
           <div className="header-controls">
             <button

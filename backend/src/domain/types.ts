@@ -45,6 +45,7 @@ export type CourseMarkersByHole = Record<
 
 export type Round = {
   id: string;
+  userId: string;
   name: string;
   roundDate: string;
   handicap: number;
@@ -77,6 +78,14 @@ export type ClubActualEntry = {
   club: ClubOption;
   actualMeters: number;
   createdAt: string;
+};
+
+export type User = {
+  id: string;
+  username: string;
+  displayName: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type WedgeEntry = {

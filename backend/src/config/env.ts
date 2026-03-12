@@ -27,5 +27,6 @@ export const JWT_SECRET = String(process.env.JWT_SECRET || '');
 export const JWT_TTL_SECONDS = Number(process.env.JWT_TTL_SECONDS || 60 * 60 * 24 * 7);
 export const CORS_ORIGIN = normalizeOrigin(process.env.CORS_ORIGIN || '*');
 
-export const AUTH_CONFIGURED = Boolean(AUTH_USERNAME && AUTH_PASSWORD && JWT_SECRET);
 export const DB_CONFIGURED = Boolean(DATABASE_URL);
+export const AUTH_CONFIGURED = Boolean(DB_CONFIGURED && JWT_SECRET);
+export const LEGACY_BOOTSTRAP_AUTH = Boolean(AUTH_USERNAME && AUTH_PASSWORD);

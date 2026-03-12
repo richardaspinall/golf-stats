@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { JWT_SECRET, JWT_TTL_SECONDS, AUTH_USERNAME } from '../config/env.js';
+import { JWT_SECRET, JWT_TTL_SECONDS } from '../config/env.js';
 import { safeCompare } from './crypto.js';
 
 const toBase64Url = (value: string) =>
@@ -15,11 +15,12 @@ const fromBase64Url = (value: string) => {
   return Buffer.from(padded, 'base64').toString('utf8');
 };
 
-export const signToken = (subject: string) => {
+export const signToken = ({ subject, userId }: { subject: string; userId: string }) => {
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     sub: subject,
+    uid: userId,
     iat: now,
     exp: now + Math.max(60, Math.floor(JWT_TTL_SECONDS)),
   };
@@ -60,7 +61,7 @@ export const verifyToken = (token: string) => {
 
     const payload = JSON.parse(fromBase64Url(encodedPayload));
     const now = Math.floor(Date.now() / 1000);
-    if (!payload?.sub || payload.sub !== AUTH_USERNAME) {
+    if (!payload?.sub || !payload?.uid) {
       return { ok: false as const, error: 'Invalid subject' };
     }
 

@@ -97,3 +97,11 @@ export interface WedgeMatrix {
 }
 
 export type CarryByClub = Record<string, number>;
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
