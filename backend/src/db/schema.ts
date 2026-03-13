@@ -12,7 +12,9 @@ export const ensureSchema = async () => {
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
           username TEXT NOT NULL UNIQUE,
-          password_hash TEXT NOT NULL,
+          password_hash TEXT,
+          email TEXT NOT NULL DEFAULT '',
+          google_sub TEXT UNIQUE,
           display_name TEXT NOT NULL DEFAULT '',
           created_at TIMESTAMPTZ NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL
@@ -70,6 +72,9 @@ export const ensureSchema = async () => {
           created_at TIMESTAMPTZ NOT NULL
         );
         ALTER TABLE wedge_entries ADD COLUMN IF NOT EXISTS matrix_id BIGINT;
+        ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS clubs JSONB NOT NULL DEFAULT '[]'::jsonb;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb;
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS round_date TEXT NOT NULL DEFAULT '';
@@ -86,6 +91,7 @@ export const ensureSchema = async () => {
         CREATE INDEX IF NOT EXISTS club_actual_distances_user_created_idx ON club_actual_distances(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS wedge_matrices_user_created_idx ON wedge_matrices(user_id, created_at DESC, id DESC);
         CREATE INDEX IF NOT EXISTS wedge_entries_user_matrix_created_idx ON wedge_entries(user_id, matrix_id, created_at DESC, id DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub_key ON users(google_sub) WHERE google_sub IS NOT NULL;
         DO $$
         BEGIN
           IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'rounds_user_id_fk') THEN

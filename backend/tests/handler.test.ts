@@ -46,11 +46,21 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
       JWT_TTL_SECONDS: (overrides.JWT_TTL_SECONDS as number) ?? JWT_TTL_SECONDS,
       CORS_ORIGIN: (overrides.CORS_ORIGIN as string) ?? CORS_ORIGIN,
       DATABASE_URL: (overrides.DATABASE_URL as string) ?? DATABASE_URL,
+      GOOGLE_CLIENT_ID: (overrides.GOOGLE_CLIENT_ID as string) ?? 'google-client-id',
       AUTH_CONFIGURED: true,
       DB_CONFIGURED: true,
       LEGACY_BOOTSTRAP_AUTH: true,
+      GOOGLE_AUTH_CONFIGURED: true,
     };
   });
+
+  vi.doMock('../src/auth/google.js', () => ({
+    verifyGoogleIdToken: vi.fn().mockResolvedValue({
+      googleSub: 'google-sub-1',
+      email: 'demo@example.com',
+      displayName: 'Demo Google',
+    }),
+  }));
 
   vi.doMock('../src/db/schema.js', () => ({
     ensureSchema: vi.fn().mockResolvedValue(undefined),
@@ -77,13 +87,35 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
     deleteClubActualEntry: vi.fn().mockResolvedValue(false),
   }));
   vi.doMock('../src/db/users.js', () => ({
-    createUser: vi.fn(),
+    getGoogleUserBySub: vi.fn().mockResolvedValue({
+      id: 'user-google-1',
+      username: 'demo-google',
+      displayName: 'Demo Google',
+      email: 'demo@example.com',
+      authMethod: 'google',
+      googleLinked: true,
+      createdAt: 'now',
+      updatedAt: 'now',
+    }),
+    linkGoogleAccount: vi.fn().mockResolvedValue({
+      id: 'user-1',
+      username: 'demo',
+      displayName: 'Demo',
+      email: 'demo@example.com',
+      authMethod: 'local',
+      googleLinked: true,
+      createdAt: 'now',
+      updatedAt: 'now',
+    }),
     getUserByCredentials: vi.fn().mockImplementation(async ({ username, password }) => {
       if (username === 'demo' && password === 'secret') {
         return {
           id: 'user-1',
           username: 'demo',
           displayName: 'Demo',
+          email: '',
+          authMethod: 'local',
+          googleLinked: false,
           createdAt: 'now',
           updatedAt: 'now',
         };
@@ -94,6 +126,9 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
       id: 'user-1',
       username: 'demo',
       displayName: 'Demo',
+      email: '',
+      authMethod: 'local',
+      googleLinked: false,
       createdAt: 'now',
       updatedAt: 'now',
     }),
@@ -170,6 +205,59 @@ describe('handler', () => {
 
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(getBody())).toEqual({ ok: false, error: 'Unauthorized' });
+  });
+
+  it('handles google auth login', async () => {
+    const { handleRequest } = await loadHandler();
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/auth/google',
+      body: { idToken: 'google-id-token' },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    const payload = JSON.parse(getBody());
+    expect(res.statusCode).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.user.username).toBe('demo-google');
+    expect(typeof payload.token).toBe('string');
+  });
+
+  it('blocks public signup', async () => {
+    const { handleRequest } = await loadHandler();
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/users',
+      body: { username: 'new-user', password: 'secret123' },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(getBody())).toEqual({ ok: false, error: 'Public signup is disabled' });
+  });
+
+  it('links google auth to the current user', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/me/google-link',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { idToken: 'google-id-token' },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    const payload = JSON.parse(getBody());
+    expect(res.statusCode).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.user.googleLinked).toBe(true);
+    expect(payload.user.id).toBe('user-1');
   });
 
   it('returns rounds with valid token', async () => {

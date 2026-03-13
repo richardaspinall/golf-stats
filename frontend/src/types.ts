@@ -102,6 +102,9 @@ export interface UserProfile {
   id: string;
   username: string;
   displayName: string;
+  email?: string;
+  authMethod?: 'local' | 'google';
+  googleLinked?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

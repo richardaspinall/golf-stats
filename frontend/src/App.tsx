@@ -15,19 +15,21 @@ import { useRoundNotes } from './hooks/useRoundNotes';
 import { useWedgeMatrix } from './hooks/useWedgeMatrix';
 import {
   ApiError,
-  createUserInApi,
   createRoundInApi,
   deleteClubActualEntryInApi,
   deleteRoundInApi,
   loadClubActualAveragesFromApi,
   loadClubActualEntriesFromApi,
   loadClubCarryFromApi,
+  loadCurrentUserFromApi,
   loadCoursesFromApi,
   loadRoundFromApi,
   loadRoundsFromApi,
   loadWedgeEntriesFromApi,
   loadWedgeMatricesFromApi,
+  linkGoogleAccountInApi,
   loginToApi,
+  loginWithGoogleInApi,
   saveClubActualToApi,
   saveClubCarryToApi,
   saveRoundToApi,
@@ -41,8 +43,9 @@ import {
   HOLE_INDEX_OPTIONS,
   SWING_CLOCK_OPTIONS,
 } from './lib/constants';
-import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './lib/config';
+import { GOOGLE_CLIENT_ID, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './lib/config';
 import { metersToPaces, pacesToMeters } from './lib/geometry';
+import { isGoogleAuthEnabled, loadGoogleIdentityScript } from './lib/googleAuth';
 import {
   buildInitialByHole,
   computeTotalsForStats,
@@ -113,12 +116,11 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [signupUsername, setSignupUsername] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupDisplayName, setSignupDisplayName] = useState('');
-  const [signupError, setSignupError] = useState('');
-  const [signupSuccess, setSignupSuccess] = useState('');
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState('');
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleLinkError, setGoogleLinkError] = useState('');
+  const [googleLinkSuccess, setGoogleLinkSuccess] = useState('');
+  const [isGoogleLinking, setIsGoogleLinking] = useState(false);
   const [selectedHole, setSelectedHole] = useState(1);
   const [page, setPage] = useState('track');
   const [rounds, setRounds] = useState([]);
@@ -204,6 +206,8 @@ export default function App() {
   const hasLoadedClubCarryRef = useRef(false);
   const skipNextClubCarrySaveRef = useRef(false);
   const hasLoadedClubAveragesRef = useRef(false);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const googleLinkButtonRef = useRef<HTMLDivElement | null>(null);
 
   const holeStats = statsByHole[selectedHole];
   const activeRound = rounds.find((round) => round.id === selectedRoundId);
@@ -239,8 +243,9 @@ export default function App() {
     setAuthToken('');
     setCurrentUser(null);
     setAuthError(message);
-    setSignupError('');
-    setSignupSuccess('');
+    setGoogleAuthError('');
+    setGoogleLinkError('');
+    setGoogleLinkSuccess('');
     setRounds([]);
     setRoundSummaries({});
     setRoundSummariesState('idle');
@@ -307,6 +312,23 @@ export default function App() {
   const logout = () => {
     handleAuthFailure('');
     setLoginPassword('');
+  };
+
+  const applyAuthenticatedSession = (token, user) => {
+    saveAuthToken(token);
+    setAuthToken(token);
+    setCurrentUser(user || null);
+    setLoginPassword('');
+    setGoogleLinkError('');
+    setGoogleLinkSuccess('');
+    setSaveState('loading');
+    setClubAveragesDirty(true);
+    setClubCarrySaveState('saved');
+    hasLoadedRef.current = false;
+    skipNextSaveRef.current = false;
+    hasLoadedClubCarryRef.current = false;
+    skipNextClubCarrySaveRef.current = false;
+    hasLoadedClubAveragesRef.current = false;
   };
 
   const applyRoundToState = (round) => {
@@ -861,6 +883,7 @@ export default function App() {
 
     setIsLoggingIn(true);
     setAuthError('');
+    setGoogleAuthError('');
     try {
       const { token, user } = await loginToApi(username, password);
       if (!token) {
@@ -868,20 +891,7 @@ export default function App() {
         return;
       }
 
-      saveAuthToken(token);
-      setAuthToken(token);
-      setCurrentUser(user);
-      setLoginPassword('');
-      setSignupError('');
-      setSignupSuccess('');
-      setSaveState('loading');
-      setClubAveragesDirty(true);
-      setClubCarrySaveState('saved');
-      hasLoadedRef.current = false;
-      skipNextSaveRef.current = false;
-      hasLoadedClubCarryRef.current = false;
-      skipNextClubCarrySaveRef.current = false;
-      hasLoadedClubAveragesRef.current = false;
+      applyAuthenticatedSession(token, user);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setAuthError(error.details || 'Invalid credentials.');
@@ -893,35 +903,183 @@ export default function App() {
     }
   };
 
-  const createUserProfile = async (event) => {
-    event?.preventDefault();
-    const username = signupUsername.trim();
-    const password = signupPassword;
-    const displayName = signupDisplayName.trim();
-    if (!username || !password) {
-      setSignupError('Enter a username and password for the new profile.');
-      return;
-    }
+  useEffect(() => {
+    let isActive = true;
 
-    setIsCreatingUser(true);
-    setSignupError('');
-    setSignupSuccess('');
-    try {
-      const user = await createUserInApi({ username, password, displayName });
-      setSignupSuccess(`Created profile for ${user.displayName || user.username}. You can sign in now.`);
-      setLoginUsername(user.username);
-      setLoginPassword('');
-      setSignupPassword('');
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setSignupError(error.details || 'Unable to create profile right now.');
-      } else {
-        setSignupError('Unable to create profile right now.');
+    const loadCurrentUser = async () => {
+      if (!authToken) {
+        return;
       }
-    } finally {
-      setIsCreatingUser(false);
-    }
-  };
+
+      try {
+        const user = await loadCurrentUserFromApi(authToken);
+        if (isActive) {
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+        }
+      }
+    };
+
+    loadCurrentUser();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initializeGoogleAuth = async () => {
+      if (authToken || !isGoogleAuthEnabled() || !googleButtonRef.current) {
+        return;
+      }
+
+      setIsGoogleLoading(true);
+      setGoogleAuthError('');
+
+      try {
+        await loadGoogleIdentityScript();
+        if (cancelled || !googleButtonRef.current || !window.google?.accounts?.id || !GOOGLE_CLIENT_ID) {
+          return;
+        }
+
+        googleButtonRef.current.innerHTML = '';
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: async ({ credential }) => {
+            if (!credential) {
+              setGoogleAuthError('Google sign-in did not return a credential.');
+              return;
+            }
+
+            setIsGoogleLoading(true);
+            setGoogleAuthError('');
+
+            try {
+              const { token, user } = await loginWithGoogleInApi(credential);
+              if (!token) {
+                setGoogleAuthError('No token was returned.');
+                return;
+              }
+
+              applyAuthenticatedSession(token, user);
+            } catch (error) {
+              if (error instanceof ApiError) {
+                setGoogleAuthError(error.details || 'Unable to sign in with Google right now.');
+              } else {
+                setGoogleAuthError('Unable to sign in with Google right now.');
+              }
+            } finally {
+              setIsGoogleLoading(false);
+            }
+          },
+        });
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+          width: 280,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setGoogleAuthError(error instanceof Error ? error.message : 'Unable to load Google sign-in right now.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsGoogleLoading(false);
+        }
+      }
+    };
+
+    initializeGoogleAuth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initializeGoogleLink = async () => {
+      if (!authToken || !currentUser || currentUser.googleLinked || !isGoogleAuthEnabled() || !googleLinkButtonRef.current) {
+        return;
+      }
+
+      setIsGoogleLinking(true);
+      setGoogleLinkError('');
+
+      try {
+        await loadGoogleIdentityScript();
+        if (cancelled || !googleLinkButtonRef.current || !window.google?.accounts?.id || !GOOGLE_CLIENT_ID) {
+          return;
+        }
+
+        googleLinkButtonRef.current.innerHTML = '';
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: async ({ credential }) => {
+            if (!credential || !authToken) {
+              setGoogleLinkError('Google account link did not return a credential.');
+              return;
+            }
+
+            setIsGoogleLinking(true);
+            setGoogleLinkError('');
+            setGoogleLinkSuccess('');
+
+            try {
+              const user = await linkGoogleAccountInApi(credential, authToken);
+              setCurrentUser(user);
+              setGoogleLinkSuccess('Google account linked.');
+            } catch (error) {
+              if (error instanceof ApiError) {
+                if (error.status === 401) {
+                  handleAuthFailure('Session expired. Log in again.');
+                  return;
+                }
+                setGoogleLinkError(error.details || 'Unable to link Google account right now.');
+              } else {
+                setGoogleLinkError('Unable to link Google account right now.');
+              }
+            } finally {
+              setIsGoogleLinking(false);
+            }
+          },
+        });
+        window.google.accounts.id.renderButton(googleLinkButtonRef.current, {
+          theme: 'outline',
+          size: 'medium',
+          text: 'continue_with',
+          shape: 'pill',
+          width: 240,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setGoogleLinkError(error instanceof Error ? error.message : 'Unable to load Google linking right now.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsGoogleLinking(false);
+        }
+      }
+    };
+
+    initializeGoogleLink();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, currentUser?.id, currentUser?.googleLinked]);
 
   useEffect(() => {
     let isActive = true;
@@ -1249,39 +1407,14 @@ export default function App() {
             </div>
             {authError ? <p className="hint">{authError}</p> : null}
           </form>
-          <h2>Create profile</h2>
-          <form className="new-round-form" onSubmit={createUserProfile}>
-            <div className="new-round-fields">
-              <input
-                type="text"
-                value={signupDisplayName}
-                onChange={(event) => setSignupDisplayName(event.target.value)}
-                placeholder="Display name (optional)"
-                autoComplete="name"
-              />
-              <input
-                type="text"
-                value={signupUsername}
-                onChange={(event) => setSignupUsername(event.target.value)}
-                placeholder="New username"
-                autoComplete="username"
-              />
-              <input
-                type="password"
-                value={signupPassword}
-                onChange={(event) => setSignupPassword(event.target.value)}
-                placeholder="New password"
-                autoComplete="new-password"
-              />
-            </div>
-            <div className="new-round-actions">
-              <button type="submit" disabled={isCreatingUser}>
-                {isCreatingUser ? 'Creating...' : 'Create profile'}
-              </button>
-            </div>
-            {signupError ? <p className="hint">{signupError}</p> : null}
-            {signupSuccess ? <p className="hint">{signupSuccess}</p> : null}
-          </form>
+          {isGoogleAuthEnabled() ? (
+            <section className="auth-divider">
+              <p className="hint">Or use Google</p>
+              <div className="google-auth-slot" ref={googleButtonRef} />
+              {isGoogleLoading ? <p className="hint">Preparing Google sign-in...</p> : null}
+              {googleAuthError ? <p className="hint">{googleAuthError}</p> : null}
+            </section>
+          ) : null}
         </section>
       </main>
     );
@@ -1291,7 +1424,12 @@ export default function App() {
     <main className="app">
       <header className="header">
         <h1>Golf Stat Tracker</h1>
-        {currentUser ? <p className="hint">Signed in as {currentUser.displayName || currentUser.username}</p> : null}
+        {currentUser ? (
+          <p className="hint">
+            Signed in as {currentUser.displayName || currentUser.username}
+            {currentUser.googleLinked ? ' · Google linked' : ''}
+          </p>
+        ) : null}
         {!showNewRoundForm ? (
           <div className="header-controls">
             <button
@@ -1345,6 +1483,16 @@ export default function App() {
           </div>
         ) : null}
       </header>
+      {currentUser && !currentUser.googleLinked && isGoogleAuthEnabled() ? (
+        <section className="card auth-link-card">
+          <h2>Link Google</h2>
+          <p className="hint">Attach a Google account to this profile so future Google sign-ins use the same data.</p>
+          <div className="google-auth-slot" ref={googleLinkButtonRef} />
+          {isGoogleLinking ? <p className="hint">Preparing Google account linking...</p> : null}
+          {googleLinkError ? <p className="hint">{googleLinkError}</p> : null}
+          {googleLinkSuccess ? <p className="hint">{googleLinkSuccess}</p> : null}
+        </section>
+      ) : null}
       {showNewRoundForm ? (
         <form className="new-round-form card" onSubmit={createRound}>
           <h2>Create round</h2>

@@ -38,11 +38,13 @@ The frontend uses:
    - `AUTH_USERNAME=<your-username>`
    - `AUTH_PASSWORD=<your-strong-password>`
    - `JWT_SECRET=<long-random-secret>`
+   - Optional: `GOOGLE_CLIENT_ID=<your-google-oauth-web-client-id>`
    - Optional: `JWT_TTL_SECONDS=604800`
 1. Deploy and copy backend URL (for example `https://golf-stats-api.vercel.app`).
 1. Create another Vercel project rooted at `frontend/`.
 1. Set frontend env var:
    - `VITE_API_BASE_URL=https://<your-backend-domain>`
+   - Optional: `VITE_GOOGLE_CLIENT_ID=<your-google-oauth-web-client-id>`
    - `VITE_GOOGLE_MAPS_API_KEY=<your-google-maps-js-api-key>`
    - `VITE_GOOGLE_MAPS_MAP_ID=<your-google-maps-map-id>`
 1. Redeploy frontend.
@@ -55,6 +57,9 @@ The frontend uses:
 
 - `GET /api/health`
 - `POST /api/auth/login`
+- `POST /api/auth/google`
+- `POST /api/users`
+- `GET /api/me`
 - `GET /api/courses`
 - `POST /api/courses`
 - `GET /api/courses/:id`

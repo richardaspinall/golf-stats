@@ -2,7 +2,10 @@ import {
   API_CLUB_ACTUALS_URL,
   API_CLUB_CARRY_URL,
   API_COURSES_URL,
+  API_GOOGLE_LOGIN_URL,
+  API_GOOGLE_LINK_URL,
   API_LOGIN_URL,
+  API_ME_URL,
   API_ROUNDS_URL,
   API_USERS_URL,
   API_WEDGE_ENTRIES_URL,
@@ -72,6 +75,23 @@ export const loginToApi = async (username: string, password: string): Promise<{ 
   };
 };
 
+export const loginWithGoogleInApi = async (idToken: string): Promise<{ token: string; user: UserProfile | null }> => {
+  const response = await requestApi(API_GOOGLE_LOGIN_URL, {
+    method: 'POST',
+    body: { idToken },
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Google login failed (${response.status})`, response.status, await getErrorDetails(response));
+  }
+
+  const data = await response.json();
+  return {
+    token: String(data?.token || ''),
+    user: data?.user || null,
+  };
+};
+
 export const createUserInApi = async ({
   username,
   password,
@@ -92,6 +112,31 @@ export const createUserInApi = async ({
 
   const data = await response.json();
   return data?.user;
+};
+
+export const loadCurrentUserFromApi = async (token: string): Promise<UserProfile | null> => {
+  const response = await requestApi(API_ME_URL, { token });
+  if (!response.ok) {
+    throw new ApiError(`Failed to load current user (${response.status})`, response.status, await getErrorDetails(response));
+  }
+
+  const data = await response.json();
+  return data?.user || null;
+};
+
+export const linkGoogleAccountInApi = async (idToken: string, token: string): Promise<UserProfile | null> => {
+  const response = await requestApi(API_GOOGLE_LINK_URL, {
+    method: 'POST',
+    body: { idToken },
+    token,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Failed to link Google account (${response.status})`, response.status, await getErrorDetails(response));
+  }
+
+  const data = await response.json();
+  return data?.user || null;
 };
 
 export const loadRoundsFromApi = async (token: string): Promise<RoundListItem[]> => {

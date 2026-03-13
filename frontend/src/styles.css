@@ -143,6 +143,23 @@ body {
   gap: 8px;
 }
 
+.auth-divider {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0 4px;
+}
+
+.google-auth-slot {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.auth-link-card {
+  display: grid;
+  gap: 10px;
+}
+
 .tab-btn {
   min-height: 42px;
   display: inline-flex;
