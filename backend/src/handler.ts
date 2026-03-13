@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { AUTH_CONFIGURED, DB_CONFIGURED, JWT_TTL_SECONDS } from './config/env.js';
+import { AUTH_CONFIGURED, DB_CONFIGURED, GOOGLE_AUTH_CONFIGURED, JWT_TTL_SECONDS } from './config/env.js';
+import { verifyGoogleIdToken } from './auth/google.js';
 import { signToken, verifyToken } from './auth/jwt.js';
 import { getDbDebugStatus } from './db/debug.js';
 import { ensureSchema } from './db/schema.js';
@@ -13,7 +14,7 @@ import {
   listClubCarry,
   saveClubCarry,
 } from './db/club.js';
-import { createUser, getUserByCredentials, getUserById } from './db/users.js';
+import { getGoogleUserBySub, getUserByCredentials, getUserById, linkGoogleAccount } from './db/users.js';
 import {
   deleteWedgeEntry,
   deleteWedgeMatrix,
@@ -52,22 +53,18 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       return;
     }
 
-    if (pathname === '/api/users' || pathname === '/api/me' || pathname === '/api/auth/login') {
+    if (
+      pathname === '/api/users' ||
+      pathname === '/api/me' ||
+      pathname === '/api/me/google-link' ||
+      pathname === '/api/auth/login' ||
+      pathname === '/api/auth/google'
+    ) {
       await ensureSchema();
     }
 
     if (pathname === '/api/users' && method === 'POST') {
-      try {
-        const body = await parseBody(req as BodyAwareRequest);
-        const user = await createUser({
-          username: (body as any)?.username,
-          password: (body as any)?.password,
-          displayName: (body as any)?.displayName,
-        });
-        sendJson(res, 201, { ok: true, user });
-      } catch (error: any) {
-        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
-      }
+      sendJson(res, 403, { ok: false, error: 'Public signup is disabled' });
       return;
     }
 
@@ -97,6 +94,34 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       return;
     }
 
+    if (pathname === '/api/auth/google' && method === 'POST') {
+      if (!AUTH_CONFIGURED || !GOOGLE_AUTH_CONFIGURED) {
+        sendJson(res, 500, { ok: false, error: 'Google auth is not configured on the server' });
+        return;
+      }
+
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const idToken = String((body as any)?.idToken || '').trim();
+        if (!idToken) {
+          sendJson(res, 400, { ok: false, error: 'Missing Google credential' });
+          return;
+        }
+
+        const profile = await verifyGoogleIdToken(idToken);
+        const user = await getGoogleUserBySub(profile);
+        if (!user) {
+          sendJson(res, 403, { ok: false, error: 'That Google account is not linked to an existing user' });
+          return;
+        }
+        const token = signToken({ subject: user.username, userId: user.id });
+        sendJson(res, 200, { ok: true, token, user, expiresIn: Math.max(60, Math.floor(JWT_TTL_SECONDS)) });
+      } catch (error: any) {
+        sendJson(res, 401, { ok: false, error: error.message || 'Invalid Google credential' });
+      }
+      return;
+    }
+
     let authUser: { id: string; username: string } | null = null;
     if (pathname.startsWith('/api/') && pathname !== '/api/health' && !(pathname === '/api/users' && method === 'POST')) {
       if (!AUTH_CONFIGURED) {
@@ -117,6 +142,8 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       };
     }
 
+    const currentUserId = authUser?.id || '';
+
     if (pathname === '/api/me' && method === 'GET') {
       const user = authUser ? await getUserById(authUser.id) : null;
       if (!user) {
@@ -124,6 +151,37 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         return;
       }
       sendJson(res, 200, { user });
+      return;
+    }
+
+    if (pathname === '/api/me/google-link' && method === 'POST') {
+      if (!GOOGLE_AUTH_CONFIGURED) {
+        sendJson(res, 500, { ok: false, error: 'Google auth is not configured on the server' });
+        return;
+      }
+
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const idToken = String((body as any)?.idToken || '').trim();
+        if (!idToken) {
+          sendJson(res, 400, { ok: false, error: 'Missing Google credential' });
+          return;
+        }
+
+        const profile = await verifyGoogleIdToken(idToken);
+        const user = await linkGoogleAccount({
+          userId: currentUserId,
+          ...profile,
+        });
+        if (!user) {
+          sendJson(res, 404, { ok: false, error: 'User not found' });
+          return;
+        }
+
+        sendJson(res, 200, { ok: true, user });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Unable to link Google account' });
+      }
       return;
     }
 
@@ -154,8 +212,6 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       sendJson(res, 401, { ok: false, error: 'Unauthorized' });
       return;
     }
-
-    const currentUserId = authUser?.id || '';
 
     if (pathname === '/api/courses' && method === 'GET') {
       sendJson(res, 200, { courses: await listCourses() });
