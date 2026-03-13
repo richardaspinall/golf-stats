@@ -13,7 +13,15 @@ export function HolePicker({ holes, selectedHole, onSelect }: HolePickerProps) {
 
   return (
     <section className="card hole-picker" aria-label="hole picker">
-      <h2>Select hole</h2>
+      <div className="hole-picker-header">
+        <div>
+          <p className="section-kicker">Hole rail</p>
+          <h2>Move through the round</h2>
+        </div>
+        <p className="hole-picker-progress">
+          Hole {selectedHole} / {holes.length}
+        </p>
+      </div>
       <div className="hole-grid">
         <button
           type="button"

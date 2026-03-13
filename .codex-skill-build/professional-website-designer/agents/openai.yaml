@@ -1,0 +1,4 @@
+interface:
+  display_name: "Professional Website Designer"
+  short_description: "Design polished professional websites"
+  default_prompt: "Use $professional-website-designer to design a polished, conversion-focused website experience for this brief."

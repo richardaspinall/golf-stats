@@ -664,6 +664,9 @@ export default function App() {
   const totals = useMemo(() => {
     return computeTotalsForStats(statsByHole, activeCourse?.markers, roundHandicap);
   }, [activeCourse?.markers, roundHandicap, statsByHole]);
+  const completedHoleCount = useMemo(() => {
+    return HOLES.reduce((count, hole) => count + (Number(statsByHole[hole]?.score || 0) > 0 ? 1 : 0), 0);
+  }, [statsByHole]);
 
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => updateHoleCounter(prev, hole, statKey, delta));
@@ -1423,16 +1426,20 @@ export default function App() {
   return (
     <main className="app">
       <header className="header">
-        <h1>Golf Stat Tracker</h1>
-        {currentUser ? (
-          <p className="hint">
-            Signed in as {currentUser.displayName || currentUser.username}
-            {currentUser.googleLinked ? ' · Google linked' : ''}
+        <div className="header-copy">
+          <p className="section-kicker">Performance dashboard</p>
+          <h1>Golf Stat Tracker</h1>
+          <p className="header-subtitle">
+            {activeRound?.name || 'No round selected'}
+            {activeCourse?.name ? ` · ${activeCourse.name}` : ''}
+            {currentUser ? ` · ${currentUser.displayName || currentUser.username}` : ''}
+            {currentUser?.googleLinked ? ' · Google linked' : ''}
           </p>
-        ) : null}
+        </div>
         {!showNewRoundForm ? (
           <div className="header-controls">
             <button
+              type="button"
               onClick={() => {
                 setNewRoundCourseId(selectedCourseId);
                 setNewRoundHandicap('');
@@ -1551,22 +1558,35 @@ export default function App() {
       ) : null}
       {!showNewRoundForm ? (
         <>
-          <SavePill state={saveState} />
+          <section className="shell-toolbar" aria-label="app navigation">
+            <SavePill state={saveState} />
 
-          <PageTabs
-            activePage={page}
-            onChange={setPage}
-            tabs={[
-              { key: 'track', label: 'Track', icon: <TrackTabIcon /> },
-              { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
-              { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
-              { key: 'totals', label: 'Round totals', icon: <TotalsTabIcon /> },
-            ]}
-          />
+            <PageTabs
+              activePage={page}
+              onChange={setPage}
+              tabs={[
+                { key: 'track', label: 'Track', icon: <TrackTabIcon /> },
+                { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
+                { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
+                { key: 'totals', label: 'Round totals', icon: <TotalsTabIcon /> },
+              ]}
+            />
+          </section>
 
           {page === 'track' ? (
             <TrackPage
-              round={{ selectedHole, displayHoleIndex, displayHolePar, activeRound, holeStats, selectedRoundId, saveState }}
+              round={{
+                selectedHole,
+                displayHoleIndex,
+                displayHolePar,
+                activeRound,
+                activeCourseName: activeCourse?.name,
+                holeStats,
+                selectedRoundId,
+                saveState,
+                totals,
+                completedHoleCount,
+              }}
               distance={{
                 showDistanceTracker,
                 targetDistanceMeters,

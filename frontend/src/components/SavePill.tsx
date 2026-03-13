@@ -3,6 +3,11 @@ type SavePillProps = {
 };
 
 export function SavePill({ state }: SavePillProps) {
-  return <span className={`save-pill ${state}`}>Save: {state}</span>;
+  return (
+    <span className={`save-pill ${state}`}>
+      <span className="save-pill-dot" aria-hidden="true" />
+      <span className="save-pill-label">Sync</span>
+      <strong>{state}</strong>
+    </span>
+  );
 }
-

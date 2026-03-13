@@ -12,7 +12,7 @@ import {
   SHOT_SETUP_OPTIONS,
   SWING_CLOCK_OPTIONS,
 } from '../../lib/constants';
-import type { HoleStats, RoundListItem } from '../../types';
+import type { HoleStats, RoundListItem, RoundSummaryTotals } from '../../types';
 
 const LEFT_OFFLINE_OPTIONS = [-5, -10, -15];
 const RIGHT_OFFLINE_OPTIONS = [5, 10, 15];
@@ -23,9 +23,12 @@ type TrackPageProps = {
     displayHoleIndex: number;
     displayHolePar: number | null;
     activeRound?: RoundListItem;
+    activeCourseName?: string;
     holeStats: HoleStats;
     selectedRoundId: string;
     saveState: string;
+    totals: RoundSummaryTotals;
+    completedHoleCount: number;
   };
   distance: {
     showDistanceTracker: boolean;
@@ -70,7 +73,18 @@ type TrackPageProps = {
 
 export function TrackPage({ round, distance, actions, helpers }: TrackPageProps) {
   const [showAdvancedDistanceOptions, setShowAdvancedDistanceOptions] = useState(false);
-  const { selectedHole, displayHoleIndex, displayHolePar, activeRound, holeStats, selectedRoundId, saveState } = round;
+  const {
+    selectedHole,
+    displayHoleIndex,
+    displayHolePar,
+    activeRound,
+    activeCourseName,
+    holeStats,
+    selectedRoundId,
+    saveState,
+    totals,
+    completedHoleCount,
+  } = round;
   const holeIndexClass =
     displayHoleIndex <= 6 ? 'hole-index hole-index-hard' : displayHoleIndex <= 12 ? 'hole-index hole-index-mid' : 'hole-index hole-index-easy';
   const {
@@ -109,6 +123,16 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
     saveAndNextHole,
   } = actions;
   const { metersToPaces, pacesToMeters } = helpers;
+  const visibleCounterSections = NON_OOP_COUNTER_SECTIONS.filter((section) => {
+    const shouldShowInside100 = ['girLeft', 'girRight', 'girLong', 'girShort'].includes(String(holeStats.girSelection));
+    return section.title === 'Inside 100 (Over 3 within 100m score)' || section.title === 'Up & Down' ? shouldShowInside100 : true;
+  });
+  const scoreToPar = totals.score - totals.par;
+  const scoreToParLabel = scoreToPar === 0 ? 'Level par' : scoreToPar > 0 ? `+${scoreToPar}` : `${scoreToPar}`;
+  const totalScoreLabel = selectedRoundId ? totals.score : '—';
+  const fairwayHitsLabel = selectedRoundId ? totals.fairwayHit : '—';
+  const girHitsLabel = selectedRoundId ? totals.girHit : '—';
+  const stablefordLabel = selectedRoundId ? totals.stableford : '—';
 
   const closeDistancePanel = () => {
     setShowAdvancedDistanceOptions(false);
@@ -125,20 +149,246 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
 
   return (
     <>
+      <section className="card track-hero" aria-label="round snapshot">
+        <div className="track-hero-copy">
+          <p className="section-kicker">Live tracking</p>
+          <h2>{activeRound?.name || 'Start a round to track your data'}</h2>
+          <p className="track-hero-summary">
+            {activeCourseName || 'No course selected'}
+            <span aria-hidden="true"> · </span>
+            Hole {selectedHole} of {HOLES.length}
+            <span aria-hidden="true"> · </span>
+            {completedHoleCount} complete
+          </p>
+        </div>
+        <div className="track-hero-stats">
+          <div className="hero-stat">
+            <span>Total</span>
+            <strong>{totalScoreLabel}</strong>
+            <small>{scoreToParLabel}</small>
+          </div>
+          <div className="hero-stat">
+            <span>Fairways</span>
+            <strong>{fairwayHitsLabel}</strong>
+            <small>Hit</small>
+          </div>
+          <div className="hero-stat">
+            <span>GIR</span>
+            <strong>{girHitsLabel}</strong>
+            <small>Greens</small>
+          </div>
+          <div className="hero-stat">
+            <span>Stableford</span>
+            <strong>{stablefordLabel}</strong>
+            <small>Points</small>
+          </div>
+        </div>
+      </section>
+
       <HolePicker holes={HOLES} selectedHole={selectedHole} onSelect={setSelectedHole} />
 
-      <section className="card" aria-label="hole stats">
-        <div className="hole-header">
-          <h2>Hole {selectedHole}</h2>
-          <span className={holeIndexClass}>
-            Index {displayHoleIndex} | Par {displayHolePar ?? '—'}
-          </span>
+      <section className="track-layout" aria-label="tracking dashboard">
+        <div className="track-primary-column">
+          <section className="card track-hole-overview" aria-label="hole overview">
+            <div className="hole-header">
+              <div>
+                <p className="section-kicker">Current hole</p>
+                <h2>Hole {selectedHole}</h2>
+              </div>
+              <div className="hole-badge-row">
+                <span className="hole-chip">Par {displayHolePar ?? '—'}</span>
+                <span className={holeIndexClass}>Index {displayHoleIndex}</span>
+              </div>
+            </div>
+            <p className="hint">Round: {activeRound?.name || 'No active round selected'}</p>
+
+            <div className="track-overview-grid">
+              <section className="track-score-card">
+                <div className="track-score-card-header">
+                  <div>
+                    <p className="section-kicker">Score control</p>
+                    <h3 className="section-title">Lock in the hole outcome</h3>
+                  </div>
+                  <span className={`status-chip ${saveState}`}>{saveState}</span>
+                </div>
+                <div className="score-orb">
+                  <span className="score-orb-label">Strokes</span>
+                  <strong>{holeStats.score}</strong>
+                </div>
+                <div className="score-adjuster">
+                  <button type="button" onClick={() => updateHoleScore(selectedHole, -1)} aria-label="Decrease score">
+                    −
+                  </button>
+                  <button type="button" onClick={() => updateHoleScore(selectedHole, 1)} aria-label="Increase score">
+                    +
+                  </button>
+                </div>
+                <p className="track-score-caption">Capture score first, then mark tee shot, green outcome, and short-game details below.</p>
+              </section>
+
+              <section className="track-shot-launch">
+                <p className="section-kicker">Shot capture</p>
+                <h3 className="section-title">{showDistanceTracker ? 'Shot setup is open' : 'Log a distance for this hole'}</h3>
+                <p className="hint">
+                  Build a quick record with club, lie, distance, offline pattern, and clock notes for practice review later.
+                </p>
+                {!showDistanceTracker ? (
+                  <button
+                    type="button"
+                    className="save-btn shot-launch-btn"
+                    onClick={() => {
+                      setShowAdvancedDistanceOptions(false);
+                      setShowDistanceTracker(true);
+                      setDistanceMode('setup');
+                    }}
+                  >
+                    Open shot tracker
+                  </button>
+                ) : (
+                  <button type="button" className="setup-toggle shot-launch-btn" onClick={closeDistancePanel}>
+                    Collapse shot tracker
+                  </button>
+                )}
+              </section>
+            </div>
+          </section>
+
+          <div className="track-section-grid">
+            <section className="card target-card">
+              <div className="target-card-header">
+                <div>
+                  <p className="section-kicker">Tee shot</p>
+                  <h3 className="section-title">{FAIRWAY_SECTION.title}</h3>
+                </div>
+                <p className="hint">Mark the starting line and final fairway result.</p>
+              </div>
+              <div className="fairway-menu" role="group" aria-label="Fairway direction">
+                {FAIRWAY_SECTION.options.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={
+                      holeStats.fairwaySelection === option.key
+                        ? `directional-btn ${option.position} active`
+                        : `directional-btn ${option.position}`
+                    }
+                    onClick={() => setFairwaySelection(selectedHole, option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="card target-card">
+              <div className="target-card-header">
+                <div>
+                  <p className="section-kicker">Approach</p>
+                  <h3 className="section-title">{GIR_SECTION.title}</h3>
+                </div>
+                <p className="hint">Track where the approach finished relative to the target.</p>
+              </div>
+              <div className="gir-menu" role="group" aria-label="GIR direction">
+                {GIR_SECTION.options.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={
+                      holeStats.girSelection === option.key
+                        ? `directional-btn ${option.position} active`
+                        : `directional-btn ${option.position}`
+                    }
+                    onClick={() => setGirSelection(selectedHole, option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className="track-stat-grid" aria-label="hole detail counters">
+            {OOP_COUNTER_SECTION ? (
+              <div className="card stat-panel">
+                <div className="stat-panel-header">
+                  <div>
+                    <p className="section-kicker">Recovery</p>
+                    <h3 className="section-title">{OOP_COUNTER_SECTION.title}</h3>
+                  </div>
+                </div>
+                <div className="stat-list">
+                  {OOP_COUNTER_SECTION.options.map((stat) => (
+                    <div key={stat.key} className="stat-row">
+                      <span>{stat.label}</span>
+                      <div className="stat-actions">
+                        <button type="button" onClick={() => updateStats(selectedHole, stat.key, -1)}>
+                          -
+                        </button>
+                        <strong>{Number(holeStats[stat.key] || 0)}</strong>
+                        <button type="button" onClick={() => updateStats(selectedHole, stat.key, 1)}>
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {visibleCounterSections.map((section) => (
+              <div key={section.title} className="card stat-panel">
+                <div className="stat-panel-header">
+                  <div>
+                    <p className="section-kicker">Detail</p>
+                    <h3 className="section-title">{section.title}</h3>
+                  </div>
+                </div>
+                <div className="stat-list">
+                  {section.options.map((stat) => (
+                    <div key={stat.key} className="stat-row">
+                      <span>{stat.label}</span>
+                      <div className="stat-actions">
+                        <button type="button" onClick={() => updateStats(selectedHole, stat.key, -1)}>
+                          -
+                        </button>
+                        <strong>{Number(holeStats[stat.key] || 0)}</strong>
+                        <button type="button" onClick={() => updateStats(selectedHole, stat.key, 1)}>
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+
+          <section className="manual-save-row hole-save-row track-save-row">
+            <button
+              className="save-btn"
+              onClick={saveCurrentRound}
+              disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
+            >
+              {saveState === 'saving' ? 'Saving...' : 'Save hole'}
+            </button>
+            <button
+              type="button"
+              onClick={saveAndNextHole}
+              disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
+            >
+              Next hole
+            </button>
+          </section>
         </div>
-        <p className="hint">Round: {activeRound?.name || '...'}</p>
-        {showDistanceTracker ? (
-          <div className="distance-tracker active-panel">
+
+        <aside className="track-secondary-column">
+          {showDistanceTracker ? (
+            <section className="distance-tracker active-panel track-shot-panel">
             <div className="card-header close-header">
-              <h3 className="section-title">Track distance</h3>
+              <div>
+                <p className="section-kicker">Shot tracker</p>
+                <h3 className="section-title">Track distance</h3>
+              </div>
               <button type="button" className="icon-close-btn" aria-label="Close track distance" onClick={closeDistancePanel}>
                 ×
               </button>
@@ -370,133 +620,46 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
               </button>
             </div>
             {shotLogSaveState !== 'idle' ? <p className="hint">Shot log save: {shotLogSaveState}</p> : null}
-          </div>
-        ) : (
-          <>
-            <div className="track-distance-row">
+          </section>
+          ) : (
+            <section className="card track-shot-placeholder" aria-label="shot tracker preview">
+              <p className="section-kicker">Shot tracker</p>
+              <h3 className="section-title">Ready for the next strike</h3>
+              <p className="hint">
+                Open the tracker when you want to store club choice, lie, actual yardage, dispersion, and setup cues.
+              </p>
+              <div className="shot-placeholder-grid">
+                <div className="placeholder-stat">
+                  <span>Club</span>
+                  <strong>{clubSelection || 'Not set'}</strong>
+                </div>
+                <div className="placeholder-stat">
+                  <span>Lie</span>
+                  <strong>{lieSelection || 'Not set'}</strong>
+                </div>
+                <div className="placeholder-stat">
+                  <span>Distance</span>
+                  <strong>{actualDistanceUnit === 'meters' ? `${actualDistanceMeters}m` : `${actualDistancePaces} paces`}</strong>
+                </div>
+                <div className="placeholder-stat">
+                  <span>Clock</span>
+                  <strong>{swingClock || 'Not set'}</strong>
+                </div>
+              </div>
               <button
                 type="button"
+                className="save-btn shot-launch-btn"
                 onClick={() => {
                   setShowAdvancedDistanceOptions(false);
                   setShowDistanceTracker(true);
                   setDistanceMode('setup');
                 }}
               >
-                Track distance
+                Open shot tracker
               </button>
-            </div>
-            <div className="stat-section">
-              <h3 className="section-title">Hole details</h3>
-              <div className="stat-list">
-                <div className="stat-row">
-                  <span>Score</span>
-                  <div className="stat-actions">
-                    <button onClick={() => updateHoleScore(selectedHole, -1)}>-</button>
-                    <strong>{holeStats.score}</strong>
-                    <button onClick={() => updateHoleScore(selectedHole, 1)}>+</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="stat-section-list">
-              <div className="stat-section">
-                <h3 className="section-title">{FAIRWAY_SECTION.title}</h3>
-                <div className="fairway-menu" role="group" aria-label="Fairway direction">
-                  {FAIRWAY_SECTION.options.map((option) => (
-                    <button
-                      key={option.key}
-                      className={
-                        holeStats.fairwaySelection === option.key
-                          ? `directional-btn ${option.position} active`
-                          : `directional-btn ${option.position}`
-                      }
-                      onClick={() => setFairwaySelection(selectedHole, option.key)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {OOP_COUNTER_SECTION ? (
-                <div className="stat-section">
-                  <h3 className="section-title">{OOP_COUNTER_SECTION.title}</h3>
-                  <div className="stat-list">
-                    {OOP_COUNTER_SECTION.options.map((stat) => (
-                      <div key={stat.key} className="stat-row">
-                        <span>{stat.label}</span>
-                        <div className="stat-actions">
-                          <button onClick={() => updateStats(selectedHole, stat.key, -1)}>-</button>
-                          <strong>{Number(holeStats[stat.key] || 0)}</strong>
-                          <button onClick={() => updateStats(selectedHole, stat.key, 1)}>+</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="stat-section">
-                <h3 className="section-title">{GIR_SECTION.title}</h3>
-                <div className="gir-menu" role="group" aria-label="GIR direction">
-                  {GIR_SECTION.options.map((option) => (
-                    <button
-                      key={option.key}
-                      className={
-                        holeStats.girSelection === option.key
-                          ? `directional-btn ${option.position} active`
-                          : `directional-btn ${option.position}`
-                      }
-                      onClick={() => setGirSelection(selectedHole, option.key)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {NON_OOP_COUNTER_SECTIONS.filter((section) => {
-                const shouldShowInside100 =
-                  ['girLeft', 'girRight', 'girLong', 'girShort'].includes(String(holeStats.girSelection));
-                return section.title === 'Inside 100 (Over 3 within 100m score)' || section.title === 'Up & Down'
-                  ? shouldShowInside100
-                  : true;
-              }).map((section) => (
-                <div key={section.title} className="stat-section">
-                  <h3 className="section-title">{section.title}</h3>
-                  <div className="stat-list">
-                    {section.options.map((stat) => (
-                      <div key={stat.key} className="stat-row">
-                        <span>{stat.label}</span>
-                        <div className="stat-actions">
-                          <button onClick={() => updateStats(selectedHole, stat.key, -1)}>-</button>
-                          <strong>{Number(holeStats[stat.key] || 0)}</strong>
-                          <button onClick={() => updateStats(selectedHole, stat.key, 1)}>+</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="manual-save-row hole-save-row">
-              <button
-                className="save-btn"
-                onClick={saveCurrentRound}
-                disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
-              >
-                {saveState === 'saving' ? 'Saving...' : 'Save hole'}
-              </button>
-              <button
-                type="button"
-                onClick={saveAndNextHole}
-                disabled={!selectedRoundId || saveState === 'saving' || saveState === 'loading'}
-              >
-                Next hole
-              </button>
-            </div>
-          </>
-        )}
+            </section>
+          )}
+        </aside>
       </section>
     </>
   );
