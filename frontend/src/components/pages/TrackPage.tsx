@@ -16,6 +16,8 @@ import type { HoleStats, RoundListItem } from '../../types';
 
 const LEFT_OFFLINE_OPTIONS = [-5, -10, -15];
 const RIGHT_OFFLINE_OPTIONS = [5, 10, 15];
+const METER_PRESETS = [30, 50, 75, 100, 125, 150, 175, 200];
+const TARGET_PRESETS = [0, 80, 100, 120, 140, 160];
 
 type TrackPageProps = {
   round: {
@@ -109,6 +111,14 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
     saveAndNextHole,
   } = actions;
   const { metersToPaces, pacesToMeters } = helpers;
+  const scorePresetValues = Array.from(
+    new Set(
+      [Math.max(1, (displayHolePar ?? 4) - 2), Math.max(1, (displayHolePar ?? 4) - 1), displayHolePar ?? 4, (displayHolePar ?? 4) + 1, (displayHolePar ?? 4) + 2].filter(
+        (value) => value > 0,
+      ),
+    ),
+  );
+  const pacesPresets = METER_PRESETS.map((meters) => metersToPaces(meters));
 
   const closeDistancePanel = () => {
     setShowAdvancedDistanceOptions(false);
@@ -121,6 +131,30 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
     const minPaces = metersToPaces(10);
     const maxPaces = metersToPaces(300);
     setActualDistancePaces(Math.max(minPaces, Math.min(maxPaces, actualDistancePaces + delta)));
+  };
+  const setHoleScoreValue = (nextScore: number) => {
+    updateHoleScore(selectedHole, nextScore - holeStats.score);
+  };
+  const getScorePresetLabel = (value: number) => {
+    const par = displayHolePar ?? 4;
+    const diff = value - par;
+    if (diff <= -2) return 'Eagle+';
+    if (diff === -1) return 'Birdie';
+    if (diff === 0) return 'Par';
+    if (diff === 1) return 'Bogey';
+    return 'Double+';
+  };
+  const setCounterValue = (statKey: string, nextValue: number) => {
+    updateStats(selectedHole, statKey, nextValue - Number(holeStats[statKey] || 0));
+  };
+  const toggleCustomCounterInput = (statKey: string) => {
+    const currentValue = Number(holeStats[statKey] || 0);
+    if (currentValue >= 4) {
+      setCounterValue(statKey, Math.max(4, currentValue + 1));
+      return;
+    }
+
+    setCounterValue(statKey, 4);
   };
 
   return (
@@ -152,8 +186,9 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                     <div className="club-row">
                       {group.options.map((club) => (
                         <button
+                          type="button"
                           key={club}
-                          className={clubSelection === club ? 'club-btn active' : 'club-btn'}
+                          className={clubSelection === club ? 'choice-chip active' : 'choice-chip'}
                           onClick={() => setClubSelection((prev) => (prev === club ? '' : club))}
                         >
                           {club}
@@ -170,8 +205,9 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
               <div className="club-row" role="group" aria-label="Lie selection">
                 {LIE_OPTIONS.map((lie) => (
                   <button
+                    type="button"
                     key={lie}
-                    className={lieSelection === lie ? 'club-btn active' : 'club-btn'}
+                    className={lieSelection === lie ? 'choice-chip active' : 'choice-chip'}
                     onClick={() => setLieSelection((prev) => (prev === lie ? '' : lie))}
                   >
                     {lie}
@@ -185,7 +221,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
               <div className="unit-toggle" role="group" aria-label="Actual distance unit">
                 <button
                   type="button"
-                  className={actualDistanceUnit === 'meters' ? 'club-btn active' : 'club-btn'}
+                  className={actualDistanceUnit === 'meters' ? 'choice-chip active' : 'choice-chip'}
                   onClick={() => {
                     setActualDistanceUnit('meters');
                     setActualDistanceMeters(pacesToMeters(actualDistancePaces));
@@ -195,7 +231,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                 </button>
                 <button
                   type="button"
-                  className={actualDistanceUnit === 'paces' ? 'club-btn active' : 'club-btn'}
+                  className={actualDistanceUnit === 'paces' ? 'choice-chip active' : 'choice-chip'}
                   onClick={() => {
                     setActualDistanceUnit('paces');
                     setActualDistancePaces(metersToPaces(actualDistanceMeters));
@@ -206,8 +242,20 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
               </div>
               {actualDistanceUnit === 'meters' ? (
                 <>
+                  <div className="preset-row" role="group" aria-label="Meter presets">
+                    {METER_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        className={actualDistanceMeters === preset ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => setActualDistanceMeters(preset)}
+                      >
+                        {preset}m
+                      </button>
+                    ))}
+                  </div>
                   <div className="distance-header">
-                    <span />
+                    <span>Distance</span>
                     <div className="distance-value-actions">
                       <button type="button" onClick={() => adjustActualDistanceMeters(-1)} aria-label="Decrease meters">
                         -
@@ -229,8 +277,20 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                 </>
               ) : (
                 <>
+                  <div className="preset-row" role="group" aria-label="Pace presets">
+                    {pacesPresets.map((preset, index) => (
+                      <button
+                        key={`${preset}-${index}`}
+                        type="button"
+                        className={actualDistancePaces === preset ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => setActualDistancePaces(preset)}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
                   <div className="distance-header">
-                    <span />
+                    <span>Distance</span>
                     <div className="distance-value-actions">
                       <button type="button" onClick={() => adjustActualDistancePaces(-1)} aria-label="Decrease paces">
                         -
@@ -263,6 +323,18 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
               <div className="distance-advanced">
                 <div className="prototype-block">
                   <h3 className="section-title">Target distance</h3>
+                  <div className="preset-row" role="group" aria-label="Target distance presets">
+                    {TARGET_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        className={targetDistanceMeters === preset ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => setTargetDistanceMeters(preset)}
+                      >
+                        {preset === 0 ? 'Off' : `${preset}m`}
+                      </button>
+                    ))}
+                  </div>
                   <div className="distance-header">
                     <span>Distance</span>
                     <strong>{targetDistanceMeters === 0 ? 'Off' : `${targetDistanceMeters}m`}</strong>
@@ -297,7 +369,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                           <button
                             key={value}
                             type="button"
-                            className={offlineMeters === value ? 'club-btn offline-btn active' : 'club-btn offline-btn'}
+                            className={offlineMeters === value ? 'choice-chip offline-btn active' : 'choice-chip offline-btn'}
                             onClick={() => setOfflineMeters(value)}
                           >
                             {label}
@@ -308,7 +380,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                     <div className="offline-center">
                       <button
                         type="button"
-                        className={offlineMeters === 0 ? 'club-btn offline-btn active' : 'club-btn offline-btn'}
+                        className={offlineMeters === 0 ? 'choice-chip offline-btn active' : 'choice-chip offline-btn'}
                         onClick={() => setOfflineMeters(offlineMeters === 0 ? null : 0)}
                       >
                         On line
@@ -321,7 +393,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                           <button
                             key={value}
                             type="button"
-                            className={offlineMeters === value ? 'club-btn offline-btn active' : 'club-btn offline-btn'}
+                            className={offlineMeters === value ? 'choice-chip offline-btn active' : 'choice-chip offline-btn'}
                             onClick={() => setOfflineMeters(value)}
                           >
                             {label}
@@ -337,8 +409,9 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                   <div className="quick-notes-row" role="group" aria-label="Setup note buttons">
                     {SHOT_SETUP_OPTIONS.map((option) => (
                       <button
+                        type="button"
                         key={option.key}
-                        className={setupSelection === option.key ? 'quick-note-btn active' : 'quick-note-btn'}
+                        className={setupSelection === option.key ? 'choice-chip active' : 'choice-chip'}
                         onClick={() => toggleSetupSelection(option.key)}
                       >
                         {option.label}
@@ -352,8 +425,9 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                   <div className="clock-row" role="group" aria-label="Swing clock">
                     {SWING_CLOCK_OPTIONS.map((clock) => (
                       <button
+                        type="button"
                         key={clock}
-                        className={swingClock === clock ? 'clock-btn active' : 'clock-btn'}
+                        className={swingClock === clock ? 'choice-chip active' : 'choice-chip'}
                         onClick={() => setSwingClock((prev) => (prev === clock ? '' : clock))}
                       >
                         {clock}
@@ -391,11 +465,24 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                 <div className="stat-row">
                   <span>Score</span>
                   <div className="stat-actions">
-                    <button onClick={() => updateHoleScore(selectedHole, -1)}>-</button>
+                    <button type="button" onClick={() => updateHoleScore(selectedHole, -1)}>-</button>
                     <strong>{holeStats.score}</strong>
-                    <button onClick={() => updateHoleScore(selectedHole, 1)}>+</button>
+                    <button type="button" onClick={() => updateHoleScore(selectedHole, 1)}>+</button>
                   </div>
                 </div>
+              </div>
+              <div className="score-preset-grid" role="group" aria-label="Score presets">
+                {scorePresetValues.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={holeStats.score === value ? 'score-preset active' : 'score-preset'}
+                    onClick={() => setHoleScoreValue(value)}
+                  >
+                    <strong>{value}</strong>
+                    <span>{getScorePresetLabel(value)}</span>
+                  </button>
+                ))}
               </div>
             </div>
             <div className="stat-section-list">
@@ -421,19 +508,54 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
               {OOP_COUNTER_SECTION ? (
                 <div className="stat-section">
                   <h3 className="section-title">{OOP_COUNTER_SECTION.title}</h3>
-                  <div className="stat-list">
-                    {OOP_COUNTER_SECTION.options.map((stat) => (
-                      <div key={stat.key} className="stat-row">
+                <div className="stat-list">
+                  {OOP_COUNTER_SECTION.options.map((stat) => (
+                    <div key={stat.key} className="counter-tile">
+                      <div className="counter-tile-header">
                         <span>{stat.label}</span>
-                        <div className="stat-actions">
-                          <button onClick={() => updateStats(selectedHole, stat.key, -1)}>-</button>
-                          <strong>{Number(holeStats[stat.key] || 0)}</strong>
-                          <button onClick={() => updateStats(selectedHole, stat.key, 1)}>+</button>
+                        <div className="counter-value-grid" role="group" aria-label={`${stat.label} value`}>
+                          <button
+                            type="button"
+                            className={Number(holeStats[stat.key] || 0) === 0 ? 'counter-value-btn counter-reset-btn active' : 'counter-value-btn counter-reset-btn'}
+                            onClick={() => setCounterValue(stat.key, 0)}
+                          >
+                            0
+                          </button>
+                          {[1, 2, 3].map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              className={Number(holeStats[stat.key] || 0) === value ? 'counter-value-btn active' : 'counter-value-btn'}
+                              onClick={() => setCounterValue(stat.key, value)}
+                            >
+                              {value}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className={Number(holeStats[stat.key] || 0) >= 4 ? 'counter-value-btn active' : 'counter-value-btn'}
+                            onClick={() => toggleCustomCounterInput(stat.key)}
+                            aria-expanded={Number(holeStats[stat.key] || 0) >= 4}
+                            aria-label={`Enter a custom value for ${stat.label}`}
+                          >
+                            +
+                          </button>
+                          {Number(holeStats[stat.key] || 0) >= 4 ? (
+                            <button
+                              type="button"
+                              className="counter-inline-value"
+                              onClick={() => setCounterValue(stat.key, Math.max(4, Number(holeStats[stat.key] || 4) - 1))}
+                              aria-label={`Decrease custom value for ${stat.label}`}
+                            >
+                              {Math.max(4, Number(holeStats[stat.key] || 4))}
+                            </button>
+                          ) : null}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
+              </div>
               ) : null}
 
               <div className="stat-section">
@@ -466,12 +588,47 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                   <h3 className="section-title">{section.title}</h3>
                   <div className="stat-list">
                     {section.options.map((stat) => (
-                      <div key={stat.key} className="stat-row">
-                        <span>{stat.label}</span>
-                        <div className="stat-actions">
-                          <button onClick={() => updateStats(selectedHole, stat.key, -1)}>-</button>
-                          <strong>{Number(holeStats[stat.key] || 0)}</strong>
-                          <button onClick={() => updateStats(selectedHole, stat.key, 1)}>+</button>
+                      <div key={stat.key} className="counter-tile">
+                        <div className="counter-tile-header">
+                          <span>{stat.label}</span>
+                          <div className="counter-value-grid" role="group" aria-label={`${stat.label} value`}>
+                            <button
+                              type="button"
+                              className={Number(holeStats[stat.key] || 0) === 0 ? 'counter-value-btn counter-reset-btn active' : 'counter-value-btn counter-reset-btn'}
+                              onClick={() => setCounterValue(stat.key, 0)}
+                            >
+                              0
+                            </button>
+                            {[1, 2, 3].map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={Number(holeStats[stat.key] || 0) === value ? 'counter-value-btn active' : 'counter-value-btn'}
+                                onClick={() => setCounterValue(stat.key, value)}
+                              >
+                                {value}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              className={Number(holeStats[stat.key] || 0) >= 4 ? 'counter-value-btn active' : 'counter-value-btn'}
+                              onClick={() => toggleCustomCounterInput(stat.key)}
+                              aria-expanded={Number(holeStats[stat.key] || 0) >= 4}
+                              aria-label={`Enter a custom value for ${stat.label}`}
+                            >
+                              +
+                            </button>
+                            {Number(holeStats[stat.key] || 0) >= 4 ? (
+                              <button
+                                type="button"
+                                className="counter-inline-value"
+                                onClick={() => setCounterValue(stat.key, Math.max(4, Number(holeStats[stat.key] || 4) - 1))}
+                                aria-label={`Decrease custom value for ${stat.label}`}
+                              >
+                                {Math.max(4, Number(holeStats[stat.key] || 4))}
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     ))}
