@@ -1420,8 +1420,10 @@ export default function App() {
     );
   }
 
+  const appClassName = page === 'track' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : 'app';
+
   return (
-    <main className="app">
+    <main className={appClassName}>
       <header className="header">
         <h1>Golf Stat Tracker</h1>
         {currentUser ? (
