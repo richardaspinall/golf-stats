@@ -200,6 +200,7 @@ export default function App() {
   const [recentEntriesMatrixId, setRecentEntriesMatrixId] = useState(null);
   const [mapSetupHole, setMapSetupHole] = useState(1);
   const [isMapSetupOpen, setIsMapSetupOpen] = useState(false);
+  const [isTrackMapOpen, setIsTrackMapOpen] = useState(false);
 
   const hasLoadedRef = useRef(false);
   const skipNextSaveRef = useRef(false);
@@ -215,6 +216,10 @@ export default function App() {
   const courseEditor = courses.find((course) => course.id === courseEditorId);
   const displayHoleIndex = getDisplayHoleIndex(activeCourse, holeStats, selectedHole);
   const displayHolePar = activeCourse?.markers?.[selectedHole]?.par ?? null;
+  const isMapOpen = page === 'courses' ? isMapSetupOpen : page === 'track' ? isTrackMapOpen : false;
+  const activeMapHole = page === 'courses' ? mapSetupHole : selectedHole;
+  const activeMapCourse = page === 'courses' ? courseEditor : activeCourse;
+  const activeMapCourseId = page === 'courses' ? courseEditorId : activeCourse?.id || '';
   const {
     mapContainerRef,
     selectedHoleRef,
@@ -229,11 +234,11 @@ export default function App() {
     rotationSupportLabel,
     resetMapState,
   } = useCourseMap({
-    page,
-    isMapSetupOpen,
-    mapSetupHole,
-    courseEditorId,
-    courseEditor,
+    isMapOpen,
+    selectedHole: activeMapHole,
+    activeCourseId: activeMapCourseId,
+    activeCourse: activeMapCourse,
+    isInteractive: page === 'courses' && isMapSetupOpen,
     setCourses,
     setCourseSaveState,
   });
@@ -301,6 +306,7 @@ export default function App() {
     setWedgeEntriesByMatrix({});
     setEditingWedgeEntryId(null);
     setRecentEntriesMatrixId(null);
+    setIsTrackMapOpen(false);
     resetMapState();
     hasLoadedRef.current = false;
     skipNextSaveRef.current = false;
@@ -1568,7 +1574,21 @@ export default function App() {
 
           {page === 'track' ? (
             <TrackPage
-              round={{ selectedHole, displayHoleIndex, displayHolePar, activeRound, holeStats, selectedRoundId, saveState }}
+              round={{
+                selectedHole,
+                displayHoleIndex,
+                displayHolePar,
+                activeRound,
+                activeCourse,
+                holeStats,
+                selectedRoundId,
+                saveState,
+                isTrackMapOpen,
+                teeToGreenMeters,
+                mapStatusLabel,
+                rotationSupportLabel,
+                mapDebugInfo,
+              }}
               distance={{
                 showDistanceTracker,
                 targetDistanceMeters,
@@ -1603,6 +1623,12 @@ export default function App() {
                 setGirSelection,
                 saveCurrentRound,
                 saveAndNextHole,
+                setIsTrackMapOpen,
+              }}
+              map={{
+                googleMapsMapId: GOOGLE_MAPS_MAP_ID,
+                googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+                mapContainerRef,
               }}
               helpers={{ metersToPaces, pacesToMeters }}
             />

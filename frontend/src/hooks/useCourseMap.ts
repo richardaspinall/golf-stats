@@ -7,13 +7,13 @@ import { loadGoogleMapsScript } from '../lib/googleMaps';
 import type { Course } from '../types';
 
 type UseCourseMapArgs = {
-  page: string;
-  isMapSetupOpen: boolean;
-  mapSetupHole: number;
-  courseEditorId: string;
-  courseEditor?: Course;
-  setCourses: Dispatch<SetStateAction<Course[]>>;
-  setCourseSaveState: Dispatch<SetStateAction<string>>;
+  isMapOpen: boolean;
+  selectedHole: number;
+  activeCourseId: string;
+  activeCourse?: Course;
+  isInteractive?: boolean;
+  setCourses?: Dispatch<SetStateAction<Course[]>>;
+  setCourseSaveState?: Dispatch<SetStateAction<string>>;
 };
 
 const MAP_STATUS_LABELS: Record<string, string> = {
@@ -32,11 +32,11 @@ const MAP_PLACEMENT_LABELS: Record<string, string> = {
 };
 
 export function useCourseMap({
-  page,
-  isMapSetupOpen,
-  mapSetupHole,
-  courseEditorId,
-  courseEditor,
+  isMapOpen,
+  selectedHole,
+  activeCourseId,
+  activeCourse,
+  isInteractive = false,
   setCourses,
   setCourseSaveState,
 }: UseCourseMapArgs) {
@@ -48,7 +48,7 @@ export function useCourseMap({
   const [mapDebugInfo, setMapDebugInfo] = useState<any>(null);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const selectedHoleRef = useRef(mapSetupHole);
+  const selectedHoleRef = useRef(selectedHole);
   const mapInstanceRef = useRef<any>(null);
   const mapPlacementModeRef = useRef('idle');
   const teeMarkerRef = useRef<any>(null);
@@ -58,8 +58,8 @@ export function useCourseMap({
   const lastAutoHeadingRef = useRef<number | null>(null);
   const mapInteractiveRef = useRef(false);
 
-  const teePosition = courseEditor?.markers?.[mapSetupHole]?.teePosition ?? null;
-  const greenPosition = courseEditor?.markers?.[mapSetupHole]?.greenPosition ?? null;
+  const teePosition = activeCourse?.markers?.[selectedHole]?.teePosition ?? null;
+  const greenPosition = activeCourse?.markers?.[selectedHole]?.greenPosition ?? null;
 
   const mapStatusLabel = MAP_STATUS_LABELS[mapStatus] || 'Idle';
   const mapPlacementLabel = MAP_PLACEMENT_LABELS[mapPlacementMode] || 'Click to place';
@@ -80,8 +80,7 @@ export function useCourseMap({
   };
 
   useEffect(() => {
-    const shouldShowMap = page === 'courses' && isMapSetupOpen;
-    if (!shouldShowMap) {
+    if (!isMapOpen) {
       return;
     }
 
@@ -150,14 +149,14 @@ export function useCourseMap({
           const mode = mapPlacementModeRef.current;
           const next = { lat: event.latLng.lat(), lng: event.latLng.lng() };
           const hole = selectedHoleRef.current;
-          if (!courseEditorId) {
+          if (!activeCourseId || !setCourses || !setCourseSaveState) {
             return;
           }
 
           if (mode === 'tee' || mode === 'green') {
             setCourses((prev) =>
               prev.map((course) =>
-                course.id === courseEditorId
+                course.id === activeCourseId
                   ? {
                       ...course,
                       markers: {
@@ -214,11 +213,10 @@ export function useCourseMap({
     return () => {
       cancelled = true;
     };
-  }, [page, isMapSetupOpen, courseEditorId, setCourseSaveState, setCourses]);
+  }, [activeCourseId, isMapOpen, setCourseSaveState, setCourses]);
 
   useEffect(() => {
-    const shouldShowMap = page === 'courses' && isMapSetupOpen;
-    if (shouldShowMap) {
+    if (isMapOpen) {
       return;
     }
 
@@ -240,45 +238,69 @@ export function useCourseMap({
     }
     mapInstanceRef.current = null;
     setMapStatus('idle');
-  }, [page, isMapSetupOpen]);
+  }, [isMapOpen]);
 
   useEffect(() => {
     mapPlacementModeRef.current = mapPlacementMode;
   }, [mapPlacementMode]);
 
   useEffect(() => {
-    selectedHoleRef.current = mapSetupHole;
-  }, [mapSetupHole]);
+    selectedHoleRef.current = selectedHole;
+  }, [selectedHole]);
 
   useEffect(() => {
-    if (page === 'courses' && isMapSetupOpen) {
+    if (isMapOpen) {
       setMapViewportVersion((prev) => prev + 1);
     }
-  }, [page, isMapSetupOpen, mapSetupHole, courseEditorId]);
+  }, [activeCourseId, isMapOpen, selectedHole]);
 
   useEffect(() => {
     lastAutoHeadingRef.current = null;
-  }, [mapSetupHole, isMapSetupOpen]);
+  }, [isMapOpen, selectedHole]);
 
   useEffect(() => {
-    mapInteractiveRef.current = page === 'courses' && isMapSetupOpen;
-  }, [page, isMapSetupOpen]);
+    mapInteractiveRef.current = isMapOpen && isInteractive;
+  }, [isInteractive, isMapOpen]);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google?.maps) {
       return;
     }
 
+    const teeIcon = {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="12" fill="rgba(24, 72, 39, 0.88)" />
+          <path d="M18 7 L24 15 H12 Z" fill="#ffffff" />
+          <rect x="17" y="15" width="2" height="10" rx="1" fill="#ffffff" />
+        </svg>
+      `)}`,
+      scaledSize: new window.google.maps.Size(36, 36),
+      anchor: new window.google.maps.Point(18, 18),
+    };
+    const greenIcon = {
+      url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="14" fill="rgba(255,255,255,0.15)" stroke="#ffffff" stroke-width="2.5"/>
+          <circle cx="20" cy="20" r="9" fill="rgba(255,255,255,0.12)" stroke="#ffffff" stroke-width="2"/>
+          <circle cx="20" cy="20" r="4" fill="#ffffff"/>
+        </svg>
+      `)}`,
+      scaledSize: new window.google.maps.Size(40, 40),
+      anchor: new window.google.maps.Point(20, 20),
+    };
+
     if (teePosition) {
       if (!teeMarkerRef.current) {
         teeMarkerRef.current = new window.google.maps.Marker({
           map: mapInstanceRef.current,
           title: 'Tee marker',
-          label: { text: 'T', color: '#1b5e33', fontWeight: '700' },
+          icon: teeIcon,
         });
       } else if (teeMarkerRef.current.getMap() !== mapInstanceRef.current) {
         teeMarkerRef.current.setMap(mapInstanceRef.current);
       }
+      teeMarkerRef.current.setIcon(teeIcon);
       teeMarkerRef.current.setPosition(teePosition);
     } else if (teeMarkerRef.current) {
       teeMarkerRef.current.setMap(null);
@@ -290,11 +312,12 @@ export function useCourseMap({
         greenMarkerRef.current = new window.google.maps.Marker({
           map: mapInstanceRef.current,
           title: 'Green marker',
-          label: { text: 'G', color: '#1b5e33', fontWeight: '700' },
+          icon: greenIcon,
         });
       } else if (greenMarkerRef.current.getMap() !== mapInstanceRef.current) {
         greenMarkerRef.current.setMap(mapInstanceRef.current);
       }
+      greenMarkerRef.current.setIcon(greenIcon);
       greenMarkerRef.current.setPosition(greenPosition);
     } else if (greenMarkerRef.current) {
       greenMarkerRef.current.setMap(null);
@@ -303,8 +326,10 @@ export function useCourseMap({
 
     if (teePosition && greenPosition) {
       const map = mapInstanceRef.current;
-      if (map) {
+      if (map && typeof map.setHeading === 'function') {
         map.setHeading(0);
+      }
+      if (map && typeof map.setTilt === 'function') {
         map.setTilt(0);
       }
 
@@ -345,7 +370,7 @@ export function useCourseMap({
             const ne = mapBounds.getNorthEast();
             const sw = mapBounds.getSouthWest();
             setMapDebugInfo({
-              hole: mapSetupHole,
+              hole: selectedHole,
               tee: teePosition,
               green: greenPosition,
               bounds: { ne: { lat: ne.lat(), lng: ne.lng() }, sw: { lat: sw.lat(), lng: sw.lng() } },
@@ -431,27 +456,45 @@ export function useCourseMap({
         if (!distanceLineRef.current) {
           distanceLineRef.current = new window.google.maps.Polyline({
             map: mapInstanceRef.current,
-            strokeColor: '#1b5e33',
-            strokeOpacity: 0.9,
-            strokeWeight: 3,
+            strokeColor: '#ffffff',
+            strokeOpacity: 0.62,
+            strokeWeight: 2,
           });
         } else if (distanceLineRef.current.getMap() !== mapInstanceRef.current) {
           distanceLineRef.current.setMap(mapInstanceRef.current);
         }
         distanceLineRef.current.setPath([teeLatLng, greenLatLng]);
 
-        const midpoint = { lat: (teePosition.lat + greenPosition.lat) / 2, lng: (teePosition.lng + greenPosition.lng) / 2 };
+        const distanceBadgePosition = geometry?.spherical?.interpolate
+          ? geometry.spherical.interpolate(teeLatLng, greenLatLng, 0.5)
+          : new window.google.maps.LatLng(
+              (teePosition.lat + greenPosition.lat) / 2,
+              (teePosition.lng + greenPosition.lng) / 2,
+            );
+        const distanceBadgeSvg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="21" fill="rgba(20, 34, 24, 0.58)"/>
+            <text x="28" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#ffffff">${meters}m</text>
+          </svg>
+        `;
         if (!distanceLabelRef.current) {
           distanceLabelRef.current = new window.google.maps.Marker({
             map: mapInstanceRef.current,
-            icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 0, strokeOpacity: 0, fillOpacity: 0 },
-            label: { text: `${meters} m`, color: '#1d3557', fontWeight: '700', fontSize: '13px' },
+            icon: {
+              url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(distanceBadgeSvg)}`,
+              scaledSize: new window.google.maps.Size(56, 56),
+              anchor: new window.google.maps.Point(28, 28),
+            },
           });
         } else if (distanceLabelRef.current.getMap() !== mapInstanceRef.current) {
           distanceLabelRef.current.setMap(mapInstanceRef.current);
         }
-        distanceLabelRef.current.setPosition(midpoint);
-        distanceLabelRef.current.setLabel({ text: `${meters} m`, color: '#1d3557', fontWeight: '700', fontSize: '13px' });
+        distanceLabelRef.current.setIcon({
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(distanceBadgeSvg)}`,
+          scaledSize: new window.google.maps.Size(56, 56),
+          anchor: new window.google.maps.Point(28, 28),
+        });
+        distanceLabelRef.current.setPosition(distanceBadgePosition);
       } else {
         setTeeToGreenMeters(null);
         if (distanceLineRef.current) {
@@ -475,7 +518,7 @@ export function useCourseMap({
         distanceLabelRef.current = null;
       }
     }
-  }, [teePosition, greenPosition, mapStatus, mapSetupHole, mapViewportVersion, mapRotationSupport, isMapSetupOpen]);
+  }, [greenPosition, isMapOpen, mapRotationSupport, mapStatus, mapViewportVersion, selectedHole, teePosition]);
 
   return {
     mapContainerRef,

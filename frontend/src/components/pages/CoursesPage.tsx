@@ -323,7 +323,9 @@ function CourseMapCard({ state, actions, map }: CourseMapCardProps) {
           </p>
           {teeToGreenMeters != null ? <p className="hint">Tee to green: {teeToGreenMeters}m</p> : null}
           {mapDebugInfo ? <p className="hint">Map debug: {JSON.stringify(mapDebugInfo)}</p> : null}
-          <div ref={mapContainerRef} className="course-map-canvas" />
+          <div className="map-shell">
+            <div ref={mapContainerRef} className="map-canvas" />
+          </div>
         </>
       ) : null}
     </section>
