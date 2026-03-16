@@ -61,6 +61,8 @@ export const GIR_SECTION = {
   ],
 };
 
+export const GIR_EXTRA_OPTIONS = [{ key: 'girNoChance', label: 'No chance' }] as const;
+
 const getStatSectionOrder = (counterSections: StatSection[]): StatSection[] => {
   const byTitle = new Map(counterSections.map((section) => [section.title, section]));
   const ordered: StatSection[] = [];
@@ -104,9 +106,9 @@ export const STAT_SECTIONS: StatSection[] = [
 export const COUNTER_OPTIONS = COUNTER_SECTIONS.flatMap((section) => section.options);
 export const FAIRWAY_KEYS = FAIRWAY_SECTION.options.map((option) => option.key);
 export const VALID_FAIRWAY_KEYS = new Set(FAIRWAY_KEYS);
-export const GIR_KEYS = GIR_SECTION.options.map((option) => option.key);
+export const GIR_KEYS = [...GIR_SECTION.options.map((option) => option.key), ...GIR_EXTRA_OPTIONS.map((option) => option.key)];
 export const VALID_GIR_KEYS = new Set(GIR_KEYS);
-export const TOTAL_OPTIONS = [...COUNTER_OPTIONS, ...FAIRWAY_SECTION.options, ...GIR_SECTION.options];
+export const TOTAL_OPTIONS = [...COUNTER_OPTIONS, ...FAIRWAY_SECTION.options, ...GIR_SECTION.options, ...GIR_EXTRA_OPTIONS];
 
 export const SHOT_SETUP_OPTIONS = [
   { key: 'openStance', label: 'Open stance' },

@@ -1,10 +1,14 @@
+import { useState } from 'react';
+
 type HolePickerProps = {
   holes: number[];
   selectedHole: number;
+  roundName?: string;
   onSelect: (hole: number) => void;
 };
 
-export function HolePicker({ holes, selectedHole, onSelect }: HolePickerProps) {
+export function HolePicker({ holes, selectedHole, roundName, onSelect }: HolePickerProps) {
+  const [showAllHoles, setShowAllHoles] = useState(false);
   const selectedIndex = holes.indexOf(selectedHole);
   const previousHole = selectedIndex > 0 ? holes[selectedIndex - 1] : null;
   const nextHole = selectedIndex >= 0 && selectedIndex < holes.length - 1 ? holes[selectedIndex + 1] : null;
@@ -13,7 +17,21 @@ export function HolePicker({ holes, selectedHole, onSelect }: HolePickerProps) {
 
   return (
     <section className="card hole-picker" aria-label="hole picker">
-      <h2>Select hole</h2>
+      <div className="hole-picker-header">
+        <div>
+          <p className="hint hole-picker-round">Round: {roundName || '...'}</p>
+          <h2>Select hole</h2>
+        </div>
+        <button
+          type="button"
+          className="setup-toggle hole-grid-toggle"
+          onClick={() => setShowAllHoles((prev) => !prev)}
+          aria-expanded={showAllHoles}
+          aria-controls="all-hole-grid"
+        >
+          {showAllHoles ? 'Hide all' : 'All 18'}
+        </button>
+      </div>
       <div className="hole-grid">
         <button
           type="button"
@@ -46,6 +64,23 @@ export function HolePicker({ holes, selectedHole, onSelect }: HolePickerProps) {
           ›
         </button>
       </div>
+      {showAllHoles ? (
+        <div id="all-hole-grid" className="hole-grid-sheet" role="group" aria-label="All holes">
+          {holes.map((hole) => (
+            <button
+              key={hole}
+              type="button"
+              className={hole === selectedHole ? 'hole-grid-sheet-btn active' : 'hole-grid-sheet-btn'}
+              onClick={() => {
+                onSelect(hole);
+                setShowAllHoles(false);
+              }}
+            >
+              {hole}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
