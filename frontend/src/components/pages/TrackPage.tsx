@@ -100,9 +100,6 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
     saveState,
     isTrackMapOpen,
     teeToGreenMeters,
-    mapStatusLabel,
-    rotationSupportLabel,
-    mapDebugInfo,
   } = round;
   const holeIndexClass =
     displayHoleIndex <= 6 ? 'hole-index hole-index-hard' : displayHoleIndex <= 12 ? 'hole-index hole-index-mid' : 'hole-index hole-index-easy';
@@ -142,7 +139,7 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
     saveAndNextHole,
     setIsTrackMapOpen,
   } = actions;
-  const { googleMapsMapId, googleMapsApiKey, mapContainerRef } = map;
+  const { mapContainerRef } = map;
   const { metersToPaces, pacesToMeters } = helpers;
   const holeMarkers = activeCourse?.markers?.[selectedHole];
   const hasHoleMap = Boolean(holeMarkers?.teePosition || holeMarkers?.greenPosition);
@@ -258,22 +255,12 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
                   <div className="map-header">
                     <div>
                       <h4 className="section-title">Hole map</h4>
-                      <p className="hint">
-                        Status: {mapStatusLabel} | Rotation: {rotationSupportLabel}
-                      </p>
                     </div>
                     <button type="button" className="icon-close-btn" aria-label="Close hole map" onClick={() => setIsTrackMapOpen(false)}>
                       ×
                     </button>
                   </div>
-                  <p className="hint">
-                    Hole {selectedHole} | Map ID: {googleMapsMapId ? 'configured' : 'missing'} | API key:{' '}
-                    {googleMapsApiKey ? 'configured' : 'missing'}
-                  </p>
-                  <p className="hint">{activeCourse ? `Course: ${activeCourse.name}` : 'No course loaded for this round.'}</p>
-                  {teeToGreenMeters != null ? <p className="hint">Tee to green: {teeToGreenMeters}m</p> : null}
                   {!hasHoleMap ? <p className="hint">Add the hole markers on the courses page to frame this hole automatically.</p> : null}
-                  {mapDebugInfo ? <p className="hint">Map debug: {JSON.stringify(mapDebugInfo)}</p> : null}
                   <div className="map-shell">
                     <div ref={mapContainerRef} className="map-canvas" />
                     <div className="track-score-overlay">
