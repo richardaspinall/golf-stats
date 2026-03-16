@@ -238,24 +238,18 @@ function CourseMapCard({ state, actions, map }: CourseMapCardProps) {
     isMapSetupOpen,
     mapSetupHole,
     mapStatus,
-    mapStatusLabel,
-    rotationSupportLabel,
     mapPlacementMode,
     teeToGreenMeters,
-    mapDebugInfo,
     mapPlacementLabel,
   } = state;
   const { setMapPlacementMode, setCourses, setCourseSaveState, setTeeToGreenMeters, setIsMapSetupOpen } = actions;
-  const { googleMapsMapId, googleMapsApiKey, selectedHoleRef, mapContainerRef } = map;
+  const { selectedHoleRef, mapContainerRef } = map;
 
   return (
     <section className="card" aria-label="course map">
       <div className="map-header">
         <div>
           <h3 className="section-title">Hole map</h3>
-          <p className="hint">
-            Status: {mapStatusLabel} | Rotation: {rotationSupportLabel}
-          </p>
         </div>
         <div className="map-controls">
           {isMapSetupOpen ? (
@@ -317,13 +311,10 @@ function CourseMapCard({ state, actions, map }: CourseMapCardProps) {
       {courseEditor && !isMapSetupOpen ? <p className="hint">Choose a hole in Course details to place markers.</p> : null}
       {courseEditor && isMapSetupOpen ? (
         <>
-          <p className="hint">
-            Hole {mapSetupHole} | Mode: {mapPlacementLabel} | Map ID: {googleMapsMapId ? 'configured' : 'missing'} | API key:{' '}
-            {googleMapsApiKey ? 'configured' : 'missing'}
-          </p>
-          {teeToGreenMeters != null ? <p className="hint">Tee to green: {teeToGreenMeters}m</p> : null}
-          {mapDebugInfo ? <p className="hint">Map debug: {JSON.stringify(mapDebugInfo)}</p> : null}
-          <div ref={mapContainerRef} className="course-map-canvas" />
+          <p className="hint">Hole {mapSetupHole} | Mode: {mapPlacementLabel}</p>
+          <div className="map-shell">
+            <div ref={mapContainerRef} className="map-canvas" />
+          </div>
         </>
       ) : null}
     </section>

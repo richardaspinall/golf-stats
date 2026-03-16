@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { RefObject } from 'react';
 
 import { HolePicker } from '../HolePicker';
 import {
@@ -13,7 +14,7 @@ import {
   SHOT_SETUP_OPTIONS,
   SWING_CLOCK_OPTIONS,
 } from '../../lib/constants';
-import type { HoleStats, RoundListItem } from '../../types';
+import type { Course, HoleStats, RoundListItem } from '../../types';
 
 const LEFT_OFFLINE_OPTIONS = [-5, -10, -15];
 const RIGHT_OFFLINE_OPTIONS = [5, 10, 15];
@@ -26,9 +27,15 @@ type TrackPageProps = {
     displayHoleIndex: number;
     displayHolePar: number | null;
     activeRound?: RoundListItem;
+    activeCourse?: Course;
     holeStats: HoleStats;
     selectedRoundId: string;
     saveState: string;
+    isTrackMapOpen: boolean;
+    teeToGreenMeters: number | null;
+    mapStatusLabel: string;
+    rotationSupportLabel: string;
+    mapDebugInfo: unknown;
   };
   distance: {
     showDistanceTracker: boolean;
@@ -64,6 +71,12 @@ type TrackPageProps = {
     setGirSelection: (hole: number, key: string) => void;
     saveCurrentRound: () => Promise<boolean>;
     saveAndNextHole: () => void;
+    setIsTrackMapOpen: (value: boolean) => void;
+  };
+  map: {
+    googleMapsMapId: string;
+    googleMapsApiKey: string;
+    mapContainerRef: RefObject<HTMLDivElement | null>;
   };
   helpers: {
     metersToPaces: (meters: number) => number;
@@ -71,11 +84,23 @@ type TrackPageProps = {
   };
 };
 
-export function TrackPage({ round, distance, actions, helpers }: TrackPageProps) {
+export function TrackPage({ round, distance, actions, map, helpers }: TrackPageProps) {
   const [showAdvancedDistanceOptions, setShowAdvancedDistanceOptions] = useState(false);
   const [showDetailedStats, setShowDetailedStats] = useState(false);
   const [holeHeadingFlash, setHoleHeadingFlash] = useState(false);
-  const { selectedHole, displayHoleIndex, displayHolePar, activeRound, holeStats, selectedRoundId, saveState } = round;
+  const [isTrackMapMenuOpen, setIsTrackMapMenuOpen] = useState(false);
+  const {
+    selectedHole,
+    displayHoleIndex,
+    displayHolePar,
+    activeRound,
+    activeCourse,
+    holeStats,
+    selectedRoundId,
+    saveState,
+    isTrackMapOpen,
+    teeToGreenMeters,
+  } = round;
   const holeIndexClass =
     displayHoleIndex <= 6 ? 'hole-index hole-index-hard' : displayHoleIndex <= 12 ? 'hole-index hole-index-mid' : 'hole-index hole-index-easy';
   const {
@@ -112,8 +137,12 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
     setGirSelection,
     saveCurrentRound,
     saveAndNextHole,
+    setIsTrackMapOpen,
   } = actions;
+  const { mapContainerRef } = map;
   const { metersToPaces, pacesToMeters } = helpers;
+  const holeMarkers = activeCourse?.markers?.[selectedHole];
+  const hasHoleMap = Boolean(holeMarkers?.teePosition || holeMarkers?.greenPosition);
   const scorePresetValues = Array.from(
     new Set(
       [Math.max(1, (displayHolePar ?? 4) - 2), Math.max(1, (displayHolePar ?? 4) - 1), displayHolePar ?? 4, (displayHolePar ?? 4) + 1, (displayHolePar ?? 4) + 2].filter(
@@ -188,6 +217,10 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
     return () => window.clearTimeout(timeoutId);
   }, [selectedHole]);
 
+  useEffect(() => {
+    setIsTrackMapMenuOpen(false);
+  }, [selectedHole, isTrackMapOpen]);
+
   return (
     <>
       <HolePicker holes={HOLES} selectedHole={selectedHole} roundName={activeRound?.name} onSelect={handleSelectHole} />
@@ -205,80 +238,233 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                   Index {displayHoleIndex} | Par {displayHolePar ?? '—'}
                 </span>
               </div>
-              <div className="stat-list">
-                <div className="stat-row">
-                  <span>Score</span>
-                  <div className="stat-actions">
-                    <button type="button" onClick={() => updateHoleScore(selectedHole, -1)}>-</button>
-                    <strong>{holeStats.score}</strong>
-                    <button type="button" onClick={() => updateHoleScore(selectedHole, 1)}>+</button>
-                  </div>
-                </div>
+              <div className="track-hole-actions">
+                <button type="button" onClick={() => setIsTrackMapOpen(!isTrackMapOpen)} disabled={!activeCourse}>
+                  {isTrackMapOpen ? 'Hide map' : 'Show map'}
+                </button>
+                <p className="hint">
+                  {!activeCourse
+                    ? 'No course selected for this round.'
+                    : hasHoleMap
+                      ? 'Saved hole markers are available.'
+                      : 'No tee or green markers saved for this hole yet.'}
+                </p>
               </div>
-              <div className="score-preset-grid" role="group" aria-label="Score presets">
-                {scorePresetValues.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={holeStats.score === value ? 'score-preset active' : 'score-preset'}
-                    onClick={() => setHoleScoreValue(value)}
-                  >
-                    <strong>{value}</strong>
-                    <span>{getScorePresetLabel(value)}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="score-quick-selects">
-                <div className="quick-select-group">
-                  <span className="quick-select-label">Fairway</span>
-                  <div className="quick-select-row" role="group" aria-label="Quick fairway selection">
-                    {quickFairwayOptions.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={holeStats.fairwaySelection === option.key ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setFairwaySelection(selectedHole, option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+              {isTrackMapOpen ? (
+                <div className="track-hole-map active-panel">
+                  <div className="map-header">
+                    <div>
+                      <h4 className="section-title">Hole map</h4>
+                    </div>
+                    <button type="button" className="icon-close-btn" aria-label="Close hole map" onClick={() => setIsTrackMapOpen(false)}>
+                      ×
+                    </button>
+                  </div>
+                  {!hasHoleMap ? <p className="hint">Add the hole markers on the courses page to frame this hole automatically.</p> : null}
+                  <div className="map-shell">
+                    <div ref={mapContainerRef} className="map-canvas" />
+                    <div className="track-score-overlay">
+                      {teeToGreenMeters != null ? <div className="track-map-distance-pill">{teeToGreenMeters}m to green</div> : null}
+                      <div className="track-map-hole-nav">
+                        <button
+                          type="button"
+                          className="track-map-hole-nav-btn"
+                          aria-label="Previous hole"
+                          onClick={() => void handleSelectHole(selectedHole <= 1 ? HOLES[HOLES.length - 1] : selectedHole - 1)}
+                        >
+                          ‹
+                        </button>
+                        <button
+                          type="button"
+                          className={isTrackMapMenuOpen ? 'track-map-hole-trigger active' : 'track-map-hole-trigger'}
+                          aria-expanded={isTrackMapMenuOpen}
+                          aria-label={`Open hole ${selectedHole} menu`}
+                          onClick={() => setIsTrackMapMenuOpen((prev) => !prev)}
+                        >
+                          <span className="track-map-hole-trigger-label">Hole</span>
+                          <strong>{selectedHole}</strong>
+                        </button>
+                        <button
+                          type="button"
+                          className="track-map-hole-nav-btn"
+                          aria-label="Next hole"
+                          onClick={() => void handleSelectHole(selectedHole >= HOLES.length ? HOLES[0] : selectedHole + 1)}
+                        >
+                          ›
+                        </button>
+                      </div>
+                    </div>
+                    {isTrackMapMenuOpen ? (
+                      <div className="track-map-menu-sheet">
+                        <div className="track-map-menu-header">
+                          <div>
+                            <p className="track-map-menu-kicker">Hole {selectedHole}</p>
+                            <h4 className="section-title">Hole menu</h4>
+                          </div>
+                          <button
+                            type="button"
+                            className="icon-close-btn"
+                            aria-label="Close hole menu"
+                            onClick={() => setIsTrackMapMenuOpen(false)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="track-map-menu-section">
+                          <div className="stat-row">
+                            <span>Score</span>
+                            <div className="stat-actions">
+                              <button type="button" onClick={() => updateHoleScore(selectedHole, -1)} aria-label="Decrease score">
+                                -
+                              </button>
+                              <strong>{holeStats.score}</strong>
+                              <button type="button" onClick={() => updateHoleScore(selectedHole, 1)} aria-label="Increase score">
+                                +
+                              </button>
+                            </div>
+                          </div>
+                          <div className="score-preset-grid track-score-preset-grid" role="group" aria-label="Score presets">
+                            {scorePresetValues.map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={holeStats.score === value ? 'score-preset active' : 'score-preset'}
+                                onClick={() => setHoleScoreValue(value)}
+                              >
+                                <strong>{value}</strong>
+                                <span>{getScorePresetLabel(value)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="track-map-menu-section">
+                          <span className="quick-select-label">Fairway</span>
+                          <div className="quick-select-row" role="group" aria-label="Quick fairway selection">
+                            {quickFairwayOptions.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={holeStats.fairwaySelection === option.key ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setFairwaySelection(selectedHole, option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="track-map-menu-section">
+                          <span className="quick-select-label">GIR</span>
+                          <div className="quick-select-row" role="group" aria-label="Quick GIR selection">
+                            {[...quickGirOptions, ...GIR_EXTRA_OPTIONS].map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={holeStats.girSelection === option.key ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setGirSelection(selectedHole, option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="track-map-menu-section">
+                          <span className="quick-select-label">Putts</span>
+                          <div className="quick-select-row" role="group" aria-label="Quick putts selection">
+                            {[0, 1, 2, 3, 4].map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={Number(holeStats.totalPutts || 0) === value ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setCounterValue('totalPutts', value)}
+                              >
+                                {value === 4 ? '4+' : value}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-                <div className="quick-select-group">
-                  <span className="quick-select-label">GIR</span>
-                  <div className="quick-select-row" role="group" aria-label="Quick GIR selection">
-                    {[...quickGirOptions, ...GIR_EXTRA_OPTIONS].map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={holeStats.girSelection === option.key ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setGirSelection(selectedHole, option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+              ) : null}
+              {!isTrackMapOpen ? (
+                <>
+                  <div className="stat-list">
+                    <div className="stat-row">
+                      <span>Score</span>
+                      <div className="stat-actions">
+                        <button type="button" onClick={() => updateHoleScore(selectedHole, -1)}>-</button>
+                        <strong>{holeStats.score}</strong>
+                        <button type="button" onClick={() => updateHoleScore(selectedHole, 1)}>+</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="quick-select-group">
-                  <span className="quick-select-label">Putts</span>
-                  <div className="quick-select-row" role="group" aria-label="Quick putts selection">
-                    {[0, 1, 2, 3, 4].map((value) => (
+                  <div className="score-preset-grid" role="group" aria-label="Score presets">
+                    {scorePresetValues.map((value) => (
                       <button
                         key={value}
                         type="button"
-                        className={Number(holeStats.totalPutts || 0) === value ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setCounterValue('totalPutts', value)}
+                        className={holeStats.score === value ? 'score-preset active' : 'score-preset'}
+                        onClick={() => setHoleScoreValue(value)}
                       >
-                        {value === 4 ? '4+' : value}
+                        <strong>{value}</strong>
+                        <span>{getScorePresetLabel(value)}</span>
                       </button>
                     ))}
                   </div>
-                </div>
-                <div className="detail-options-toggle">
-                  <button type="button" className="setup-toggle detail-options-button" onClick={() => setShowDetailedStats((prev) => !prev)}>
-                    {showDetailedStats ? 'Hide detailed stats' : 'Show detailed stats'}
-                  </button>
-                </div>
+                  <div className="score-quick-selects">
+                    <div className="quick-select-group">
+                      <span className="quick-select-label">Fairway</span>
+                      <div className="quick-select-row" role="group" aria-label="Quick fairway selection">
+                        {quickFairwayOptions.map((option) => (
+                          <button
+                            key={option.key}
+                            type="button"
+                            className={holeStats.fairwaySelection === option.key ? 'choice-chip active' : 'choice-chip'}
+                            onClick={() => setFairwaySelection(selectedHole, option.key)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="quick-select-group">
+                      <span className="quick-select-label">GIR</span>
+                      <div className="quick-select-row" role="group" aria-label="Quick GIR selection">
+                        {[...quickGirOptions, ...GIR_EXTRA_OPTIONS].map((option) => (
+                          <button
+                            key={option.key}
+                            type="button"
+                            className={holeStats.girSelection === option.key ? 'choice-chip active' : 'choice-chip'}
+                            onClick={() => setGirSelection(selectedHole, option.key)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="quick-select-group">
+                      <span className="quick-select-label">Putts</span>
+                      <div className="quick-select-row" role="group" aria-label="Quick putts selection">
+                        {[0, 1, 2, 3, 4].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={Number(holeStats.totalPutts || 0) === value ? 'choice-chip active' : 'choice-chip'}
+                            onClick={() => setCounterValue('totalPutts', value)}
+                          >
+                            {value === 4 ? '4+' : value}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+              <div className="detail-options-toggle">
+                <button type="button" className="setup-toggle detail-options-button" onClick={() => setShowDetailedStats((prev) => !prev)}>
+                  {showDetailedStats ? 'Hide detailed stats' : 'Show detailed stats'}
+                </button>
               </div>
               {!showDetailedStats ? (
                 <div className="track-distance-section">
@@ -297,7 +483,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                 </div>
               ) : null}
             </div>
-            {showDetailedStats ? (
+            {!isTrackMapOpen && showDetailedStats ? (
               <div className="stat-section-list">
                 <div className="stat-section">
                   <h3 className="section-title">{FAIRWAY_SECTION.title}</h3>
@@ -462,7 +648,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                 ))}
               </div>
             ) : null}
-            {showDetailedStats ? (
+            {!isTrackMapOpen && showDetailedStats ? (
               <div className="track-distance-section">
                 <h4 className="section-title">Track distance</h4>
                 <p className="hint">Open the distance tracker to log club, lie, distance and setup details.</p>
@@ -478,7 +664,7 @@ export function TrackPage({ round, distance, actions, helpers }: TrackPageProps)
                 </button>
               </div>
             ) : null}
-            {saveState === 'unsaved' ? (
+            {!isTrackMapOpen && saveState === 'unsaved' ? (
               <div className="manual-save-row hole-save-row hole-save-row-has-mobile-tray">
                 <button
                   className="save-btn"
