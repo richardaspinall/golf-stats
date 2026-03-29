@@ -59,15 +59,14 @@ import { clearAuthToken, loadStoredAuthToken, saveAuthToken } from './lib/storag
 import { buildShotSummary, getDisplayHoleIndex, toggleHoleSelection, updateHoleCounter, updateHoleScoreValue } from './lib/track';
 import { buildWedgeMatrixRows, sortClubsByDefaultOrder } from './lib/wedgeMatrix';
 
-function TrackTabIcon() {
+function VirtualCaddyTabIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 20v-8" />
-      <path d="M17 20v-8" />
-      <path d="M12 20V7" />
-      <path d="M5 12h4" />
-      <path d="M15 9h4" />
-      <path d="M10 7h4" />
+      <path d="M12 4l7 4v8l-7 4-7-4V8l7-4z" />
+      <path d="M12 10a2 2 0 100 4 2 2 0 000-4z" />
+      <path d="M12 2v2" />
+      <path d="M4.6 6l1.7 1" />
+      <path d="M19.4 6l-1.7 1" />
     </svg>
   );
 }
@@ -122,7 +121,7 @@ export default function App() {
   const [googleLinkSuccess, setGoogleLinkSuccess] = useState('');
   const [isGoogleLinking, setIsGoogleLinking] = useState(false);
   const [selectedHole, setSelectedHole] = useState(1);
-  const [page, setPage] = useState('track');
+  const [page, setPage] = useState('virtualCaddy');
   const [rounds, setRounds] = useState([]);
   const [roundSummaries, setRoundSummaries] = useState({});
   const [roundSummariesState, setRoundSummariesState] = useState('idle');
@@ -216,7 +215,7 @@ export default function App() {
   const courseEditor = courses.find((course) => course.id === courseEditorId);
   const displayHoleIndex = getDisplayHoleIndex(activeCourse, holeStats, selectedHole);
   const displayHolePar = activeCourse?.markers?.[selectedHole]?.par ?? null;
-  const isMapOpen = page === 'courses' ? isMapSetupOpen : page === 'track' ? isTrackMapOpen : false;
+  const isMapOpen = page === 'courses' ? isMapSetupOpen : page === 'virtualCaddy' ? isTrackMapOpen : false;
   const activeMapHole = page === 'courses' ? mapSetupHole : selectedHole;
   const activeMapCourse = page === 'courses' ? courseEditor : activeCourse;
   const activeMapCourseId = page === 'courses' ? courseEditorId : activeCourse?.id || '';
@@ -1426,7 +1425,7 @@ export default function App() {
     );
   }
 
-  const appClassName = page === 'track' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : 'app';
+  const appClassName = page === 'virtualCaddy' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : 'app';
 
   return (
     <main className={appClassName}>
@@ -1565,14 +1564,14 @@ export default function App() {
             activePage={page}
             onChange={setPage}
             tabs={[
-              { key: 'track', label: 'Track', icon: <TrackTabIcon /> },
+              { key: 'virtualCaddy', label: 'Virtual caddy', icon: <VirtualCaddyTabIcon /> },
               { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
               { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
               { key: 'totals', label: 'Round totals', icon: <TotalsTabIcon /> },
             ]}
           />
 
-          {page === 'track' ? (
+          {page === 'virtualCaddy' ? (
             <TrackPage
               round={{
                 selectedHole,
