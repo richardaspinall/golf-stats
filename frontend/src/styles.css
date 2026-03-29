@@ -867,7 +867,7 @@ button:disabled {
 .virtual-caddy-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
 }
 
@@ -878,10 +878,6 @@ button:disabled {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #607565;
-}
-
-.virtual-caddy-launch {
-  min-width: 104px;
 }
 
 .virtual-caddy-panel {
@@ -2090,9 +2086,6 @@ button:disabled {
     align-items: stretch;
   }
 
-  .virtual-caddy-launch {
-    width: 100%;
-  }
 }
 
 @media (max-width: 520px) {

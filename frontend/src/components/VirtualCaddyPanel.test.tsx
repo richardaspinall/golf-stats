@@ -12,11 +12,7 @@ afterEach(() => {
 
 describe('VirtualCaddyPanel', () => {
   it('shows a fast recommendation from distance-only input', async () => {
-    const user = userEvent.setup();
-
     render(<VirtualCaddyPanel defaultDistanceMeters={150} onUseRecommendation={vi.fn()} />);
-
-    await user.click(screen.getByRole('button', { name: 'Open caddy' }));
 
     expect(screen.getByText('6i')).toBeTruthy();
     expect(screen.getByText('150m effective')).toBeTruthy();
@@ -28,7 +24,6 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel defaultDistanceMeters={150} onUseRecommendation={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Open caddy' }));
     await user.click(screen.getByRole('button', { name: 'Add detail' }));
     await user.click(screen.getByRole('button', { name: 'Rough' }));
     await user.click(screen.getByRole('button', { name: 'Uphill' }));
@@ -45,7 +40,6 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel defaultDistanceMeters={150} onUseRecommendation={onUseRecommendation} />);
 
-    await user.click(screen.getByRole('button', { name: 'Open caddy' }));
     await user.click(screen.getByRole('button', { name: 'Use in tracker' }));
 
     expect(onUseRecommendation).toHaveBeenCalledWith({

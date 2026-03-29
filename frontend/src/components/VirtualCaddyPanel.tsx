@@ -84,7 +84,6 @@ const toLieSelection = (surface: NonNullable<VirtualCaddyInputs['surface']>) => 
 };
 
 export function VirtualCaddyPanel({ defaultDistanceMeters, carryByClub, onUseRecommendation }: VirtualCaddyPanelProps) {
-  const [showPanel, setShowPanel] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [distanceToMiddleMeters, setDistanceToMiddleMeters] = useState(defaultDistanceMeters ?? 150);
   const [surface, setSurface] = useState<NonNullable<VirtualCaddyInputs['surface']>>('fairway');
@@ -131,16 +130,12 @@ export function VirtualCaddyPanel({ defaultDistanceMeters, carryByClub, onUseRec
           <p className="virtual-caddy-kicker">Virtual Caddy</p>
           <h4 className="section-title">Get a fast club pick before you track the shot</h4>
         </div>
-        <button type="button" className="virtual-caddy-launch" onClick={() => setShowPanel((prev) => !prev)} aria-expanded={showPanel}>
-          {showPanel ? 'Hide caddy' : 'Open caddy'}
-        </button>
       </div>
       <p className="hint">
         Start with middle-of-green distance only. Add lie, wind, slope, and trouble only when you need a tighter recommendation.
       </p>
 
-      {showPanel ? (
-        <div className="virtual-caddy-panel active-panel">
+      <div className="virtual-caddy-panel active-panel">
           <div className="virtual-caddy-step">
             <div className="virtual-caddy-step-header">
               <span className="virtual-caddy-step-number">1</span>
@@ -346,8 +341,7 @@ export function VirtualCaddyPanel({ defaultDistanceMeters, carryByClub, onUseRec
               </div>
             </div>
           ) : null}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }
