@@ -1653,14 +1653,8 @@ export default function App() {
               }}
               actions={{
                 setSelectedHole,
-                setShowDistanceTracker,
-                setDistanceMode,
-                setTargetDistanceMeters,
-                setClubSelection,
-                setLieSelection,
                 saveCurrentRound,
                 executeVirtualCaddyShot,
-                goToTrackPage: () => setPage('track'),
               }}
             />
           ) : page === 'courses' ? (

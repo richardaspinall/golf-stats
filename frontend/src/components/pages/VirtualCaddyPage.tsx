@@ -17,11 +17,6 @@ type VirtualCaddyPageProps = {
   };
   actions: {
     setSelectedHole: (hole: number) => void;
-    setShowDistanceTracker: (value: boolean) => void;
-    setDistanceMode: (value: string) => void;
-    setTargetDistanceMeters: (value: number) => void;
-    setClubSelection: (value: string | ((prev: string) => string)) => void;
-    setLieSelection: (value: string | ((prev: string) => string)) => void;
     saveCurrentRound: () => Promise<boolean>;
     executeVirtualCaddyShot: (payload: {
       hole: number;
@@ -30,24 +25,12 @@ type VirtualCaddyPageProps = {
       shotCategory: 'none' | 'wedge' | 'chip' | 'bunker';
       inside100Over3: boolean;
     }) => void;
-    goToTrackPage: () => void;
   };
 };
 
 export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
   const { selectedHole, displayHoleIndex, displayHolePar, activeRound, activeCourse, holeStats, saveState, teeToGreenMeters, clubCarryByClub } = round;
-  const {
-    setSelectedHole,
-    setShowDistanceTracker,
-    setDistanceMode,
-    setTargetDistanceMeters,
-    setClubSelection,
-    setLieSelection,
-    saveCurrentRound,
-    executeVirtualCaddyShot,
-    goToTrackPage,
-  } =
-    actions;
+  const { setSelectedHole, saveCurrentRound, executeVirtualCaddyShot } = actions;
 
   const handleSelectHole = async (hole: number) => {
     if (hole === selectedHole || saveState === 'saving' || saveState === 'loading') {
@@ -74,9 +57,6 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
             <p className="virtual-caddy-kicker">Virtual Caddy</p>
             <h2>Plan the next shot</h2>
           </div>
-          <button type="button" className="setup-toggle" onClick={goToTrackPage}>
-            Go to track
-          </button>
         </div>
 
         <div className="virtual-caddy-hole-meta">
@@ -114,14 +94,6 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
           hole={selectedHole}
           defaultDistanceMeters={teeToGreenMeters}
           carryByClub={clubCarryByClub}
-          onUseRecommendation={({ club, targetDistanceMeters: nextTargetDistanceMeters, lie }) => {
-            setClubSelection(club);
-            setTargetDistanceMeters(nextTargetDistanceMeters);
-            setLieSelection(lie);
-            setShowDistanceTracker(true);
-            setDistanceMode('setup');
-            goToTrackPage();
-          }}
           onExecuteShot={(execution) => executeVirtualCaddyShot(execution)}
         />
       </section>

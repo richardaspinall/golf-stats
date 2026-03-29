@@ -12,17 +12,17 @@ afterEach(() => {
 
 describe('VirtualCaddyPanel', () => {
   it('shows a fast recommendation from distance-only input', async () => {
-    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onUseRecommendation={vi.fn()} onExecuteShot={vi.fn()} />);
+    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onExecuteShot={vi.fn()} />);
 
     expect(screen.getByText('6i')).toBeTruthy();
     expect(screen.getByText('150m effective')).toBeTruthy();
-    expect(screen.getByText('Use in tracker')).toBeTruthy();
+    expect(screen.getByText('6i for 150m effective. Aim center green.')).toBeTruthy();
   });
 
   it('updates the recommendation when advanced context changes', async () => {
     const user = userEvent.setup();
 
-    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onUseRecommendation={vi.fn()} onExecuteShot={vi.fn()} />);
+    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onExecuteShot={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Add detail' }));
     await user.click(screen.getByRole('button', { name: 'Rough' }));
@@ -34,26 +34,11 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('Left-side trouble: bias the target slightly right of center.')).toBeTruthy();
   });
 
-  it('passes the recommendation into the tracker callback', async () => {
-    const user = userEvent.setup();
-    const onUseRecommendation = vi.fn();
-
-    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onUseRecommendation={onUseRecommendation} onExecuteShot={vi.fn()} />);
-
-    await user.click(screen.getByRole('button', { name: 'Use in tracker' }));
-
-    expect(onUseRecommendation).toHaveBeenCalledWith({
-      club: '6i',
-      targetDistanceMeters: 150,
-      lie: 'Fairway',
-    });
-  });
-
   it('passes the execution outcome into the callback', async () => {
     const user = userEvent.setup();
     const onExecuteShot = vi.fn();
 
-    render(<VirtualCaddyPanel hole={4} defaultDistanceMeters={150} onUseRecommendation={vi.fn()} onExecuteShot={onExecuteShot} />);
+    render(<VirtualCaddyPanel hole={4} defaultDistanceMeters={150} onExecuteShot={onExecuteShot} />);
 
     await user.click(screen.getByRole('button', { name: 'Execute' }));
     await user.click(screen.getByRole('button', { name: 'No look' }));

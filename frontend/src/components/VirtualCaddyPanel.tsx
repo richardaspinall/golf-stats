@@ -62,7 +62,6 @@ type VirtualCaddyPanelProps = {
   hole: number;
   defaultDistanceMeters: number | null;
   carryByClub?: Record<string, number>;
-  onUseRecommendation: (payload: { club: string; targetDistanceMeters: number; lie: string }) => void;
   onExecuteShot: (payload: {
     hole: number;
     scoreDelta: number;
@@ -72,26 +71,7 @@ type VirtualCaddyPanelProps = {
   }) => void;
 };
 
-const toLieSelection = (surface: NonNullable<VirtualCaddyInputs['surface']>) => {
-  switch (surface) {
-    case 'tee':
-      return 'Tee';
-    case 'fairway':
-      return 'Fairway';
-    case 'firstCut':
-      return 'First cut';
-    case 'rough':
-      return 'Rough';
-    case 'bunker':
-      return 'Bunker';
-    case 'recovery':
-      return 'Recovery';
-    default:
-      return 'Fairway';
-  }
-};
-
-export function VirtualCaddyPanel({ hole, defaultDistanceMeters, carryByClub, onUseRecommendation, onExecuteShot }: VirtualCaddyPanelProps) {
+export function VirtualCaddyPanel({ hole, defaultDistanceMeters, carryByClub, onExecuteShot }: VirtualCaddyPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showExecute, setShowExecute] = useState(false);
   const [distanceToMiddleMeters, setDistanceToMiddleMeters] = useState(defaultDistanceMeters ?? 150);
@@ -204,19 +184,6 @@ export function VirtualCaddyPanel({ hole, defaultDistanceMeters, carryByClub, on
               </div>
               <p className="virtual-caddy-summary">{recommendation.summary}</p>
             </div>
-            <button
-              type="button"
-              className="save-btn"
-              onClick={() =>
-                onUseRecommendation({
-                  club: recommendation.recommendedClub,
-                  targetDistanceMeters: recommendation.details.effectiveDistanceMeters,
-                  lie: toLieSelection(surface),
-                })
-              }
-            >
-              Use in tracker
-            </button>
           </div>
 
           <div className="virtual-caddy-actions">
