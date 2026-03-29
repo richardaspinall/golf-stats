@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe('VirtualCaddyPanel', () => {
   it('shows a fast recommendation from distance-only input', async () => {
-    render(<VirtualCaddyPanel defaultDistanceMeters={150} onUseRecommendation={vi.fn()} />);
+    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onUseRecommendation={vi.fn()} onExecuteShot={vi.fn()} />);
 
     expect(screen.getByText('6i')).toBeTruthy();
     expect(screen.getByText('150m effective')).toBeTruthy();
@@ -22,7 +22,7 @@ describe('VirtualCaddyPanel', () => {
   it('updates the recommendation when advanced context changes', async () => {
     const user = userEvent.setup();
 
-    render(<VirtualCaddyPanel defaultDistanceMeters={150} onUseRecommendation={vi.fn()} />);
+    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onUseRecommendation={vi.fn()} onExecuteShot={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Add detail' }));
     await user.click(screen.getByRole('button', { name: 'Rough' }));
@@ -38,7 +38,7 @@ describe('VirtualCaddyPanel', () => {
     const user = userEvent.setup();
     const onUseRecommendation = vi.fn();
 
-    render(<VirtualCaddyPanel defaultDistanceMeters={150} onUseRecommendation={onUseRecommendation} />);
+    render(<VirtualCaddyPanel hole={1} defaultDistanceMeters={150} onUseRecommendation={onUseRecommendation} onExecuteShot={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: 'Use in tracker' }));
 
@@ -46,6 +46,27 @@ describe('VirtualCaddyPanel', () => {
       club: '6i',
       targetDistanceMeters: 150,
       lie: 'Fairway',
+    });
+  });
+
+  it('passes the execution outcome into the callback', async () => {
+    const user = userEvent.setup();
+    const onExecuteShot = vi.fn();
+
+    render(<VirtualCaddyPanel hole={4} defaultDistanceMeters={150} onUseRecommendation={vi.fn()} onExecuteShot={onExecuteShot} />);
+
+    await user.click(screen.getByRole('button', { name: 'Execute' }));
+    await user.click(screen.getByRole('button', { name: 'No look' }));
+    await user.click(screen.getByRole('button', { name: 'Chip shot' }));
+    await user.click(screen.getByRole('button', { name: 'Over 3 inside 100' }));
+    await user.click(screen.getByRole('button', { name: 'Save execution' }));
+
+    expect(onExecuteShot).toHaveBeenCalledWith({
+      hole: 4,
+      scoreDelta: 1,
+      oopResult: 'noLook',
+      shotCategory: 'chip',
+      inside100Over3: true,
     });
   });
 });

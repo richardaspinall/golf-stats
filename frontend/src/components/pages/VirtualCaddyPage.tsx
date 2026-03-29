@@ -23,13 +23,30 @@ type VirtualCaddyPageProps = {
     setClubSelection: (value: string | ((prev: string) => string)) => void;
     setLieSelection: (value: string | ((prev: string) => string)) => void;
     saveCurrentRound: () => Promise<boolean>;
+    executeVirtualCaddyShot: (payload: {
+      hole: number;
+      scoreDelta: number;
+      oopResult: 'none' | 'look' | 'noLook';
+      shotCategory: 'none' | 'wedge' | 'chip' | 'bunker';
+      inside100Over3: boolean;
+    }) => void;
     goToTrackPage: () => void;
   };
 };
 
 export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
   const { selectedHole, displayHoleIndex, displayHolePar, activeRound, activeCourse, holeStats, saveState, teeToGreenMeters, clubCarryByClub } = round;
-  const { setSelectedHole, setShowDistanceTracker, setDistanceMode, setTargetDistanceMeters, setClubSelection, setLieSelection, saveCurrentRound, goToTrackPage } =
+  const {
+    setSelectedHole,
+    setShowDistanceTracker,
+    setDistanceMode,
+    setTargetDistanceMeters,
+    setClubSelection,
+    setLieSelection,
+    saveCurrentRound,
+    executeVirtualCaddyShot,
+    goToTrackPage,
+  } =
     actions;
 
   const handleSelectHole = async (hole: number) => {
@@ -94,6 +111,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
         </div>
 
         <VirtualCaddyPanel
+          hole={selectedHole}
           defaultDistanceMeters={teeToGreenMeters}
           carryByClub={clubCarryByClub}
           onUseRecommendation={({ club, targetDistanceMeters: nextTargetDistanceMeters, lie }) => {
@@ -104,6 +122,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
             setDistanceMode('setup');
             goToTrackPage();
           }}
+          onExecuteShot={(execution) => executeVirtualCaddyShot(execution)}
         />
       </section>
     </>

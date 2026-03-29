@@ -58,6 +58,7 @@ import {
 } from './lib/rounds';
 import { clearAuthToken, loadStoredAuthToken, saveAuthToken } from './lib/storage';
 import { buildShotSummary, getDisplayHoleIndex, toggleHoleSelection, updateHoleCounter, updateHoleScoreValue } from './lib/track';
+import { applyVirtualCaddyExecution } from './lib/virtualCaddyExecution';
 import { buildWedgeMatrixRows, sortClubsByDefaultOrder } from './lib/wedgeMatrix';
 
 function VirtualCaddyTabIcon() {
@@ -685,6 +686,10 @@ export default function App() {
 
   const updateHoleScore = (hole, delta) => {
     setStatsByHole((prev) => updateHoleScoreValue(prev, hole, delta));
+  };
+
+  const executeVirtualCaddyShot = (execution) => {
+    setStatsByHole((prev) => applyVirtualCaddyExecution(prev, execution));
   };
 
   const toggleSetupSelection = (setupKey) => {
@@ -1654,6 +1659,7 @@ export default function App() {
                 setClubSelection,
                 setLieSelection,
                 saveCurrentRound,
+                executeVirtualCaddyShot,
                 goToTrackPage: () => setPage('track'),
               }}
             />

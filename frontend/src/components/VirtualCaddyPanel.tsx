@@ -59,9 +59,17 @@ const HAZARD_OPTIONS: Array<{ key: VirtualCaddyHazardSide; label: string }> = [
 ];
 
 type VirtualCaddyPanelProps = {
+  hole: number;
   defaultDistanceMeters: number | null;
   carryByClub?: Record<string, number>;
   onUseRecommendation: (payload: { club: string; targetDistanceMeters: number; lie: string }) => void;
+  onExecuteShot: (payload: {
+    hole: number;
+    scoreDelta: number;
+    oopResult: 'none' | 'look' | 'noLook';
+    shotCategory: 'none' | 'wedge' | 'chip' | 'bunker';
+    inside100Over3: boolean;
+  }) => void;
 };
 
 const toLieSelection = (surface: NonNullable<VirtualCaddyInputs['surface']>) => {
@@ -83,8 +91,9 @@ const toLieSelection = (surface: NonNullable<VirtualCaddyInputs['surface']>) => 
   }
 };
 
-export function VirtualCaddyPanel({ defaultDistanceMeters, carryByClub, onUseRecommendation }: VirtualCaddyPanelProps) {
+export function VirtualCaddyPanel({ hole, defaultDistanceMeters, carryByClub, onUseRecommendation, onExecuteShot }: VirtualCaddyPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showExecute, setShowExecute] = useState(false);
   const [distanceToMiddleMeters, setDistanceToMiddleMeters] = useState(defaultDistanceMeters ?? 150);
   const [surface, setSurface] = useState<NonNullable<VirtualCaddyInputs['surface']>>('fairway');
   const [lieQuality, setLieQuality] = useState<NonNullable<VirtualCaddyInputs['lieQuality']>>('good');
@@ -93,6 +102,10 @@ export function VirtualCaddyPanel({ defaultDistanceMeters, carryByClub, onUseRec
   const [windDirection, setWindDirection] = useState<NonNullable<VirtualCaddyInputs['windDirection']>>('none');
   const [windStrength, setWindStrength] = useState<NonNullable<VirtualCaddyInputs['windStrength']>>('calm');
   const [hazards, setHazards] = useState<VirtualCaddyHazardSide[]>([]);
+  const [scoreDelta, setScoreDelta] = useState(1);
+  const [oopResult, setOopResult] = useState<'none' | 'look' | 'noLook'>('none');
+  const [shotCategory, setShotCategory] = useState<'none' | 'wedge' | 'chip' | 'bunker'>('none');
+  const [inside100Over3, setInside100Over3] = useState(false);
 
   const recommendation = useMemo(
     () =>
@@ -207,9 +220,14 @@ export function VirtualCaddyPanel({ defaultDistanceMeters, carryByClub, onUseRec
           </div>
 
           <div className="virtual-caddy-actions">
-            <button type="button" className="setup-toggle" onClick={() => setShowAdvanced((prev) => !prev)} aria-expanded={showAdvanced}>
-              {showAdvanced ? 'Hide extra detail' : 'Add detail'}
-            </button>
+            <div className="virtual-caddy-action-buttons">
+              <button type="button" className="setup-toggle" onClick={() => setShowAdvanced((prev) => !prev)} aria-expanded={showAdvanced}>
+                {showAdvanced ? 'Hide extra detail' : 'Add detail'}
+              </button>
+              <button type="button" className="setup-toggle" onClick={() => setShowExecute((prev) => !prev)} aria-expanded={showExecute}>
+                {showExecute ? 'Hide execute' : 'Execute'}
+              </button>
+            </div>
             {hasCustomContext ? <p className="virtual-caddy-state-note">Recommendation adjusted for current conditions.</p> : null}
           </div>
 
@@ -339,6 +357,101 @@ export function VirtualCaddyPanel({ defaultDistanceMeters, carryByClub, onUseRec
                   )}
                 </ul>
               </div>
+            </div>
+          ) : null}
+
+          {showExecute ? (
+            <div className="prototype-block virtual-caddy-execute">
+              <div className="virtual-caddy-step-header">
+                <span className="virtual-caddy-step-number">3</span>
+                <div>
+                  <h5>Execute shot</h5>
+                  <p>Record the stroke and any quick outcome tags right away.</p>
+                </div>
+              </div>
+              <div className="virtual-caddy-execute-grid">
+                <div>
+                  <span className="quick-select-label">Score change</span>
+                  <div className="quick-select-row">
+                    {[1, 2, 3].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={scoreDelta === value ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => setScoreDelta(value)}
+                      >
+                        +{value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="quick-select-label">OOP</span>
+                  <div className="quick-select-row">
+                    {[
+                      { key: 'none', label: 'None' },
+                      { key: 'look', label: 'Look' },
+                      { key: 'noLook', label: 'No look' },
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        className={oopResult === option.key ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => setOopResult(option.key as 'none' | 'look' | 'noLook')}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="quick-select-label">Inside 100 type</span>
+                  <div className="quick-select-row">
+                    {[
+                      { key: 'none', label: 'None' },
+                      { key: 'wedge', label: 'Wedge' },
+                      { key: 'chip', label: 'Chip shot' },
+                      { key: 'bunker', label: 'Bunker' },
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        className={shotCategory === option.key ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => setShotCategory(option.key as 'none' | 'wedge' | 'chip' | 'bunker')}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="quick-select-label">Pressure score</span>
+                  <div className="quick-select-row">
+                    <button
+                      type="button"
+                      className={inside100Over3 ? 'choice-chip active' : 'choice-chip'}
+                      onClick={() => setInside100Over3((prev) => !prev)}
+                    >
+                      Over 3 inside 100
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="save-btn"
+                onClick={() =>
+                  onExecuteShot({
+                    hole,
+                    scoreDelta,
+                    oopResult,
+                    shotCategory,
+                    inside100Over3,
+                  })
+                }
+              >
+                Save execution
+              </button>
             </div>
           ) : null}
       </div>

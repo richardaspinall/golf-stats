@@ -999,6 +999,12 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.virtual-caddy-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .virtual-caddy-state-note {
   margin: 0;
   font-size: 0.82rem;
@@ -1013,6 +1019,15 @@ button:disabled {
 
 .virtual-caddy-notes {
   gap: 8px;
+}
+
+.virtual-caddy-execute {
+  gap: 14px;
+}
+
+.virtual-caddy-execute-grid {
+  display: grid;
+  gap: 12px;
 }
 
 .virtual-caddy-reason-list {
@@ -2084,6 +2099,14 @@ button:disabled {
   .virtual-caddy-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .virtual-caddy-action-buttons {
+    width: 100%;
+  }
+
+  .virtual-caddy-action-buttons .setup-toggle {
+    flex: 1 1 0;
   }
 
 }
