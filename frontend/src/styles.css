@@ -71,7 +71,7 @@ body {
 
 .page-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 6px;
   border: 1px solid #d7e2d1;
@@ -1988,6 +1988,76 @@ button:disabled {
   gap: 8px;
 }
 
+.virtual-caddy-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.virtual-caddy-hole-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 16px;
+  padding: 12px;
+  border: 1px solid #d7e2d1;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(248, 251, 246, 0.96) 0%, rgba(241, 247, 239, 0.96) 100%);
+}
+
+.virtual-caddy-hole-pill {
+  min-width: 70px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #1f6a38;
+  color: #fff;
+  text-align: center;
+}
+
+.virtual-caddy-hole-pill span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.virtual-caddy-hole-pill strong {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.virtual-caddy-hole-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.virtual-caddy-hole-copy strong,
+.virtual-caddy-overview-distance strong {
+  color: #203126;
+}
+
+.virtual-caddy-hole-copy p,
+.virtual-caddy-overview-distance p {
+  margin: 0;
+  color: #49614e;
+}
+
+.virtual-caddy-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.virtual-caddy-overview-values {
+  display: grid;
+  gap: 6px;
+  color: #35543f;
+  font-weight: 600;
+}
+
 @media (max-width: 720px) {
   .wedge-matrix-header {
     flex-direction: column;
@@ -2014,6 +2084,7 @@ button:disabled {
   }
 
   .virtual-caddy-header,
+  .virtual-caddy-page-header,
   .virtual-caddy-actions {
     flex-direction: column;
     align-items: stretch;
@@ -2065,7 +2136,7 @@ button:disabled {
     right: 0;
     bottom: 0;
     z-index: 40;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0;
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
     background: rgba(250, 252, 248, 0.96);
@@ -2082,7 +2153,7 @@ button:disabled {
     flex-direction: column;
     gap: 6px;
     padding: 6px 4px;
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     font-weight: 700;
     color: #4d5d52;
   }
@@ -2095,7 +2166,7 @@ button:disabled {
   .tab-btn-label {
     justify-content: center;
     text-align: center;
-    font-size: 0.72rem;
+    font-size: 0.66rem;
   }
 
   .tab-btn.active {
@@ -2155,6 +2226,15 @@ button:disabled {
 
   .virtual-caddy-club-row strong {
     font-size: 1.7rem;
+  }
+
+  .virtual-caddy-hole-meta,
+  .virtual-caddy-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .virtual-caddy-hole-meta {
+    align-items: flex-start;
   }
 
   .active-panel {

@@ -8,6 +8,7 @@ import { CoursesPage } from './components/pages/CoursesPage';
 import { RoundsPage } from './components/pages/RoundsPage';
 import { TotalsPage } from './components/pages/TotalsPage';
 import { TrackPage } from './components/pages/TrackPage';
+import { VirtualCaddyPage } from './components/pages/VirtualCaddyPage';
 import { WedgeMatrixPage } from './components/pages/WedgeMatrixPage';
 import { useCourseManagement } from './hooks/useCourseManagement';
 import { useCourseMap } from './hooks/useCourseMap';
@@ -215,7 +216,7 @@ export default function App() {
   const courseEditor = courses.find((course) => course.id === courseEditorId);
   const displayHoleIndex = getDisplayHoleIndex(activeCourse, holeStats, selectedHole);
   const displayHolePar = activeCourse?.markers?.[selectedHole]?.par ?? null;
-  const isMapOpen = page === 'courses' ? isMapSetupOpen : page === 'virtualCaddy' ? isTrackMapOpen : false;
+  const isMapOpen = page === 'courses' ? isMapSetupOpen : page === 'track' ? isTrackMapOpen : false;
   const activeMapHole = page === 'courses' ? mapSetupHole : selectedHole;
   const activeMapCourse = page === 'courses' ? courseEditor : activeCourse;
   const activeMapCourseId = page === 'courses' ? courseEditorId : activeCourse?.id || '';
@@ -1425,7 +1426,7 @@ export default function App() {
     );
   }
 
-  const appClassName = page === 'virtualCaddy' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : 'app';
+  const appClassName = page === 'track' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : 'app';
 
   return (
     <main className={appClassName}>
@@ -1564,6 +1565,7 @@ export default function App() {
             activePage={page}
             onChange={setPage}
             tabs={[
+              { key: 'track', label: 'Track', icon: <DistanceTabIcon /> },
               { key: 'virtualCaddy', label: 'Virtual caddy', icon: <VirtualCaddyTabIcon /> },
               { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
               { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
@@ -1571,7 +1573,7 @@ export default function App() {
             ]}
           />
 
-          {page === 'virtualCaddy' ? (
+          {page === 'track' ? (
             <TrackPage
               round={{
                 selectedHole,
@@ -1587,7 +1589,6 @@ export default function App() {
                 mapStatusLabel,
                 rotationSupportLabel,
                 mapDebugInfo,
-                clubCarryByClub,
               }}
               distance={{
                 showDistanceTracker,
@@ -1631,6 +1632,30 @@ export default function App() {
                 mapContainerRef,
               }}
               helpers={{ metersToPaces, pacesToMeters }}
+            />
+          ) : page === 'virtualCaddy' ? (
+            <VirtualCaddyPage
+              round={{
+                selectedHole,
+                displayHoleIndex,
+                displayHolePar,
+                activeRound,
+                activeCourse,
+                holeStats,
+                saveState,
+                teeToGreenMeters,
+                clubCarryByClub,
+              }}
+              actions={{
+                setSelectedHole,
+                setShowDistanceTracker,
+                setDistanceMode,
+                setTargetDistanceMeters,
+                setClubSelection,
+                setLieSelection,
+                saveCurrentRound,
+                goToTrackPage: () => setPage('track'),
+              }}
             />
           ) : page === 'courses' ? (
             <CoursesPage
