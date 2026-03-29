@@ -1588,6 +1588,7 @@ export default function App() {
                 mapStatusLabel,
                 rotationSupportLabel,
                 mapDebugInfo,
+                clubCarryByClub,
               }}
               distance={{
                 showDistanceTracker,

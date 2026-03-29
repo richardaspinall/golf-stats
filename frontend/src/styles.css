@@ -858,6 +858,175 @@ button:disabled {
   gap: 8px;
 }
 
+.virtual-caddy-section {
+  margin-bottom: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.virtual-caddy-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.virtual-caddy-kicker {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #607565;
+}
+
+.virtual-caddy-launch {
+  min-width: 104px;
+}
+
+.virtual-caddy-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(222, 241, 222, 0.9), transparent 36%),
+    linear-gradient(180deg, rgba(251, 253, 249, 0.98) 0%, rgba(240, 247, 237, 0.98) 100%);
+}
+
+.virtual-caddy-step {
+  display: grid;
+  gap: 10px;
+}
+
+.virtual-caddy-step-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.virtual-caddy-step-header h5 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.virtual-caddy-step-header p {
+  margin: 4px 0 0;
+  color: #49614e;
+  font-size: 0.85rem;
+}
+
+.virtual-caddy-step-number {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #235f38;
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(35, 95, 56, 0.18);
+}
+
+.virtual-caddy-distance-block {
+  gap: 12px;
+}
+
+.virtual-caddy-distance-pill {
+  justify-content: flex-start;
+  min-height: 44px;
+  border-radius: 14px;
+  padding: 0 14px;
+  border-color: #c5d7c0;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.virtual-caddy-distance-pill.active {
+  background: linear-gradient(180deg, #eef8f0 0%, #dff1e5 100%);
+  color: #1f6a38;
+  border-color: #b9dcbf;
+}
+
+.virtual-caddy-recommendation {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid #b8d0b9;
+  background: linear-gradient(180deg, rgba(28, 74, 46, 0.98) 0%, rgba(20, 56, 35, 0.98) 100%);
+  color: #eef7ef;
+  box-shadow: 0 16px 28px rgba(27, 57, 38, 0.2);
+}
+
+.virtual-caddy-label {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(235, 246, 237, 0.78);
+}
+
+.virtual-caddy-club-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.virtual-caddy-club-row strong {
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.virtual-caddy-club-row span {
+  color: rgba(235, 246, 237, 0.82);
+  font-weight: 600;
+}
+
+.virtual-caddy-summary {
+  margin: 10px 0 0;
+  color: rgba(235, 246, 237, 0.88);
+}
+
+.virtual-caddy-recommendation .save-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.virtual-caddy-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.virtual-caddy-state-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #35543f;
+  font-weight: 600;
+}
+
+.virtual-caddy-advanced {
+  display: grid;
+  gap: 14px;
+}
+
+.virtual-caddy-notes {
+  gap: 8px;
+}
+
+.virtual-caddy-reason-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: #35543f;
+}
+
 .track-hole-actions {
   margin-top: 14px;
   display: grid;
@@ -1843,6 +2012,16 @@ button:disabled {
     flex-direction: row;
     align-items: flex-start;
   }
+
+  .virtual-caddy-header,
+  .virtual-caddy-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .virtual-caddy-launch {
+    width: 100%;
+  }
 }
 
 @media (max-width: 520px) {
@@ -1955,6 +2134,27 @@ button:disabled {
 
   .distance-tracker {
     gap: 12px;
+  }
+
+  .virtual-caddy-panel {
+    gap: 12px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .virtual-caddy-recommendation {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .virtual-caddy-club-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .virtual-caddy-club-row strong {
+    font-size: 1.7rem;
   }
 
   .active-panel {

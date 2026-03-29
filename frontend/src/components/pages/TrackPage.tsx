@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { RefObject } from 'react';
 
 import { HolePicker } from '../HolePicker';
+import { VirtualCaddyPanel } from '../VirtualCaddyPanel';
 import {
   CLUB_GROUPS,
   FAIRWAY_SECTION,
@@ -36,6 +37,7 @@ type TrackPageProps = {
     mapStatusLabel: string;
     rotationSupportLabel: string;
     mapDebugInfo: unknown;
+    clubCarryByClub: Record<string, number>;
   };
   distance: {
     showDistanceTracker: boolean;
@@ -100,6 +102,7 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
     saveState,
     isTrackMapOpen,
     teeToGreenMeters,
+    clubCarryByClub,
   } = round;
   const holeIndexClass =
     displayHoleIndex <= 6 ? 'hole-index hole-index-hard' : displayHoleIndex <= 12 ? 'hole-index hole-index-mid' : 'hole-index hole-index-easy';
@@ -467,20 +470,34 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
                 </button>
               </div>
               {!showDetailedStats ? (
-                <div className="track-distance-section">
-                  <h4 className="section-title">Track distance</h4>
-                  <p className="hint">Open the distance tracker to log club, lie, distance and setup details.</p>
-                  <button
-                    type="button"
-                    onClick={() => {
+                <>
+                  <VirtualCaddyPanel
+                    defaultDistanceMeters={teeToGreenMeters}
+                    carryByClub={clubCarryByClub}
+                    onUseRecommendation={({ club, targetDistanceMeters: nextTargetDistanceMeters, lie }) => {
+                      setClubSelection(club);
+                      setTargetDistanceMeters(nextTargetDistanceMeters);
+                      setLieSelection(lie);
                       setShowAdvancedDistanceOptions(false);
                       setShowDistanceTracker(true);
                       setDistanceMode('setup');
                     }}
-                  >
-                    Track distance
-                  </button>
-                </div>
+                  />
+                  <div className="track-distance-section">
+                    <h4 className="section-title">Track distance</h4>
+                    <p className="hint">Open the distance tracker to log club, lie, distance and setup details.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAdvancedDistanceOptions(false);
+                        setShowDistanceTracker(true);
+                        setDistanceMode('setup');
+                      }}
+                    >
+                      Track distance
+                    </button>
+                  </div>
+                </>
               ) : null}
             </div>
             {!isTrackMapOpen && showDetailedStats ? (
@@ -649,20 +666,34 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
               </div>
             ) : null}
             {!isTrackMapOpen && showDetailedStats ? (
-              <div className="track-distance-section">
-                <h4 className="section-title">Track distance</h4>
-                <p className="hint">Open the distance tracker to log club, lie, distance and setup details.</p>
-                <button
-                  type="button"
-                  onClick={() => {
+              <>
+                <VirtualCaddyPanel
+                  defaultDistanceMeters={teeToGreenMeters}
+                  carryByClub={clubCarryByClub}
+                  onUseRecommendation={({ club, targetDistanceMeters: nextTargetDistanceMeters, lie }) => {
+                    setClubSelection(club);
+                    setTargetDistanceMeters(nextTargetDistanceMeters);
+                    setLieSelection(lie);
                     setShowAdvancedDistanceOptions(false);
                     setShowDistanceTracker(true);
                     setDistanceMode('setup');
                   }}
-                >
-                  Track distance
-                </button>
-              </div>
+                />
+                <div className="track-distance-section">
+                  <h4 className="section-title">Track distance</h4>
+                  <p className="hint">Open the distance tracker to log club, lie, distance and setup details.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdvancedDistanceOptions(false);
+                      setShowDistanceTracker(true);
+                      setDistanceMode('setup');
+                    }}
+                  >
+                    Track distance
+                  </button>
+                </div>
+              </>
             ) : null}
             {!isTrackMapOpen && saveState === 'unsaved' ? (
               <div className="manual-save-row hole-save-row hole-save-row-has-mobile-tray">
