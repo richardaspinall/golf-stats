@@ -314,7 +314,7 @@ export const saveClubCarryToApi = async (carryByClub: CarryByClub, token: string
 export const saveClubActualToApi = async (
   { club, actualMeters }: { club: string; actualMeters: number },
   token: string,
-): Promise<void> => {
+): Promise<{ id: number; club: string; actualMeters: number; createdAt: string } | null> => {
   const response = await requestApi(API_CLUB_ACTUALS_URL, {
     method: 'POST',
     body: { club, actualMeters },
@@ -324,6 +324,26 @@ export const saveClubActualToApi = async (
   if (!response.ok) {
     throw new ApiError(`Failed to save shot actual (${response.status})`, response.status, await getErrorDetails(response));
   }
+
+  const data = await response.json();
+  const entry = data?.entry;
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+
+  const id = Number(entry.id);
+  const distance = Number(entry.actualMeters);
+  const createdAt = String(entry.createdAt || '');
+  if (!Number.isFinite(id) || id <= 0 || !Number.isFinite(distance) || distance <= 0 || !createdAt) {
+    return null;
+  }
+
+  return {
+    id: Math.floor(id),
+    club: String(entry.club || club),
+    actualMeters: Math.floor(distance),
+    createdAt,
+  };
 };
 
 export const loadClubActualAveragesFromApi = async (token: string): Promise<ClubAverage[]> => {

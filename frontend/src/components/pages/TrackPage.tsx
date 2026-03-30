@@ -223,7 +223,17 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
 
   return (
     <>
-      <HolePicker holes={HOLES} selectedHole={selectedHole} roundName={activeRound?.name} onSelect={handleSelectHole} />
+      <HolePicker
+        holes={HOLES}
+        selectedHole={selectedHole}
+        roundName={activeRound?.name}
+        selectedHoleMeta={{
+          holeIndex: displayHoleIndex,
+          par: displayHolePar,
+          distanceMeters: teeToGreenMeters,
+        }}
+        onSelect={handleSelectHole}
+      />
 
       <section className="card" aria-label="hole stats">
         <>

@@ -4,16 +4,26 @@ type HolePickerProps = {
   holes: number[];
   selectedHole: number;
   roundName?: string;
+  selectedHoleMeta?: {
+    holeIndex?: number | null;
+    par?: number | null;
+    distanceMeters?: number | null;
+  };
   onSelect: (hole: number) => void;
 };
 
-export function HolePicker({ holes, selectedHole, roundName, onSelect }: HolePickerProps) {
+export function HolePicker({ holes, selectedHole, roundName, selectedHoleMeta, onSelect }: HolePickerProps) {
   const [showAllHoles, setShowAllHoles] = useState(false);
   const selectedIndex = holes.indexOf(selectedHole);
   const previousHole = selectedIndex > 0 ? holes[selectedIndex - 1] : null;
   const nextHole = selectedIndex >= 0 && selectedIndex < holes.length - 1 ? holes[selectedIndex + 1] : null;
   const visibleStartIndex = Math.max(0, Math.min(selectedIndex - 1, holes.length - 3));
   const visibleHoles = holes.slice(visibleStartIndex, visibleStartIndex + 3);
+  const holeMetaItems = [
+    selectedHoleMeta?.holeIndex != null ? `Index ${selectedHoleMeta.holeIndex}` : null,
+    selectedHoleMeta?.par != null ? `Par ${selectedHoleMeta.par}` : null,
+    selectedHoleMeta?.distanceMeters != null ? `${selectedHoleMeta.distanceMeters}m` : null,
+  ].filter(Boolean);
 
   return (
     <section className="card hole-picker" aria-label="hole picker">
@@ -46,12 +56,30 @@ export function HolePicker({ holes, selectedHole, roundName, onSelect }: HolePic
           <button
             key={hole}
             type="button"
-            className={hole === selectedHole ? 'hole-btn active' : 'hole-btn hole-btn-adjacent'}
+            className={hole === selectedHole ? 'hole-btn hole-btn-current active' : 'hole-btn hole-btn-adjacent'}
             onClick={() => onSelect(hole)}
             aria-current={hole === selectedHole ? 'page' : undefined}
           >
-            <span className="hole-btn-label">Hole</span>
-            <span className="hole-btn-value">{hole}</span>
+            {hole === selectedHole && holeMetaItems.length > 0 ? (
+              <>
+                <span className="hole-btn-primary">
+                  <span className="hole-btn-label">Hole</span>
+                  <span className="hole-btn-value">{hole}</span>
+                </span>
+                <span className="hole-btn-meta">
+                  {holeMetaItems.map((item) => (
+                    <span key={item} className="hole-btn-meta-item">
+                      {item}
+                    </span>
+                  ))}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="hole-btn-label">Hole</span>
+                <span className="hole-btn-value">{hole}</span>
+              </>
+            )}
           </button>
         ))}
         <button

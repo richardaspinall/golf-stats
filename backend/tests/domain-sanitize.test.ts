@@ -67,10 +67,23 @@ describe('sanitizeStats', () => {
   });
 
   it('accepts valid input', () => {
-    const stats = sanitizeStats(sampleStats());
+    const stats = sanitizeStats({
+      ...sampleStats(),
+      1: {
+        ...sampleStats()[1],
+        virtualCaddyState: {
+          version: 1,
+          trail: [{ label: 'Tee shot' }],
+        },
+      },
+    });
     expect(stats[1].fairwaySelection).toBe(FAIRWAY_KEYS[0]);
     expect(stats[1].girSelection).toBe(GIR_KEYS[0]);
     expect(stats[1].bunkerSelection).toBe(BUNKER_KEYS[0]);
+    expect(stats[1].virtualCaddyState).toEqual({
+      version: 1,
+      trail: [{ label: 'Tee shot' }],
+    });
   });
 });
 

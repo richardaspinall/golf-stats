@@ -14,6 +14,13 @@ export interface StatSection {
   options: StatOption[];
 }
 
+export interface PersistedVirtualCaddyState {
+  version: 1;
+  baseHoleStats: HoleStats;
+  trail: Array<Record<string, unknown>>;
+  draft: Record<string, unknown>;
+}
+
 export interface HoleStats {
   score: number;
   holeIndex: number;
@@ -21,7 +28,8 @@ export interface HoleStats {
   girSelection: string | null;
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
-  [key: string]: number | string | LatLng | null;
+  virtualCaddyState?: PersistedVirtualCaddyState | null;
+  [key: string]: unknown;
 }
 
 export type StatsByHole = Record<number, HoleStats>;

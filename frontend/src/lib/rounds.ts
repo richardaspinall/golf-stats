@@ -29,7 +29,7 @@ export const emptyHoleStats = (): HoleStats =>
       acc[option.key] = 0;
       return acc;
     },
-    { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null, teePosition: null, greenPosition: null } as HoleStats,
+    { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null, teePosition: null, greenPosition: null, virtualCaddyState: null } as HoleStats,
   );
 
 export const emptyTotals = (): RoundSummaryTotals =>
@@ -149,6 +149,8 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
 
     safe[hole].teePosition = sanitizeLatLng(rawStats.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(rawStats.greenPosition);
+    safe[hole].virtualCaddyState =
+      rawStats.virtualCaddyState && typeof rawStats.virtualCaddyState === 'object' ? (rawStats.virtualCaddyState as HoleStats['virtualCaddyState']) : null;
   });
 
   return safe;

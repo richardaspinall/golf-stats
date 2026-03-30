@@ -15,6 +15,7 @@ export const updateHoleCounter = (
   [hole]: {
     ...statsByHole[hole],
     [statKey]: Math.max(0, Number(statsByHole[hole][statKey] ?? 0) + delta),
+    virtualCaddyState: null,
   },
 });
 
@@ -28,6 +29,7 @@ export const toggleHoleSelection = (
   [hole]: {
     ...statsByHole[hole],
     [statKey]: statsByHole[hole][statKey] === nextValue ? null : nextValue,
+    virtualCaddyState: null,
   },
 });
 
@@ -36,6 +38,7 @@ export const updateHoleScoreValue = (statsByHole: StatsByHole, hole: number, del
   [hole]: {
     ...statsByHole[hole],
     score: Math.max(0, statsByHole[hole].score + delta),
+    virtualCaddyState: null,
   },
 });
 
