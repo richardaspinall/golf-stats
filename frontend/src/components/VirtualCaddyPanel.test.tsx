@@ -274,9 +274,11 @@ describe('VirtualCaddyPanel', () => {
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to target'), { target: { value: '40' } });
 
     expect(screen.getByText((_, element) => element?.textContent === '5 wood · 170m')).toBeTruthy();
-    expect(getVisibleDistanceValue()).toBe('40m');
-    expect(screen.getByText('Distance to hole')).toBeTruthy();
-    expect(screen.getByText('80m')).toBeTruthy();
+    const headers = Array.from(document.querySelectorAll('.distance-header'));
+    expect(headers[0]?.textContent).toContain('Distance to green');
+    expect(headers[0]?.textContent).toContain('80m');
+    expect(headers[1]?.textContent).toContain('Distance to target');
+    expect(headers[1]?.textContent).toContain('40m');
   });
 
   it('moves from a green hit into putting', async () => {
@@ -465,7 +467,7 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    await user.click(screen.getByRole('button', { name: '150m' }));
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '150' } });
     await user.click(screen.getByRole('button', { name: 'Left' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 

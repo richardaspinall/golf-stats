@@ -1078,6 +1078,11 @@ button:disabled {
   gap: 12px;
 }
 
+.virtual-caddy-inline-toggle {
+  display: grid;
+  gap: 8px;
+}
+
 .virtual-caddy-distance-pill {
   justify-content: flex-start;
   min-height: 44px;
@@ -2734,7 +2739,7 @@ button:disabled {
 }
 
 .virtual-caddy-slider-row .choice-chip {
-  min-width: 0;
+  min-width: 56px;
   min-height: 38px;
   padding: 0 10px;
   white-space: nowrap;

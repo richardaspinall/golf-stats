@@ -15,7 +15,6 @@ import {
   applyVirtualCaddyTrailToHole,
 } from '../lib/virtualCaddyExecution';
 
-const DISTANCE_PRESETS = [50, 75, 100, 125, 150, 175, 200];
 const CHIPPING_MAX_DISTANCE_METERS = 40;
 
 const SURFACE_OPTIONS: Array<{ key: NonNullable<VirtualCaddyInputs['surface']>; label: string }> = [
@@ -983,7 +982,7 @@ export function VirtualCaddyPanel({
                       </div>
                     ) : null}
                     {isStandardShot ? (
-                      <div className="prototype-block">
+                      <div className="virtual-caddy-inline-toggle">
                         <span className="quick-select-label">Shot target</span>
                         <div className="quick-select-row">
                           <button
@@ -991,7 +990,7 @@ export function VirtualCaddyPanel({
                             className={distanceMode === 'hole' ? 'choice-chip active' : 'choice-chip'}
                             onClick={switchToHoleDistanceMode}
                           >
-                            To hole
+                            To green
                           </button>
                           <button
                             type="button"
@@ -1004,113 +1003,74 @@ export function VirtualCaddyPanel({
                       </div>
                     ) : null}
                     {distanceMode === 'point' ? (
-                      <div className="prototype-block">
-                        <div className="distance-header">
-                          <span>Distance to target</span>
-                          <strong>{distanceToMiddleMeters}m</strong>
-                        </div>
-                        <div className="preset-row" role="group" aria-label="Virtual caddy distance presets">
-                          {DISTANCE_PRESETS.map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              className={distanceToMiddleMeters === preset ? 'choice-chip active' : 'choice-chip'}
-                              onClick={() => setShotDistance(preset)}
-                            >
-                              {preset}m
-                            </button>
-                          ))}
-                          <button type="button" className="setup-toggle" onClick={() => setShotDistance(distanceToHoleMeters)}>
-                            Reset
-                          </button>
-                        </div>
-                        <div className="virtual-caddy-slider-row">
-                          <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters - 5)}>
-                            -5m
-                          </button>
-                          <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters - 1)}>
-                            -1m
-                          </button>
-                          <input
-                            type="range"
-                            min={1}
-                            max={distanceSliderMax}
-                            step={1}
-                            value={Math.min(distanceToMiddleMeters, distanceSliderMax)}
-                            aria-label="Virtual caddy distance to target"
-                            onChange={(event) => setShotDistance(Number(event.target.value))}
-                          />
-                          <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters + 1)}>
-                            +1m
-                          </button>
-                          <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters + 5)}>
-                            +5m
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                    {distanceMode === 'point' ? (
-                      <div className="prototype-block">
-                        <div className="distance-header">
-                          <span>Distance to hole</span>
-                          <strong>{distanceToHoleMeters}m</strong>
-                        </div>
-                        <div className="preset-row" role="group" aria-label="Virtual caddy hole distance presets">
-                          {DISTANCE_PRESETS.map((preset) => (
-                            <button
-                              key={`hole-${preset}`}
-                              type="button"
-                              className={distanceToHoleMeters === preset ? 'choice-chip active' : 'choice-chip'}
-                              onClick={() => setHoleDistance(preset)}
-                            >
-                              {preset}m
-                            </button>
-                          ))}
-                          <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
-                            Reset
-                          </button>
-                        </div>
+                      <>
+                        <div className="prototype-block">
+                          <div className="distance-header">
+                            <span>Distance to green</span>
+                            <strong>{distanceToHoleMeters}m</strong>
+                          </div>
                         <div className="virtual-caddy-slider-row">
                           <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters - 5)}>
                             -5m
                           </button>
-                          <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters - 1)}>
-                            -1m
-                          </button>
-                          <input
-                            type="range"
-                            min={1}
-                            max={distanceSliderMax}
-                            step={1}
-                            value={Math.min(distanceToHoleMeters, distanceSliderMax)}
-                            aria-label="Virtual caddy distance left to hole"
-                            onChange={(event) => setHoleDistance(Number(event.target.value))}
-                          />
-                          <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters + 1)}>
-                            +1m
-                          </button>
-                          <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters + 5)}>
-                            +5m
-                          </button>
+                            <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters - 1)}>
+                              -1m
+                            </button>
+                            <input
+                              type="range"
+                              min={1}
+                              max={distanceSliderMax}
+                              step={1}
+                              value={Math.min(distanceToHoleMeters, distanceSliderMax)}
+                              aria-label="Virtual caddy distance left to hole"
+                              onChange={(event) => setHoleDistance(Number(event.target.value))}
+                            />
+                            <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters + 1)}>
+                              +1m
+                            </button>
+                            <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters + 5)}>
+                              +5m
+                            </button>
+                            <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
+                              Reset
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                        <div className="prototype-block">
+                          <div className="distance-header">
+                            <span>Distance to target</span>
+                            <strong>{distanceToMiddleMeters}m</strong>
+                          </div>
+                          <div className="virtual-caddy-slider-row">
+                            <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters - 5)}>
+                              -5m
+                            </button>
+                            <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters - 1)}>
+                              -1m
+                            </button>
+                            <input
+                              type="range"
+                              min={1}
+                              max={distanceSliderMax}
+                              step={1}
+                              value={Math.min(distanceToMiddleMeters, distanceSliderMax)}
+                              aria-label="Virtual caddy distance to target"
+                              onChange={(event) => setShotDistance(Number(event.target.value))}
+                            />
+                            <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters + 1)}>
+                              +1m
+                            </button>
+                            <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters + 5)}>
+                              +5m
+                            </button>
+                            <button type="button" className="setup-toggle" onClick={() => setShotDistance(distanceToHoleMeters)}>
+                              Reset
+                            </button>
+                          </div>
+                        </div>
+                      </>
                     ) : (
                       <>
-                        <div className="preset-row" role="group" aria-label="Virtual caddy distance presets">
-                          {DISTANCE_PRESETS.map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              className={distanceToHoleMeters === preset ? 'choice-chip active' : 'choice-chip'}
-                              onClick={() => setHoleDistance(preset)}
-                            >
-                              {preset}m
-                            </button>
-                          ))}
-                          <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
-                            Reset
-                          </button>
-                        </div>
                         <div className="virtual-caddy-slider-row">
                           <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters - 5)}>
                             -5m
@@ -1132,6 +1092,9 @@ export function VirtualCaddyPanel({
                           </button>
                           <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters + 5)}>
                             +5m
+                          </button>
+                          <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
+                            Reset
                           </button>
                         </div>
                       </>
