@@ -21,6 +21,16 @@ export function HolePicker({ holes, selectedHole, roundName, selectedHoleMeta, o
   const visibleHoles = holes.slice(visibleStartIndex, visibleStartIndex + 3);
   const holeMetaItems: string[] = [];
 
+  if (selectedHoleMeta?.holeIndex != null) {
+    holeMetaItems.push(`Index ${selectedHoleMeta.holeIndex}`);
+  }
+  if (selectedHoleMeta?.par != null) {
+    holeMetaItems.push(`Par ${selectedHoleMeta.par}`);
+  }
+  if (selectedHoleMeta?.distanceMeters != null) {
+    holeMetaItems.push(`${selectedHoleMeta.distanceMeters}m`);
+  }
+
   return (
     <section className="card hole-picker" aria-label="hole picker">
       <div className="hole-picker-header">

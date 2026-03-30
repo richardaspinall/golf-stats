@@ -218,6 +218,7 @@ export default function App() {
   const displayHoleIndex = getDisplayHoleIndex(activeCourse, holeStats, selectedHole);
   const displayHolePar = activeCourse?.markers?.[selectedHole]?.par ?? null;
   const selectedHoleMarker = activeCourse?.markers?.[selectedHole];
+  const manualHoleDistanceMeters = selectedHoleMarker?.distanceMeters ?? null;
   const derivedTeeToGreenMeters =
     selectedHoleMarker?.teePosition && selectedHoleMarker?.greenPosition
       ? Math.round(distanceMetersBetween(selectedHoleMarker.teePosition, selectedHoleMarker.greenPosition))
@@ -248,7 +249,7 @@ export default function App() {
     setCourses,
     setCourseSaveState,
   });
-  const effectiveTeeToGreenMeters = teeToGreenMeters ?? derivedTeeToGreenMeters;
+  const effectiveTeeToGreenMeters = manualHoleDistanceMeters ?? teeToGreenMeters ?? derivedTeeToGreenMeters;
   const handleAuthFailure = (message = 'Session expired. Log in again.') => {
     clearAuthToken();
     setAuthToken('');

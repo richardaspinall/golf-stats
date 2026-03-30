@@ -40,6 +40,7 @@ export interface CourseMarker {
   greenPosition: LatLng | null;
   holeIndex: number;
   par: number;
+  distanceMeters?: number | null;
 }
 
 export type CourseMarkers = Record<number, CourseMarker>;

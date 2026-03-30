@@ -77,6 +77,8 @@ export const sanitizeCourseMarkers = (raw: unknown): CourseMarkersByHole => {
       : hole;
     const par = Number(holeRaw.par);
     safe[hole].par = Number.isFinite(par) ? Math.min(6, Math.max(3, Math.floor(par))) : 4;
+    const distanceMeters = Number(holeRaw.distanceMeters);
+    safe[hole].distanceMeters = Number.isFinite(distanceMeters) && distanceMeters > 0 ? Math.min(999, Math.round(distanceMeters)) : null;
   });
 
   return safe;

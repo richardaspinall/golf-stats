@@ -207,8 +207,46 @@ function CourseEditorPanel({ state, actions }: CourseEditorPanelProps) {
                       ))}
                     </select>
                   </label>
+                  <label className="course-index-field">
+                    Distance (m)
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      step={1}
+                      value={holeMarkers?.distanceMeters ?? ''}
+                      onChange={(event) => {
+                        const rawValue = event.target.value;
+                        const nextValue =
+                          rawValue === ''
+                            ? null
+                            : Math.min(999, Math.max(1, Math.floor(Number(rawValue))));
+                        setCourses((prev) =>
+                          prev.map((entry) =>
+                            entry.id === courseEditor.id
+                              ? {
+                                  ...entry,
+                                  markers: {
+                                    ...entry.markers,
+                                    [hole]: {
+                                      ...(entry.markers?.[hole] || {}),
+                                      distanceMeters: nextValue,
+                                    },
+                                  },
+                                }
+                              : entry,
+                          ),
+                        );
+                        setCourseSaveState('unsaved');
+                      }}
+                      placeholder="e.g. 142"
+                    />
+                  </label>
                   <span className={isDuplicate ? 'course-index-warning' : 'course-index-ok'}>
                     {isDuplicate ? 'Duplicate index' : 'OK'}
+                  </span>
+                  <span className="course-marker-status">
+                    {holeMarkers?.distanceMeters ? `Distance ${holeMarkers.distanceMeters}m` : 'Distance —'}
                   </span>
                   <span className="course-marker-status">{holeMarkers?.teePosition ? 'Tee ✓' : 'Tee —'}</span>
                   <span className="course-marker-status">{holeMarkers?.greenPosition ? 'Green ✓' : 'Green —'}</span>
@@ -312,6 +350,9 @@ function CourseMapCard({ state, actions, map }: CourseMapCardProps) {
       {courseEditor && isMapSetupOpen ? (
         <>
           <p className="hint">Hole {mapSetupHole} | Mode: {mapPlacementLabel}</p>
+          <p className="hint">
+            Saved distance: {courseEditor.markers?.[mapSetupHole]?.distanceMeters ? `${courseEditor.markers[mapSetupHole].distanceMeters}m` : '—'}
+          </p>
           <div className="map-shell">
             <div ref={mapContainerRef} className="map-canvas" />
           </div>

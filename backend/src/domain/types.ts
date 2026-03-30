@@ -41,6 +41,7 @@ export type CourseMarkersByHole = Record<
     greenPosition: LatLng | null;
     holeIndex: number;
     par: number;
+    distanceMeters?: number | null;
   }
 >;
 

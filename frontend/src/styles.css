@@ -1668,7 +1668,7 @@ button:disabled {
 
 .course-setup-row {
   display: grid;
-  grid-template-columns: 70px 1fr auto auto auto auto;
+  grid-template-columns: 70px 1fr 1fr auto auto auto auto auto;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid #d4decc;
@@ -1684,7 +1684,8 @@ button:disabled {
   color: #49614e;
 }
 
-.course-index-field select {
+.course-index-field select,
+.course-index-field input {
   min-height: 34px;
   border: 1px solid #9db08f;
   border-radius: 8px;
