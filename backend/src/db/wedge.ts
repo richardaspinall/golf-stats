@@ -1,5 +1,5 @@
 import { sanitizeWedgeDistanceMeters } from '../domain/sanitize.js';
-import { SWING_CLOCK_OPTIONS } from '../constants.js';
+import { normalizeClubLabel, SWING_CLOCK_OPTIONS } from '../constants.js';
 import { isClubOption } from '../domain/guards.js';
 import type { ClubOption, WedgeEntry, WedgeMatrix } from '../domain/types.js';
 import { getPool } from './pool.js';
@@ -11,7 +11,7 @@ const sanitizeClubList = (value: unknown): ClubOption[] => {
   }
 
   return value
-    .map((club) => String(club || '').trim())
+    .map((club) => normalizeClubLabel(club))
     .filter((club, index, arr) => isClubOption(club) && arr.indexOf(club) === index) as ClubOption[];
 };
 const sanitizeSwingClockLabel = (value: unknown, max = 40) => String(value || '').trim().slice(0, max);
@@ -241,7 +241,7 @@ export const listWedgeEntries = async (userId: string, matrixId?: number | null)
   );
 
   return result.rows.reduce((acc: WedgeEntry[], row: any) => {
-    const club = String(row.club || '');
+    const club = normalizeClubLabel(row.club);
     const swingClock = sanitizeSwingClockLabel(row.swing_clock);
     const distanceMeters = Number(row.distance_meters);
     const createdAt = String(row.created_at || '');
@@ -286,7 +286,8 @@ export const insertWedgeEntry = async ({
     throw new Error('Invalid matrix');
   }
 
-  if (!isClubOption(club)) {
+  const normalizedClub = normalizeClubLabel(club);
+  if (!isClubOption(normalizedClub)) {
     throw new Error('Invalid club');
   }
   const safeSwingClock = sanitizeSwingClockLabel(swingClock);
@@ -316,11 +317,11 @@ export const insertWedgeEntry = async ({
       VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
       RETURNING id, matrix_id, club, swing_clock, distance_meters, created_at
     `,
-    [userId, matrixId, club, safeSwingClock, sanitizedDistance, new Date().toISOString()],
+    [userId, matrixId, normalizedClub, safeSwingClock, sanitizedDistance, new Date().toISOString()],
   );
 
   const row = result.rows[0] || {};
-  const savedClub = String(row.club || '') as ClubOption;
+  const savedClub = normalizeClubLabel(row.club) as ClubOption;
   const savedSwingClock = sanitizeSwingClockLabel(row.swing_clock);
   return {
     id: Number(row.id),
@@ -355,7 +356,8 @@ export const updateWedgeEntry = async ({
     throw new Error('Invalid matrix');
   }
 
-  if (!isClubOption(club)) {
+  const normalizedClub = normalizeClubLabel(club);
+  if (!isClubOption(normalizedClub)) {
     throw new Error('Invalid club');
   }
   const safeSwingClock = sanitizeSwingClockLabel(swingClock);
@@ -389,7 +391,7 @@ export const updateWedgeEntry = async ({
       WHERE id = $5 AND user_id = $6
       RETURNING id, matrix_id, club, swing_clock, distance_meters, created_at
     `,
-    [matrixId, club, safeSwingClock, sanitizedDistance, id, userId],
+    [matrixId, normalizedClub, safeSwingClock, sanitizedDistance, id, userId],
   );
 
   const row = result.rows[0];
@@ -400,7 +402,7 @@ export const updateWedgeEntry = async ({
   return {
     id: Number(row.id),
     matrixId: Number(row.matrix_id),
-    club: String(row.club || '') as ClubOption,
+    club: normalizeClubLabel(row.club) as ClubOption,
     swingClock: sanitizeSwingClockLabel(row.swing_clock),
     distanceMeters: Number(row.distance_meters),
     createdAt: String(row.created_at || ''),

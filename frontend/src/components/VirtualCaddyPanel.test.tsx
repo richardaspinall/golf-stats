@@ -88,6 +88,38 @@ describe('VirtualCaddyPanel', () => {
     expect(onSaveClubActual).toHaveBeenCalledWith({ club: '6i', actualMeters: 150 });
   });
 
+  it('warns before saving when the score was manually entered on the track page', async () => {
+    const user = userEvent.setup();
+    const onSaveHoleStats = vi.fn(async () => true);
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    confirmSpy.mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+    render(
+      <VirtualCaddyPanel
+        hole={1}
+        holeStats={{ ...emptyHoleStats(), manualScoreEnteredOnTrack: true }}
+        displayHolePar={4}
+        defaultDistanceMeters={150}
+        onReplaceHoleStats={vi.fn()}
+        onSaveHoleStats={onSaveHoleStats}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(onSaveHoleStats).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    expect(onSaveHoleStats).toHaveBeenCalledTimes(1);
+    expect(onSaveHoleStats.mock.calls[0]?.[0]?.manualScoreEnteredOnTrack).toBe(false);
+
+    confirmSpy.mockRestore();
+  });
+
   it('shows bunker-specific lie options and updates the recommendation from them', async () => {
     const user = userEvent.setup();
 
@@ -104,6 +136,42 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('Effective')).toBeTruthy();
     expect(getVisibleDistanceValue()).toBe('80m');
     expect(screen.getByText('Bunker lie: buried +8m')).toBeTruthy();
+  });
+
+  it('uses the active wedge matrix for shots inside 100m', () => {
+    render(
+      <VirtualCaddyPanel
+        hole={1}
+        holeStats={emptyHoleStats()}
+        displayHolePar={4}
+        defaultDistanceMeters={84}
+        wedgeMatrices={[
+          {
+            id: 1,
+            name: 'Stock wedges',
+            stanceWidth: 'Medium',
+            grip: 'Mid',
+            ballPosition: 'Middle',
+            notes: '',
+            clubs: ['PW', '50w', '56w', '60w'],
+            swingClocks: ['7:30', '9:00', '10:30', 'Full'],
+            createdAt: '2026-03-30T00:00:00Z',
+          },
+        ]}
+        wedgeEntriesByMatrix={{
+          1: [
+            { id: 1, matrixId: 1, club: '56w', swingClock: '9:00', distanceMeters: 82, createdAt: '2026-03-30T00:00:00Z' },
+            { id: 2, matrixId: 1, club: '56w', swingClock: '9:00', distanceMeters: 84, createdAt: '2026-03-30T00:00:00Z' },
+          ],
+        }}
+        onReplaceHoleStats={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('(83m carry)')).toBeTruthy();
+    expect(screen.getByText('9:00 · Stock wedges')).toBeTruthy();
+    expect(screen.getByText('Stance: Medium | Grip: Mid | Ball position: Middle')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Override club' })).toBeNull();
   });
 
   it('adds an executed shot to the trail and seeds the next shot', async () => {
@@ -387,6 +455,92 @@ describe('VirtualCaddyPanel', () => {
 
     expect(screen.getByText('Chipping')).toBeTruthy();
     expect(screen.getByText('Chip shot')).toBeTruthy();
+  });
+
+  it('uses the wedge matrix when a chip shot is the next action', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <VirtualCaddyPanel
+        hole={3}
+        holeStats={emptyHoleStats()}
+        displayHolePar={3}
+        defaultDistanceMeters={150}
+        wedgeMatrices={[
+          {
+            id: 1,
+            name: 'Stock wedges',
+            stanceWidth: 'Medium',
+            grip: 'Mid',
+            ballPosition: 'Middle',
+            notes: '',
+            clubs: ['PW', '50w', '56w', '60w'],
+            swingClocks: ['7:30', '9:00', '10:30', 'Full'],
+            createdAt: '2026-03-30T00:00:00Z',
+          },
+        ]}
+        wedgeEntriesByMatrix={{
+          1: [
+            { id: 1, matrixId: 1, club: '60w', swingClock: '7:30', distanceMeters: 18, createdAt: '2026-03-30T00:00:00Z' },
+            { id: 2, matrixId: 1, club: '60w', swingClock: '7:30', distanceMeters: 20, createdAt: '2026-03-30T00:00:00Z' },
+          ],
+        }}
+        onReplaceHoleStats={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Left' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(screen.getByText('Chipping')).toBeTruthy();
+    expect(screen.getByText('60w')).toBeTruthy();
+    expect(screen.getByText('(19m carry)')).toBeTruthy();
+    expect(screen.getByText('7:30 · Stock wedges')).toBeTruthy();
+    expect(screen.getByText('Stance: Medium | Grip: Mid | Ball position: Middle')).toBeTruthy();
+  });
+
+  it('picks the best match from all wedge matrices', () => {
+    render(
+      <VirtualCaddyPanel
+        hole={1}
+        holeStats={emptyHoleStats()}
+        displayHolePar={4}
+        defaultDistanceMeters={47}
+        wedgeMatrices={[
+          {
+            id: 1,
+            name: 'Stock wedges',
+            stanceWidth: 'Medium',
+            grip: 'Mid',
+            ballPosition: 'Middle',
+            notes: '',
+            clubs: ['PW', '50w', '56w', '60w'],
+            swingClocks: ['7:30', '9:00', '10:30', 'Full'],
+            createdAt: '2026-03-30T00:00:00Z',
+          },
+          {
+            id: 2,
+            name: 'Flighted',
+            stanceWidth: 'Narrow',
+            grip: 'Low',
+            ballPosition: 'Back',
+            notes: '',
+            clubs: ['PW', '50w', '56w', '60w'],
+            swingClocks: ['7:30', '9:00', '10:30', 'Full'],
+            createdAt: '2026-03-30T00:00:00Z',
+          },
+        ]}
+        wedgeEntriesByMatrix={{
+          1: [{ id: 1, matrixId: 1, club: '60w', swingClock: '7:30', distanceMeters: 38, createdAt: '2026-03-30T00:00:00Z' }],
+          2: [{ id: 2, matrixId: 2, club: '56w', swingClock: '7:30', distanceMeters: 46, createdAt: '2026-03-30T00:00:00Z' }],
+        }}
+        onReplaceHoleStats={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('56w')).toBeTruthy();
+    expect(screen.getByText('7:30 · Flighted')).toBeTruthy();
+    expect(screen.getByText('Stance: Narrow | Grip: Low | Ball position: Back')).toBeTruthy();
   });
 
   it('does not show the previous-result chip in the action card', async () => {

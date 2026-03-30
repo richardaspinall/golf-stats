@@ -1081,6 +1081,14 @@ button:disabled {
   margin-bottom: 10px;
 }
 
+.virtual-caddy-inline-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .virtual-caddy-distance-pill {
   justify-content: flex-start;
   min-height: 44px;
@@ -1123,6 +1131,10 @@ button:disabled {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+}
+
+.virtual-caddy-club-row-chip {
+  padding-bottom: 12px;
 }
 
 .virtual-caddy-club-row strong {

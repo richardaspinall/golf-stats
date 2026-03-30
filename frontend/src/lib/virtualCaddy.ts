@@ -1,3 +1,9 @@
+import {
+  getClosestWedgeMatrixRecommendationAcrossMatrices,
+  type WedgeMatrixRecommendation,
+  type WedgeMatrixSource,
+} from './wedgeMatrix';
+
 export const DEFAULT_CARRY_BY_CLUB: Record<string, number> = {
   Driver: 230,
   'Mini Driver': 215,
@@ -11,9 +17,9 @@ export const DEFAULT_CARRY_BY_CLUB: Record<string, number> = {
   '8i': 130,
   '9i': 120,
   PW: 110,
-  '50': 95,
-  '56': 80,
-  '60': 65,
+  '50w': 95,
+  '56w': 80,
+  '60w': 65,
   Putter: 15,
 };
 
@@ -35,6 +41,7 @@ export interface VirtualCaddyInputs {
   windStrength?: 'calm' | 'light' | 'moderate' | 'strong';
   hazards?: VirtualCaddyHazardSide[];
   carryByClub?: Record<string, number>;
+  wedgeMatrices?: WedgeMatrixSource[];
 }
 
 export interface VirtualCaddyRecommendation {
@@ -44,6 +51,11 @@ export interface VirtualCaddyRecommendation {
   summary: string;
   reasons: string[];
   adjustments: Array<{ label: string; meters: number }>;
+  source: 'carryBook' | 'wedgeMatrix';
+  wedgeMatrixRecommendation: WedgeMatrixRecommendation | null;
+  wedgeMatrixId: number | null;
+  wedgeMatrixName: string | null;
+  wedgeMatrixSetup: string | null;
   details: {
     distanceToMiddleMeters: number;
     effectiveDistanceMeters: number;
@@ -298,9 +310,21 @@ export const getVirtualCaddyRecommendation = (inputs: VirtualCaddyInputs): Virtu
     1,
     Math.round(inputs.distanceToMiddleMeters + adjustments.reduce((total, item) => total + item.meters, 0)),
   );
-  const club = pickClub(adjustedDistanceMeters, carryByClub);
+  const wedgeMatrixMatch =
+    adjustedDistanceMeters <= 100 && Array.isArray(inputs.wedgeMatrices)
+      ? getClosestWedgeMatrixRecommendationAcrossMatrices(inputs.wedgeMatrices, adjustedDistanceMeters)
+      : null;
+  const wedgeMatrixRecommendation = wedgeMatrixMatch?.recommendation ?? null;
+  const club = wedgeMatrixRecommendation
+    ? { club: wedgeMatrixRecommendation.club, carry: wedgeMatrixRecommendation.distanceMeters }
+    : pickClub(adjustedDistanceMeters, carryByClub);
   const aimBias = mergeAimBias(deriveAimBias(normalized.hazards), deriveSlopeAimBias(normalized.slope));
   const reasons = adjustments.map((item) => `${item.label} ${item.meters > 0 ? `+${item.meters}` : item.meters}m`);
+  if (wedgeMatrixRecommendation) {
+    reasons.push(
+      `Wedge matrix: ${wedgeMatrixRecommendation.club} ${wedgeMatrixRecommendation.swingClock} averages ${wedgeMatrixRecommendation.distanceMeters}m.`,
+    );
+  }
   reasons.push(...playTips);
 
   if (normalized.hazards.includes('left') && normalized.hazards.includes('right')) {
@@ -334,6 +358,13 @@ export const getVirtualCaddyRecommendation = (inputs: VirtualCaddyInputs): Virtu
     }.`,
     reasons,
     adjustments,
+    source: wedgeMatrixRecommendation ? 'wedgeMatrix' : 'carryBook',
+    wedgeMatrixRecommendation,
+    wedgeMatrixId: wedgeMatrixRecommendation ? wedgeMatrixMatch?.matrix.id ?? null : null,
+    wedgeMatrixName: wedgeMatrixRecommendation ? wedgeMatrixMatch?.matrix.name || null : null,
+    wedgeMatrixSetup: wedgeMatrixRecommendation
+      ? `Stance: ${wedgeMatrixMatch?.matrix.stanceWidth || '—'} | Grip: ${wedgeMatrixMatch?.matrix.grip || '—'} | Ball position: ${wedgeMatrixMatch?.matrix.ballPosition || '—'}`
+      : null,
     details: {
       distanceToMiddleMeters: inputs.distanceToMiddleMeters,
       effectiveDistanceMeters: adjustedDistanceMeters,

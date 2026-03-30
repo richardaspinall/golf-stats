@@ -4,6 +4,7 @@ import {
   HOLES,
   SWING_CLOCK_OPTIONS,
   TOTAL_OPTIONS,
+  normalizeClubLabel,
   VALID_FAIRWAY_KEYS,
   VALID_GIR_KEYS,
 } from './constants';
@@ -29,7 +30,16 @@ export const emptyHoleStats = (): HoleStats =>
       acc[option.key] = 0;
       return acc;
     },
-    { score: 0, holeIndex: 1, fairwaySelection: null, girSelection: null, teePosition: null, greenPosition: null, virtualCaddyState: null } as HoleStats,
+    {
+      score: 0,
+      holeIndex: 1,
+      fairwaySelection: null,
+      girSelection: null,
+      teePosition: null,
+      greenPosition: null,
+      manualScoreEnteredOnTrack: false,
+      virtualCaddyState: null,
+    } as HoleStats,
   );
 
 export const emptyTotals = (): RoundSummaryTotals =>
@@ -149,6 +159,7 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
 
     safe[hole].teePosition = sanitizeLatLng(rawStats.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(rawStats.greenPosition);
+    safe[hole].manualScoreEnteredOnTrack = Boolean(rawStats.manualScoreEnteredOnTrack);
     safe[hole].virtualCaddyState =
       rawStats.virtualCaddyState && typeof rawStats.virtualCaddyState === 'object' ? (rawStats.virtualCaddyState as HoleStats['virtualCaddyState']) : null;
   });
@@ -193,8 +204,16 @@ export const sanitizeCarryByClub = (raw: unknown): CarryByClub => {
     return {};
   }
 
+  const normalizedRaw = Object.entries(raw as Record<string, unknown>).reduce(
+    (acc, [club, value]) => {
+      acc[normalizeClubLabel(club)] = value;
+      return acc;
+    },
+    {} as Record<string, unknown>,
+  );
+
   return CLUB_OPTIONS.reduce((acc, club) => {
-    const sanitized = sanitizeCarryMeters((raw as Record<string, unknown>)[club]);
+    const sanitized = sanitizeCarryMeters(normalizedRaw[club]);
     if (sanitized !== '') {
       acc[club] = sanitized;
     }
@@ -211,8 +230,9 @@ export const sanitizeWedgeEntry = (entry: unknown): WedgeEntry | null => {
   const distanceMeters = Number(raw.distanceMeters);
   const id = Number(raw.id);
   const matrixId = Number(raw.matrixId);
+  const normalizedClub = normalizeClubLabel(raw.club);
 
-  if (!CLUB_OPTIONS.includes(raw.club)) {
+  if (!CLUB_OPTIONS.includes(normalizedClub)) {
     return null;
   }
   if (typeof raw.swingClock !== 'string' || !raw.swingClock.trim()) {
@@ -228,7 +248,7 @@ export const sanitizeWedgeEntry = (entry: unknown): WedgeEntry | null => {
   return {
     id: Math.floor(id),
     matrixId: Math.floor(matrixId),
-    club: raw.club,
+    club: normalizedClub,
     swingClock: raw.swingClock.trim().slice(0, 40),
     distanceMeters: Math.round(distanceMeters),
     createdAt: String(raw.createdAt || ''),
@@ -248,7 +268,11 @@ export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
     grip: String(raw.grip || ''),
     ballPosition: String(raw.ballPosition || ''),
     notes: String(raw.notes || ''),
-    clubs: Array.isArray(raw.clubs) ? raw.clubs : [],
+    clubs: Array.isArray(raw.clubs)
+      ? raw.clubs
+          .map((club) => normalizeClubLabel(club))
+          .filter((club, index, arr) => CLUB_OPTIONS.includes(club) && arr.indexOf(club) === index)
+      : [],
     swingClocks,
     createdAt: String(raw.createdAt || ''),
   };

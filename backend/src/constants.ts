@@ -23,9 +23,9 @@ export const VALID_GIR_KEYS = new Set(GIR_KEYS);
 export const VALID_BUNKER_KEYS = new Set(BUNKER_KEYS);
 
 export const CLUB_OPTIONS = [
-  '60',
-  '56',
-  '50',
+  '60w',
+  '56w',
+  '50w',
   'PW',
   '9i',
   '8i',
@@ -42,8 +42,19 @@ export const CLUB_OPTIONS = [
 ] as const;
 export const CLUB_OPTION_SET = new Set(CLUB_OPTIONS);
 
-export const WEDGE_OPTIONS = ['60', '56', '50', 'PW'] as const;
+export const WEDGE_OPTIONS = ['60w', '56w', '50w', 'PW'] as const;
 export const WEDGE_OPTION_SET = new Set(WEDGE_OPTIONS);
+
+export const LEGACY_CLUB_ALIASES = {
+  '60': '60w',
+  '56': '56w',
+  '50': '50w',
+} as const;
+
+export const normalizeClubLabel = (value: unknown): string => {
+  const club = String(value || '').trim();
+  return LEGACY_CLUB_ALIASES[club as keyof typeof LEGACY_CLUB_ALIASES] || club;
+};
 
 export const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'] as const;
 export const SWING_CLOCK_OPTION_SET = new Set(SWING_CLOCK_OPTIONS);

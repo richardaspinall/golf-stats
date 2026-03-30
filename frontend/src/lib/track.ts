@@ -38,6 +38,7 @@ export const updateHoleScoreValue = (statsByHole: StatsByHole, hole: number, del
   [hole]: {
     ...statsByHole[hole],
     score: Math.max(0, statsByHole[hole].score + delta),
+    manualScoreEnteredOnTrack: delta !== 0 ? true : Boolean(statsByHole[hole].manualScoreEnteredOnTrack),
     virtualCaddyState: null,
   },
 });

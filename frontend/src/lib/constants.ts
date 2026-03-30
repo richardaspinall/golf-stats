@@ -1,5 +1,16 @@
 import type { StatSection } from '../types';
 
+export const LEGACY_CLUB_ALIASES: Record<string, string> = {
+  '60': '60w',
+  '56': '56w',
+  '50': '50w',
+};
+
+export const normalizeClubLabel = (club: unknown): string => {
+  const value = String(club || '').trim();
+  return LEGACY_CLUB_ALIASES[value] || value;
+};
+
 export const HOLES = Array.from({ length: 18 }, (_, index) => index + 1);
 export const HOLE_INDEX_OPTIONS = Array.from({ length: 18 }, (_, index) => index + 1);
 
@@ -119,7 +130,7 @@ export const SHOT_SETUP_OPTIONS = [
 export const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'];
 
 export const CLUB_GROUPS = [
-  { label: 'Wedges', options: ['60', '56', '50', 'PW'] },
+  { label: 'Wedges', options: ['60w', '56w', '50w', 'PW'] },
   { label: 'Irons + Hybrid', options: ['9i', '8i', '7i', '6i', '5i', '4i', '5Hy'] },
   { label: 'Woods', options: ['5 wood', '3 wood'] },
   { label: 'Drivers', options: ['Mini Driver', 'Driver'] },
@@ -128,5 +139,5 @@ export const CLUB_GROUPS = [
 
 export const CLUB_OPTIONS = CLUB_GROUPS.flatMap((group) => group.options);
 export const CLUB_OPTION_SET = new Set(CLUB_OPTIONS);
-export const WEDGE_OPTIONS = CLUB_GROUPS.find((group) => group.label === 'Wedges')?.options ?? ['60', '56', '50', 'PW'];
+export const WEDGE_OPTIONS = CLUB_GROUPS.find((group) => group.label === 'Wedges')?.options ?? ['60w', '56w', '50w', 'PW'];
 export const LIE_OPTIONS = ['Tee', 'Fairway', 'First cut', 'Rough', 'Bunker', 'Recovery'];

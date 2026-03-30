@@ -56,7 +56,7 @@ import {
   sanitizeRoundHandicap,
   sanitizeStats,
 } from './lib/rounds';
-import { clearAuthToken, loadStoredAuthToken, saveAuthToken } from './lib/storage';
+import { clearAuthToken, clearStoredRoundDraft, loadStoredAuthToken, loadStoredRoundDraft, saveAuthToken, saveStoredRoundDraft } from './lib/storage';
 import { buildShotSummary, getDisplayHoleIndex, toggleHoleSelection, updateHoleCounter, updateHoleScoreValue } from './lib/track';
 import { buildWedgeMatrixRows, sortClubsByDefaultOrder } from './lib/wedgeMatrix';
 
@@ -249,7 +249,6 @@ export default function App() {
     setCourseSaveState,
   });
   const effectiveTeeToGreenMeters = teeToGreenMeters ?? derivedTeeToGreenMeters;
-
   const handleAuthFailure = (message = 'Session expired. Log in again.') => {
     clearAuthToken();
     setAuthToken('');
@@ -345,15 +344,22 @@ export default function App() {
   };
 
   const applyRoundToState = (round) => {
+    const storedDraft = loadStoredRoundDraft(round.id);
+    const hasStoredDraft = Boolean(storedDraft);
+
     skipNextSaveRef.current = true;
     hasLoadedRef.current = true;
     setSelectedRoundId(round.id);
-    setStatsByHole(sanitizeStats(round.statsByHole));
-    setRoundHandicap(sanitizeRoundHandicap(round.handicap) || 0);
-    setRoundNotes(sanitizeNotesList(round.notes));
-    setSelectedCourseId(round.courseId || '');
+    setStatsByHole(sanitizeStats(hasStoredDraft ? storedDraft?.statsByHole : round.statsByHole));
+    setRoundHandicap(sanitizeRoundHandicap(hasStoredDraft ? storedDraft?.roundHandicap : round.handicap) || 0);
+    setRoundNotes(sanitizeNotesList(hasStoredDraft ? storedDraft?.roundNotes : round.notes));
+    setSelectedCourseId(
+      typeof (hasStoredDraft ? storedDraft?.selectedCourseId : round.courseId) === 'string'
+        ? ((hasStoredDraft ? storedDraft?.selectedCourseId : round.courseId) as string)
+        : '',
+    );
     setNoteDraft('');
-    setSaveState('saved');
+    setSaveState(hasStoredDraft ? 'unsaved' : 'saved');
   };
 
   useEffect(() => {
@@ -494,6 +500,26 @@ export default function App() {
     setSaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
   }, [authToken, selectedRoundId, statsByHole, roundHandicap, roundNotes, selectedCourseId]);
 
+  useEffect(() => {
+    if (!authToken || !hasLoadedRef.current || !selectedRoundId) {
+      return;
+    }
+
+    if (saveState === 'unsaved') {
+      saveStoredRoundDraft(selectedRoundId, {
+        statsByHole,
+        roundHandicap,
+        roundNotes,
+        selectedCourseId,
+      });
+      return;
+    }
+
+    if (saveState === 'saved') {
+      clearStoredRoundDraft(selectedRoundId);
+    }
+  }, [authToken, selectedRoundId, saveState, selectedCourseId, roundHandicap, roundNotes, statsByHole]);
+
   const persistRoundStats = async (nextStatsByHole = statsByHole) => {
     if (!authToken || !selectedRoundId) {
       return false;
@@ -504,6 +530,7 @@ export default function App() {
       const savedRound = await saveRoundToApi(selectedRoundId, nextStatsByHole, roundNotes, roundHandicap, selectedCourseId, authToken);
       const savedCourse = courses.find((course) => course.id === (savedRound?.courseId || selectedCourseId));
       setSaveState('saved');
+      clearStoredRoundDraft(selectedRoundId);
       setRounds((prev) =>
         prev.map((round) =>
           round.id === selectedRoundId
@@ -641,6 +668,7 @@ export default function App() {
       await deleteRoundInApi(selectedRoundId, authToken);
 
       const updatedRounds = rounds.filter((round) => round.id !== selectedRoundId);
+      clearStoredRoundDraft(selectedRoundId);
       setRounds(updatedRounds);
       setRoundSummaries((prev) => {
         const next = { ...prev };
@@ -1185,7 +1213,7 @@ export default function App() {
     let isActive = true;
 
     const loadWedgeMatrices = async () => {
-      if (!authToken || page !== 'wedgeMatrix') {
+      if (!authToken) {
         return;
       }
 
@@ -1222,7 +1250,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [authToken, page]);
+  }, [authToken]);
 
   useEffect(() => {
     let isActive = true;
@@ -1703,6 +1731,8 @@ export default function App() {
                 saveState,
                 teeToGreenMeters: effectiveTeeToGreenMeters,
                 clubCarryByClub,
+                wedgeMatrices,
+                wedgeEntriesByMatrix,
                 isFocusMode: isVirtualCaddyFocusMode,
               }}
               actions={{

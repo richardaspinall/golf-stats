@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { HolePicker } from '../HolePicker';
 import { VirtualCaddyPanel } from '../VirtualCaddyPanel';
 import { HOLES } from '../../lib/constants';
-import type { Course, HoleStats, RoundListItem } from '../../types';
+import type { Course, HoleStats, RoundListItem, WedgeEntry, WedgeMatrix } from '../../types';
 
 type VirtualCaddyPageProps = {
   round: {
@@ -16,6 +16,8 @@ type VirtualCaddyPageProps = {
     saveState: string;
     teeToGreenMeters: number | null;
     clubCarryByClub: Record<string, number>;
+    wedgeMatrices: WedgeMatrix[];
+    wedgeEntriesByMatrix: Record<number, WedgeEntry[]>;
   };
   actions: {
     setSelectedHole: (hole: number) => void;
@@ -30,7 +32,19 @@ type VirtualCaddyPageProps = {
 };
 
 export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
-  const { selectedHole, displayHoleIndex, displayHolePar, activeRound, activeCourse, holeStats, saveState, teeToGreenMeters, clubCarryByClub } = round;
+  const {
+    selectedHole,
+    displayHoleIndex,
+    displayHolePar,
+    activeRound,
+    activeCourse,
+    holeStats,
+    saveState,
+    teeToGreenMeters,
+    clubCarryByClub,
+    wedgeMatrices,
+    wedgeEntriesByMatrix,
+  } = round;
   const { setSelectedHole, saveCurrentRound, replaceHoleStats, saveHoleStats, saveClubActual, deleteClubActualEntry, onToggleFocusMode } = actions;
   const { isFocusMode } = round;
   const handleReplaceHoleStats = useCallback((nextHoleStats: HoleStats) => replaceHoleStats(selectedHole, nextHoleStats), [replaceHoleStats, selectedHole]);
@@ -98,6 +112,8 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
           displayHolePar={displayHolePar}
           defaultDistanceMeters={teeToGreenMeters}
           carryByClub={clubCarryByClub}
+          wedgeMatrices={wedgeMatrices}
+          wedgeEntriesByMatrix={wedgeEntriesByMatrix}
           isFocusMode={isFocusMode}
           onReplaceHoleStats={handleReplaceHoleStats}
           onSaveHoleStats={handleSaveHoleStats}

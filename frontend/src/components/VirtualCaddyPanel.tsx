@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { HoleStats, PersistedVirtualCaddyState } from '../types';
+import type { HoleStats, PersistedVirtualCaddyState, WedgeEntry, WedgeMatrix } from '../types';
+import type { WedgeMatrixSource } from '../lib/wedgeMatrix';
 import {
   type VirtualCaddyBunkerLie,
   type VirtualCaddyHazardSide,
@@ -104,6 +105,8 @@ type VirtualCaddyPanelProps = {
   displayHolePar: number | null;
   defaultDistanceMeters: number | null;
   carryByClub?: Record<string, number>;
+  wedgeMatrices?: WedgeMatrix[];
+  wedgeEntriesByMatrix?: Record<number, WedgeEntry[]>;
   isFocusMode?: boolean;
   onReplaceHoleStats: (nextHoleStats: HoleStats) => void;
   onSaveHoleStats?: (nextHoleStats: HoleStats) => Promise<boolean>;
@@ -174,13 +177,19 @@ type PlannerSnapshot = {
 
 const stripVirtualCaddyState = (holeStats: HoleStats): HoleStats => ({
   ...holeStats,
+  manualScoreEnteredOnTrack: Boolean(holeStats.manualScoreEnteredOnTrack),
   virtualCaddyState: null,
 });
 
 const sanitizePersistedState = (value: unknown): PersistedVirtualCaddyState | null =>
   value && typeof value === 'object' && (value as PersistedVirtualCaddyState).version === 1 ? (value as PersistedVirtualCaddyState) : null;
 
-const buildShotDraftFromShot = (shot: PlannerShot, showAdvancedValue: boolean): PersistedPlannerDraft => ({
+const buildShotDraftFromShot = (
+  shot: PlannerShot,
+  showAdvancedValue: boolean,
+  carryByClub?: Record<string, number>,
+  wedgeMatrixSources: WedgeMatrixSource[] = [],
+): PersistedPlannerDraft => ({
   nextShotId: shot.id,
   actionType: shot.actionType,
   seededDistanceMeters: shot.distanceStartMeters,
@@ -206,6 +215,8 @@ const buildShotDraftFromShot = (shot: PlannerShot, showAdvancedValue: boolean): 
     windDirection: shot.windDirection,
     windStrength: shot.windStrength,
     hazards: shot.hazards,
+    carryByClub,
+    wedgeMatrices: wedgeMatrixSources,
   }).recommendedClub,
   oopResult: shot.oopResult,
   outcomeSelection: shot.outcomeSelection,
@@ -262,7 +273,7 @@ const getOutcomeMode = (distanceMeters: number, displayHolePar: number | null, l
 const getOutcomeOptions = (mode: 'fairway' | 'gir') => (mode === 'fairway' ? FAIRWAY_OUTCOME_OPTIONS : GIR_OUTCOME_OPTIONS);
 const getActualDistanceFromStart = (distanceStartMeters: number, remainingDistanceMeters: number) =>
   Math.max(0, distanceStartMeters - remainingDistanceMeters);
-const WEDGE_CLUBS = new Set(['PW', '50', '56', '60']);
+const WEDGE_CLUBS = new Set(['PW', '50w', '56w', '60w']);
 const isOopSurface = (surface: NonNullable<VirtualCaddyInputs['surface']>) => surface !== 'tee' && surface !== 'fairway';
 const isGreenHitOutcome = (outcomeSelection: VirtualCaddyOutcomeSelection | null) => outcomeSelection === 'girHit' || outcomeSelection === 'chipOnGreen';
 const clampDistanceMeters = (distanceMeters: number) => Math.min(600, Math.max(1, distanceMeters));
@@ -332,6 +343,8 @@ export function VirtualCaddyPanel({
   displayHolePar,
   defaultDistanceMeters,
   carryByClub,
+  wedgeMatrices = [],
+  wedgeEntriesByMatrix = {},
   isFocusMode = false,
   onReplaceHoleStats,
   onSaveHoleStats,
@@ -442,8 +455,10 @@ export function VirtualCaddyPanel({
     nextBaseHoleStats: HoleStats,
     nextTrail: PlannerShot[],
     nextDraft: PersistedPlannerDraft,
+    options: { clearManualTrackScore?: boolean } = {},
   ): HoleStats => ({
     ...applyVirtualCaddyTrailToHole(nextBaseHoleStats, nextTrail),
+    manualScoreEnteredOnTrack: options.clearManualTrackScore ? false : Boolean(holeStats.manualScoreEnteredOnTrack),
     virtualCaddyState: {
       version: 1,
       baseHoleStats: stripVirtualCaddyState(nextBaseHoleStats),
@@ -600,13 +615,17 @@ export function VirtualCaddyPanel({
   const shotLabel = getShotLabel(shotNumber, actionType);
   const recommendationDistanceMeters = distanceMode === 'point' ? distanceToMiddleMeters : distanceToHoleMeters;
   const carryBook = useMemo(() => getCarryBook(carryByClub), [carryByClub]);
+  const wedgeMatrixSources = useMemo(
+    () =>
+      wedgeMatrices.map((matrix) => ({
+        matrix,
+        entries: wedgeEntriesByMatrix[matrix.id] ?? [],
+      })),
+    [wedgeEntriesByMatrix, wedgeMatrices],
+  );
   const longestCarry = useMemo(() => getLongestClubCarry(carryByClub), [carryByClub]);
   const baseRecommendation = useMemo(() => {
     if (isPutting) {
-      return null;
-    }
-
-    if (isChipping) {
       return null;
     }
 
@@ -621,14 +640,37 @@ export function VirtualCaddyPanel({
       windStrength,
       hazards,
       carryByClub,
+      wedgeMatrices: wedgeMatrixSources,
     });
-  }, [bunkerLie, carryByClub, hazards, isChipping, isPutting, lieQuality, recommendationDistanceMeters, slope, surface, temperature, windDirection, windStrength]);
+  }, [
+    bunkerLie,
+    carryByClub,
+    hazards,
+    isChipping,
+    isPutting,
+    lieQuality,
+    recommendationDistanceMeters,
+    slope,
+    surface,
+    temperature,
+    wedgeMatrixSources,
+    windDirection,
+    windStrength,
+  ]);
+  const isWedgeMatrixChip = Boolean(isChipping && baseRecommendation?.wedgeMatrixRecommendation);
   const clubChoice = useMemo(() => {
     if (isPutting) {
       return { club: 'Putter', carry: 0 };
     }
 
     if (isChipping) {
+      if (baseRecommendation?.wedgeMatrixRecommendation) {
+        return {
+          club: baseRecommendation.wedgeMatrixRecommendation.club,
+          carry: baseRecommendation.wedgeMatrixRecommendation.distanceMeters,
+        };
+      }
+
       return { club: 'Chip shot', carry: Math.max(0, distanceToMiddleMeters) };
     }
 
@@ -643,6 +685,13 @@ export function VirtualCaddyPanel({
       }
     }
 
+    if (baseRecommendation?.wedgeMatrixRecommendation) {
+      return {
+        club: baseRecommendation.wedgeMatrixRecommendation.club,
+        carry: baseRecommendation.wedgeMatrixRecommendation.distanceMeters,
+      };
+    }
+
     const matched = carryBook.find((entry) => entry.club === baseRecommendation.recommendedClub);
     return matched ?? carryBook[carryBook.length - 1] ?? { club: baseRecommendation.recommendedClub, carry: 0 };
   }, [baseRecommendation, carryBook, distanceToMiddleMeters, isChipping, isPutting, selectedClub]);
@@ -651,11 +700,19 @@ export function VirtualCaddyPanel({
     carryMeters: clubChoice.carry,
     effectiveDistanceMeters: baseRecommendation?.details.effectiveDistanceMeters ?? 0,
     reasons: baseRecommendation?.reasons ?? [],
+    source: baseRecommendation?.source ?? 'carryBook',
+    swingClock: baseRecommendation?.wedgeMatrixRecommendation?.swingClock ?? null,
+    wedgeMatrixName: baseRecommendation?.wedgeMatrixName ?? null,
+    wedgeMatrixSetup: baseRecommendation?.wedgeMatrixSetup ?? null,
     summary: isPutting
       ? 'On the green. Finish the hole with the putter.'
       : isChipping
-        ? 'Missed the green. Play the chip and then move to putting.'
-        : `${clubChoice.club} selected for ${baseRecommendation?.details.effectiveDistanceMeters ?? recommendationDistanceMeters}m effective.`,
+        ? isWedgeMatrixChip && baseRecommendation?.wedgeMatrixRecommendation
+          ? `${clubChoice.club} ${baseRecommendation.wedgeMatrixRecommendation.swingClock} from the wedge matrix for ${baseRecommendation.details.effectiveDistanceMeters}m effective.`
+          : 'Missed the green. Play the chip and then move to putting.'
+        : baseRecommendation?.wedgeMatrixRecommendation
+          ? `${clubChoice.club} ${baseRecommendation.wedgeMatrixRecommendation.swingClock} from the wedge matrix for ${baseRecommendation.details.effectiveDistanceMeters}m effective.`
+          : `${clubChoice.club} selected for ${baseRecommendation?.details.effectiveDistanceMeters ?? recommendationDistanceMeters}m effective.`,
   };
   const displayedCarryBook = useMemo(() => carryBook.slice().reverse(), [carryBook]);
   const overrideRecommendedClub = baseRecommendation?.recommendedClub ?? recommendation.club;
@@ -674,6 +731,7 @@ export function VirtualCaddyPanel({
     return displayedCarryBook.slice(startIndex, endIndex);
   }, [displayedCarryBook, overrideRecommendedClub, showAllOverrideClubs]);
   const canShowAllOverrideClubs = visibleOverrideClubs.length < displayedCarryBook.length;
+  const canOverrideClub = !isPutting && !isChipping && recommendation.source !== 'wedgeMatrix';
   const hasCustomContext =
     (isStandardShot && surface !== (isTeeShot ? 'tee' : 'fairway')) ||
     lieQuality !== 'good' ||
@@ -693,7 +751,8 @@ export function VirtualCaddyPanel({
   const previousShot = trail[trail.length - 1];
   const currentDraft = buildPersistedDraft();
   const isEditDirty = editingOriginalShot
-    ? JSON.stringify(currentDraft) !== JSON.stringify(buildShotDraftFromShot(editingOriginalShot, currentDraft.showAdvanced))
+    ? JSON.stringify(currentDraft) !==
+      JSON.stringify(buildShotDraftFromShot(editingOriginalShot, currentDraft.showAdvanced, carryByClub, wedgeMatrixSources))
     : true;
   const canSaveShot = (isPutting ? puttCount != null : outcomeSelection != null) && (editingIndex == null || isEditDirty);
   const distanceSliderMax = Math.max(300, seededDistanceMeters, distanceToHoleMeters, distanceToMiddleMeters);
@@ -786,6 +845,15 @@ export function VirtualCaddyPanel({
   };
 
   const saveShot = async () => {
+    if (holeStats.manualScoreEnteredOnTrack) {
+      const shouldContinue = window.confirm(
+        'This hole score was manually changed on the Track page. Saving in Virtual Caddy will continue from here and replace that manual score flow. Continue?',
+      );
+      if (!shouldContinue) {
+        return;
+      }
+    }
+
     let remainingDistanceMeters =
       outcomeSelection === 'girHit' || outcomeSelection === 'puttHoled'
         ? 0
@@ -908,7 +976,7 @@ export function VirtualCaddyPanel({
       : buildPersistedDraft({
           nextShotId: nextShotId + 1,
         });
-    const nextHoleStats = buildNextHoleStats(baseHoleStats, nextTrail, nextDraft);
+    const nextHoleStats = buildNextHoleStats(baseHoleStats, nextTrail, nextDraft, { clearManualTrackScore: true });
     lastSyncedHoleStatsRef.current = JSON.stringify(nextHoleStats);
     replaceHoleStatsRef.current(nextHoleStats);
     setTrail(nextTrail);
@@ -1312,11 +1380,11 @@ export function VirtualCaddyPanel({
                     Save
                   </button>
                 </div>
-                <div className="virtual-caddy-club-row">
+                <div className={isChipping ? 'virtual-caddy-club-row virtual-caddy-club-row-chip' : 'virtual-caddy-club-row'}>
                   <strong>
                     {recommendation.club}
-                    {!isPutting && !isChipping ? <span className="virtual-caddy-carry-inline">({recommendation.carryMeters}m carry)</span> : null}
-                    {!isPutting && !isChipping ? (
+                    {!isPutting && (!isChipping || isWedgeMatrixChip) ? <span className="virtual-caddy-carry-inline">({recommendation.carryMeters}m carry)</span> : null}
+                    {canOverrideClub ? (
                       <button
                         type="button"
                         className="virtual-caddy-override-toggle"
@@ -1337,7 +1405,16 @@ export function VirtualCaddyPanel({
                   </strong>
                   <div className="virtual-caddy-club-meta">
                     {isPutting ? <span>Finish out</span> : null}
-                    {!isPutting && !isChipping && selectedClub && selectedClub !== baseRecommendation?.recommendedClub ? (
+                    {recommendation.source === 'wedgeMatrix' && recommendation.swingClock ? (
+                      <>
+                        <span>
+                          {recommendation.swingClock}
+                          {recommendation.wedgeMatrixName ? ` · ${recommendation.wedgeMatrixName}` : ''}
+                        </span>
+                        {recommendation.wedgeMatrixSetup ? <span>{recommendation.wedgeMatrixSetup}</span> : null}
+                      </>
+                    ) : null}
+                    {canOverrideClub && selectedClub && selectedClub !== baseRecommendation?.recommendedClub ? (
                       <button
                         type="button"
                         className="virtual-caddy-recommended-reset"
@@ -1352,7 +1429,7 @@ export function VirtualCaddyPanel({
                     ) : null}
                   </div>
                 </div>
-                {!isPutting && !isChipping && showClubOverride ? (
+                {canOverrideClub && showClubOverride ? (
                   <div className="virtual-caddy-club-picker">
                     <div className="quick-select-row" role="group" aria-label="Virtual caddy club selection">
                       {visibleOverrideClubs.map((entry) => (
@@ -1377,7 +1454,7 @@ export function VirtualCaddyPanel({
                     ) : null}
                   </div>
                 ) : null}
-                {!isPutting && !isChipping ? (
+                {!isPutting && (!isChipping || isWedgeMatrixChip) ? (
                   <div className="virtual-caddy-metrics">
                     <div className="virtual-caddy-metric">
                       <span>Actual distance left</span>
@@ -1392,9 +1469,21 @@ export function VirtualCaddyPanel({
                   </div>
                 ) : null}
                 <div className="prototype-block virtual-caddy-inline-result">
-                  <span className="quick-select-label">
-                    {isPutting ? 'Putts' : isChipping ? 'Chip result' : outcomeMode === 'fairway' ? 'Fairway result' : 'Green result'}
-                  </span>
+                  <div className="virtual-caddy-inline-result-header">
+                    <span className="quick-select-label">
+                      {isPutting ? 'Putts' : isChipping ? 'Chip result' : outcomeMode === 'fairway' ? 'Fairway result' : 'Green result'}
+                    </span>
+                    {isPutting ? (
+                      <button
+                        type="button"
+                        className="setup-toggle"
+                        onClick={() => setShowPuttingDetails((prev) => !prev)}
+                        aria-expanded={showPuttingDetails}
+                      >
+                        {showPuttingDetails ? 'Hide detail' : 'Add detail'}
+                      </button>
+                    ) : null}
+                  </div>
                   <div className="quick-select-row" role={isPutting ? 'group' : undefined} aria-label={isPutting ? 'Virtual caddy putts selection' : undefined}>
                     {isPutting
                       ? PUTT_COUNT_OPTIONS.map((value) => (
@@ -1447,19 +1536,9 @@ export function VirtualCaddyPanel({
                   </div>
                 </div>
                 {isPutting ? (
-                  <div className="prototype-block">
-                    <div className="virtual-caddy-detail-toggle-row">
+                  showPuttingDetails ? (
+                    <div className="prototype-block">
                       <span className="quick-select-label">Detailed stats</span>
-                      <button
-                        type="button"
-                        className="setup-toggle"
-                        onClick={() => setShowPuttingDetails((prev) => !prev)}
-                        aria-expanded={showPuttingDetails}
-                      >
-                        {showPuttingDetails ? 'Hide detail' : 'Add detail'}
-                      </button>
-                    </div>
-                    {showPuttingDetails ? (
                       <div className="stat-list">
                         {PUTTING_DETAIL_OPTIONS.map((stat) => (
                           <div key={stat.key} className="counter-tile">
@@ -1507,8 +1586,8 @@ export function VirtualCaddyPanel({
                           </div>
                         ))}
                       </div>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null
                 ) : null}
               </div>
             </div>

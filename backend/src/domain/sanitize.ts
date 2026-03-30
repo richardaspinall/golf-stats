@@ -1,4 +1,4 @@
-import { COUNTER_OPTIONS, HOLES } from '../constants.js';
+import { COUNTER_OPTIONS, HOLES, normalizeClubLabel } from '../constants.js';
 import type { ClubCarryByClub, CourseMarkersByHole, LatLng, StatsByHole } from './types.js';
 import { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
 import { isBunkerSelection, isClubOption, isFairwaySelection, isGirSelection, isWedgeOption } from './guards.js';
@@ -141,7 +141,8 @@ export const sanitizeClubCarryPayload = (raw: unknown): ClubCarryByClub => {
   }
 
   return Object.entries(raw as Record<string, unknown>).reduce((acc, [club, carryValue]) => {
-    if (!isClubOption(club)) {
+    const normalizedClub = normalizeClubLabel(club);
+    if (!isClubOption(normalizedClub)) {
       return acc;
     }
 
@@ -150,7 +151,7 @@ export const sanitizeClubCarryPayload = (raw: unknown): ClubCarryByClub => {
       return acc;
     }
 
-    acc[club] = sanitizedCarry;
+    acc[normalizedClub] = sanitizedCarry;
     return acc;
   }, {} as ClubCarryByClub);
 };
@@ -178,7 +179,7 @@ export const sanitizeWedgeEntryPayload = (raw: unknown) => {
     return null;
   }
 
-  const club = (raw as any).club;
+  const club = normalizeClubLabel((raw as any).club);
   const swingClock = String((raw as any).swingClock || '').trim().slice(0, 40);
   if (!isWedgeOption(club) || !swingClock) {
     return null;

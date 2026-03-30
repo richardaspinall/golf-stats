@@ -28,6 +28,7 @@ export interface HoleStats {
   girSelection: string | null;
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
+  manualScoreEnteredOnTrack?: boolean;
   virtualCaddyState?: PersistedVirtualCaddyState | null;
   [key: string]: unknown;
 }

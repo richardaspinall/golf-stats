@@ -31,6 +31,8 @@ describe('VirtualCaddyPage', () => {
           saveState: 'saved',
           teeToGreenMeters: 152,
           clubCarryByClub: {},
+          wedgeMatrices: [],
+          wedgeEntriesByMatrix: {},
           isFocusMode: true,
         }}
         actions={{
@@ -79,6 +81,8 @@ describe('VirtualCaddyPage', () => {
           saveState: 'saved',
           teeToGreenMeters: 400,
           clubCarryByClub: { Driver: 200, 'Mini Driver': 190, '3 wood': 180 },
+          wedgeMatrices: [],
+          wedgeEntriesByMatrix: {},
           isFocusMode: false,
         }}
         actions={{
@@ -123,6 +127,8 @@ describe('VirtualCaddyPage', () => {
           saveState: 'saved',
           teeToGreenMeters: 150,
           clubCarryByClub: { '6i': 150, '7i': 140, PW: 100 },
+          wedgeMatrices: [],
+          wedgeEntriesByMatrix: {},
           isFocusMode: false,
         }}
         actions={{
