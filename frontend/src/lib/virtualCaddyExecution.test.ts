@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildInitialByHole } from './rounds';
-import { applyVirtualCaddyExecution } from './virtualCaddyExecution';
+import { applyVirtualCaddyExecution, applyVirtualCaddyTrailToHole } from './virtualCaddyExecution';
 
 describe('applyVirtualCaddyExecution', () => {
   it('increments score and selected outcome counters on the active hole', () => {
@@ -12,7 +12,7 @@ describe('applyVirtualCaddyExecution', () => {
       scoreDelta: 1,
       oopResult: 'look',
       shotCategory: 'chip',
-      inside100Over3: true,
+      inside100Over3: 2,
       puttCount: null,
     });
 
@@ -20,7 +20,7 @@ describe('applyVirtualCaddyExecution', () => {
     expect(updated[3].oopLook).toBe(1);
     expect(updated[3].oopNoLook).toBe(0);
     expect(updated[3].inside100ChipShots).toBe(1);
-    expect(updated[3].inside100Over3).toBe(1);
+    expect(updated[3].inside100Over3).toBe(2);
   });
 
   it('leaves unrelated counters untouched and supports bunker/no-look outcomes', () => {
@@ -31,7 +31,7 @@ describe('applyVirtualCaddyExecution', () => {
       scoreDelta: 2,
       oopResult: 'noLook',
       shotCategory: 'bunker',
-      inside100Over3: false,
+      inside100Over3: 0,
       puttCount: 2,
     });
 
@@ -41,5 +41,20 @@ describe('applyVirtualCaddyExecution', () => {
     expect(updated[7].inside100Bunkers).toBe(1);
     expect(updated[7].inside100Over3).toBe(0);
     expect(updated[6].score).toBe(0);
+  });
+
+  it('tracks the running overage for shots taken inside 100m', () => {
+    const holeStats = buildInitialByHole()[4];
+
+    const updated = applyVirtualCaddyTrailToHole(holeStats, [
+      { hole: 4, scoreDelta: 1, oopResult: 'none', shotCategory: 'wedge', inside100Over3: 0, distanceStartMeters: 90, outcomeSelection: null },
+      { hole: 4, scoreDelta: 1, oopResult: 'none', shotCategory: 'wedge', inside100Over3: 0, distanceStartMeters: 70, outcomeSelection: null },
+      { hole: 4, scoreDelta: 1, oopResult: 'none', shotCategory: 'wedge', inside100Over3: 0, distanceStartMeters: 50, outcomeSelection: null },
+      { hole: 4, scoreDelta: 1, oopResult: 'none', shotCategory: 'chip', inside100Over3: 0, distanceStartMeters: 25, outcomeSelection: null },
+      { hole: 4, scoreDelta: 1, oopResult: 'none', shotCategory: 'chip', inside100Over3: 0, distanceStartMeters: 12, outcomeSelection: null },
+      { hole: 4, scoreDelta: 2, oopResult: 'none', shotCategory: 'chip', inside100Over3: 0, distanceStartMeters: 6, outcomeSelection: 'puttHoled', puttCount: 2 },
+    ]);
+
+    expect(updated.inside100Over3).toBe(4);
   });
 });

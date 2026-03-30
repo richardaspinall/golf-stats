@@ -5,7 +5,10 @@ export type VirtualCaddyExecution = {
   scoreDelta: number;
   oopResult: 'none' | 'look' | 'noLook';
   shotCategory: 'none' | 'wedge' | 'chip' | 'bunker';
-  inside100Over3: boolean;
+  inside100Over3: number;
+  puttMissLong?: number;
+  puttMissShort?: number;
+  puttMissWithin2m?: number;
 };
 
 export type VirtualCaddyOutcomeSelection =
@@ -34,7 +37,7 @@ type TrailExecution = VirtualCaddyExecutedShot & {
 
 export const applyVirtualCaddyExecution = (
   statsByHole: StatsByHole,
-  { hole, scoreDelta, oopResult, shotCategory, inside100Over3, puttCount }: VirtualCaddyExecution & { puttCount?: number | null },
+  { hole, scoreDelta, oopResult, shotCategory, inside100Over3, puttCount, puttMissLong, puttMissShort, puttMissWithin2m }: VirtualCaddyExecution & { puttCount?: number | null },
 ): StatsByHole => {
   const currentHole = statsByHole[hole];
   if (!currentHole) {
@@ -52,7 +55,10 @@ export const applyVirtualCaddyExecution = (
       inside100Wedges: Number(currentHole.inside100Wedges || 0) + (shotCategory === 'wedge' ? 1 : 0),
       inside100ChipShots: Number(currentHole.inside100ChipShots || 0) + (shotCategory === 'chip' ? 1 : 0),
       inside100Bunkers: Number(currentHole.inside100Bunkers || 0) + (shotCategory === 'bunker' ? 1 : 0),
-      inside100Over3: Number(currentHole.inside100Over3 || 0) + (inside100Over3 ? 1 : 0),
+      inside100Over3: Number(currentHole.inside100Over3 || 0) + Math.max(0, Math.floor(inside100Over3 || 0)),
+      puttMissLong: Number(currentHole.puttMissLong || 0) + Math.max(0, Math.floor(puttMissLong || 0)),
+      puttMissShort: Number(currentHole.puttMissShort || 0) + Math.max(0, Math.floor(puttMissShort || 0)),
+      puttMissWithin2m: Number(currentHole.puttMissWithin2m || 0) + Math.max(0, Math.floor(puttMissWithin2m || 0)),
     },
   };
 };
@@ -68,6 +74,9 @@ export const applyVirtualCaddyTrailToHole = (baseHoleStats: HoleStats, execution
   nextHoleStats.inside100ChipShots = Number(baseHoleStats.inside100ChipShots || 0);
   nextHoleStats.inside100Bunkers = Number(baseHoleStats.inside100Bunkers || 0);
   nextHoleStats.inside100Over3 = Number(baseHoleStats.inside100Over3 || 0);
+  nextHoleStats.puttMissLong = Number(baseHoleStats.puttMissLong || 0);
+  nextHoleStats.puttMissShort = Number(baseHoleStats.puttMissShort || 0);
+  nextHoleStats.puttMissWithin2m = Number(baseHoleStats.puttMissWithin2m || 0);
   nextHoleStats.fairwaySelection = baseHoleStats.fairwaySelection;
   nextHoleStats.girSelection = baseHoleStats.girSelection;
 
@@ -93,8 +102,12 @@ export const applyVirtualCaddyTrailToHole = (baseHoleStats: HoleStats, execution
     if (execution.shotCategory === 'bunker') {
       nextHoleStats.inside100Bunkers = Number(nextHoleStats.inside100Bunkers || 0) + 1;
     }
+    nextHoleStats.puttMissLong = Number(nextHoleStats.puttMissLong || 0) + Math.max(0, Math.floor(execution.puttMissLong || 0));
+    nextHoleStats.puttMissShort = Number(nextHoleStats.puttMissShort || 0) + Math.max(0, Math.floor(execution.puttMissShort || 0));
+    nextHoleStats.puttMissWithin2m =
+      Number(nextHoleStats.puttMissWithin2m || 0) + Math.max(0, Math.floor(execution.puttMissWithin2m || 0));
     if (typeof execution.distanceStartMeters === 'number' && execution.distanceStartMeters <= 100) {
-      inside100Shots += 1;
+      inside100Shots += Math.max(0, Math.floor(execution.scoreDelta || 0));
     }
     if (execution.outcomeSelection?.startsWith('fairway')) {
       nextHoleStats.fairwaySelection = execution.outcomeSelection;
@@ -104,7 +117,7 @@ export const applyVirtualCaddyTrailToHole = (baseHoleStats: HoleStats, execution
     }
   });
 
-  nextHoleStats.inside100Over3 = inside100Shots > 3 ? 1 : 0;
+  nextHoleStats.inside100Over3 = Math.max(0, inside100Shots - 3);
 
   return nextHoleStats;
 };

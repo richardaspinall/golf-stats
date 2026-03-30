@@ -95,4 +95,49 @@ describe('VirtualCaddyPage', () => {
     expect(saveHoleStats).toHaveBeenCalledTimes(1);
     expect(saveClubActual).toHaveBeenCalledTimes(1);
   });
+
+  it('moves to the next hole after holing out', async () => {
+    const user = userEvent.setup();
+    const setSelectedHole = vi.fn();
+
+    render(
+      <VirtualCaddyPage
+        round={{
+          selectedHole: 4,
+          displayHoleIndex: 7,
+          displayHolePar: 3,
+          activeRound: { id: 'r1', name: 'Morning Round' },
+          activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+          holeStats: {
+            score: 0,
+            holeIndex: 7,
+            fairwaySelection: null,
+            girSelection: null,
+            teePosition: null,
+            greenPosition: null,
+          },
+          saveState: 'saved',
+          teeToGreenMeters: 150,
+          clubCarryByClub: { '6i': 150, '7i': 140, PW: 100 },
+          isFocusMode: false,
+        }}
+        actions={{
+          setSelectedHole,
+          saveCurrentRound: vi.fn(async () => true),
+          replaceHoleStats: vi.fn(),
+          saveHoleStats: vi.fn(async () => true),
+          saveClubActual: vi.fn(async () => 99),
+          deleteClubActualEntry: vi.fn(async () => {}),
+          onToggleFocusMode: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: '1' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(setSelectedHole).toHaveBeenCalledWith(5);
+  });
 });

@@ -97,6 +97,12 @@ const WIND_STRENGTH_METERS = {
   strong: 12,
 } as const;
 
+const APPROACH_HAZARD_DISTANCE_MAX_METERS = 200;
+const HAZARD_DISTANCE_ADJUSTMENTS: Partial<Record<VirtualCaddyHazardSide, number>> = {
+  short: 6,
+  long: -6,
+};
+
 const normalizeInputs = (inputs: VirtualCaddyInputs) => ({
   surface: inputs.surface ?? 'fairway',
   lieQuality: inputs.lieQuality ?? 'good',
@@ -107,6 +113,28 @@ const normalizeInputs = (inputs: VirtualCaddyInputs) => ({
   windStrength: inputs.windStrength ?? 'calm',
   hazards: inputs.hazards ?? [],
 });
+
+const getHazardDistanceAdjustments = (inputs: VirtualCaddyInputs) => {
+  const normalized = normalizeInputs(inputs);
+
+  if (inputs.distanceToMiddleMeters > APPROACH_HAZARD_DISTANCE_MAX_METERS || normalized.surface === 'tee') {
+    return [] as Array<{ label: string; meters: number }>;
+  }
+
+  return normalized.hazards.flatMap((hazard) => {
+    const meters = HAZARD_DISTANCE_ADJUSTMENTS[hazard];
+    if (!meters) {
+      return [];
+    }
+
+    return [
+      {
+        label: hazard === 'short' ? 'Miss short is bad' : 'Miss long is bad',
+        meters,
+      },
+    ];
+  });
+};
 
 const buildAdjustments = (inputs: VirtualCaddyInputs) => {
   const normalized = normalizeInputs(inputs);
@@ -134,6 +162,7 @@ const buildAdjustments = (inputs: VirtualCaddyInputs) => {
           : `Wind: ${normalized.windDirection} ${normalized.windStrength}`,
       meters: windMeters,
     },
+    ...getHazardDistanceAdjustments(inputs),
   ].filter((item) => item.meters !== 0);
 };
 
@@ -280,6 +309,20 @@ export const getVirtualCaddyRecommendation = (inputs: VirtualCaddyInputs): Virtu
     reasons.push('Left-side trouble: bias the target slightly right of center.');
   } else if (normalized.hazards.includes('right')) {
     reasons.push('Right-side trouble: bias the target slightly left of center.');
+  }
+  if (
+    normalized.hazards.includes('short') &&
+    inputs.distanceToMiddleMeters <= APPROACH_HAZARD_DISTANCE_MAX_METERS &&
+    normalized.surface !== 'tee'
+  ) {
+    reasons.push('Missing short leaves a tougher recovery, so favor enough carry.');
+  }
+  if (
+    normalized.hazards.includes('long') &&
+    inputs.distanceToMiddleMeters <= APPROACH_HAZARD_DISTANCE_MAX_METERS &&
+    normalized.surface !== 'tee'
+  ) {
+    reasons.push('Going long brings trouble in, so favor the number that stays short of it.');
   }
 
   return {

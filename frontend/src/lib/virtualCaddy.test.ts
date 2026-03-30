@@ -82,4 +82,52 @@ describe('getVirtualCaddyRecommendation', () => {
     expect(recommendation.reasons).toContain('Bunker lie: buried +8m');
     expect(recommendation.reasons).toContain('Buried lie: expect less spin and rollout control, so take more loft and play for the safe side.');
   });
+
+  it('adds more club when missing short is bad on an approach shot', () => {
+    const recommendation = getVirtualCaddyRecommendation({
+      distanceToMiddleMeters: 150,
+      surface: 'fairway',
+      lieQuality: 'good',
+      slope: 'flat',
+      windDirection: 'none',
+      hazards: ['short'],
+    });
+
+    expect(recommendation.adjustedDistanceMeters).toBe(156);
+    expect(recommendation.recommendedClub).toBe('5i');
+    expect(recommendation.reasons).toContain('Miss short is bad +6m');
+    expect(recommendation.reasons).toContain('Missing short leaves a tougher recovery, so favor enough carry.');
+  });
+
+  it('takes less club when long is bad on an approach shot', () => {
+    const recommendation = getVirtualCaddyRecommendation({
+      distanceToMiddleMeters: 150,
+      surface: 'fairway',
+      lieQuality: 'good',
+      slope: 'flat',
+      windDirection: 'none',
+      hazards: ['long'],
+    });
+
+    expect(recommendation.adjustedDistanceMeters).toBe(144);
+    expect(recommendation.recommendedClub).toBe('6i');
+    expect(recommendation.reasons).toContain('Miss long is bad -6m');
+    expect(recommendation.reasons).toContain('Going long brings trouble in, so favor the number that stays short of it.');
+  });
+
+  it('does not apply short or long hazard distance adjustments on tee shots', () => {
+    const recommendation = getVirtualCaddyRecommendation({
+      distanceToMiddleMeters: 180,
+      surface: 'tee',
+      lieQuality: 'good',
+      slope: 'flat',
+      windDirection: 'none',
+      hazards: ['short', 'long'],
+    });
+
+    expect(recommendation.adjustedDistanceMeters).toBe(180);
+    expect(recommendation.recommendedClub).toBe('5Hy');
+    expect(recommendation.reasons).not.toContain('Miss short is bad +6m');
+    expect(recommendation.reasons).not.toContain('Miss long is bad -6m');
+  });
 });

@@ -48,12 +48,6 @@ const BUNKER_LIE_OPTIONS: Array<{ key: VirtualCaddyBunkerLie; label: string }> =
   { key: 'lip', label: 'Lip in play' },
 ];
 
-const TEMPERATURE_OPTIONS: Array<{ key: NonNullable<VirtualCaddyInputs['temperature']>; label: string }> = [
-  { key: 'cold', label: 'Cold' },
-  { key: 'normal', label: 'Normal' },
-  { key: 'hot', label: 'Hot' },
-];
-
 const WIND_DIRECTION_OPTIONS: Array<{ key: NonNullable<VirtualCaddyInputs['windDirection']>; label: string }> = [
   { key: 'none', label: 'No wind' },
   { key: 'into', label: 'Into wind' },
@@ -98,6 +92,11 @@ const CHIP_OUTCOME_OPTIONS: Array<{ key: VirtualCaddyOutcomeSelection; label: st
 ];
 
 const PUTT_COUNT_OPTIONS = [1, 2, 3] as const;
+const PUTTING_DETAIL_OPTIONS = [
+  { key: 'puttMissLong', label: 'Miss long' },
+  { key: 'puttMissShort', label: 'Miss short' },
+  { key: 'puttMissWithin2m', label: 'Miss within 2m' },
+] as const;
 
 type VirtualCaddyPanelProps = {
   hole: number;
@@ -110,6 +109,7 @@ type VirtualCaddyPanelProps = {
   onSaveHoleStats?: (nextHoleStats: HoleStats) => Promise<boolean>;
   onSaveClubActual?: (shot: { club: string; actualMeters: number }) => Promise<number | null>;
   onDeleteClubActualEntry?: (entryId: number) => Promise<void>;
+  onHoleComplete?: () => void;
 };
 
 type PlannerActionType = 'tee' | 'shot' | 'chipping' | 'putting';
@@ -133,6 +133,9 @@ type PlannerShot = VirtualCaddyExecutedShot & {
   club: string;
   carryMeters: number;
   puttCount?: number | null;
+  puttMissLong?: number;
+  puttMissShort?: number;
+  puttMissWithin2m?: number;
   clubActualEntryId?: number | null;
 };
 
@@ -156,6 +159,10 @@ type PersistedPlannerDraft = {
   oopResult: 'none' | 'look' | 'noLook';
   outcomeSelection: VirtualCaddyOutcomeSelection | null;
   puttCount: number | null;
+  puttMissLong: number;
+  puttMissShort: number;
+  puttMissWithin2m: number;
+  showPuttingDetails: boolean;
   showAdvanced: boolean;
 };
 
@@ -203,6 +210,10 @@ const buildShotDraftFromShot = (shot: PlannerShot, showAdvancedValue: boolean): 
   oopResult: shot.oopResult,
   outcomeSelection: shot.outcomeSelection,
   puttCount: shot.puttCount ?? null,
+  puttMissLong: shot.puttMissLong ?? 0,
+  puttMissShort: shot.puttMissShort ?? 0,
+  puttMissWithin2m: shot.puttMissWithin2m ?? 0,
+  showPuttingDetails: (shot.puttMissLong ?? 0) > 0 || (shot.puttMissShort ?? 0) > 0 || (shot.puttMissWithin2m ?? 0) > 0,
   showAdvanced: showAdvancedValue,
 });
 
@@ -326,6 +337,7 @@ export function VirtualCaddyPanel({
   onSaveHoleStats,
   onSaveClubActual,
   onDeleteClubActualEntry,
+  onHoleComplete,
 }: VirtualCaddyPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -352,6 +364,10 @@ export function VirtualCaddyPanel({
   const [oopResult, setOopResult] = useState<'none' | 'look' | 'noLook'>('none');
   const [outcomeSelection, setOutcomeSelection] = useState<VirtualCaddyOutcomeSelection | null>(null);
   const [puttCount, setPuttCount] = useState<number | null>(null);
+  const [puttMissLong, setPuttMissLong] = useState(0);
+  const [puttMissShort, setPuttMissShort] = useState(0);
+  const [puttMissWithin2m, setPuttMissWithin2m] = useState(0);
+  const [showPuttingDetails, setShowPuttingDetails] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingSnapshot, setEditingSnapshot] = useState<PlannerSnapshot | null>(null);
   const [editingOriginalShot, setEditingOriginalShot] = useState<PlannerShot | null>(null);
@@ -386,6 +402,10 @@ export function VirtualCaddyPanel({
     setOopResult('none');
     setOutcomeSelection(null);
     setPuttCount(null);
+    setPuttMissLong(0);
+    setPuttMissShort(0);
+    setPuttMissWithin2m(0);
+    setShowPuttingDetails(false);
     setShowAdvanced(false);
   };
 
@@ -411,6 +431,10 @@ export function VirtualCaddyPanel({
     oopResult,
     outcomeSelection,
     puttCount,
+    puttMissLong,
+    puttMissShort,
+    puttMissWithin2m,
+    showPuttingDetails,
     showAdvanced,
     ...overrides,
   });
@@ -452,6 +476,10 @@ export function VirtualCaddyPanel({
     setOopResult(snapshot.draft.oopResult);
     setOutcomeSelection(snapshot.draft.outcomeSelection);
     setPuttCount(snapshot.draft.puttCount);
+    setPuttMissLong(snapshot.draft.puttMissLong);
+    setPuttMissShort(snapshot.draft.puttMissShort);
+    setPuttMissWithin2m(snapshot.draft.puttMissWithin2m);
+    setShowPuttingDetails(snapshot.draft.showPuttingDetails);
     setShowAdvanced(snapshot.draft.showAdvanced);
   };
 
@@ -487,6 +515,16 @@ export function VirtualCaddyPanel({
       setOopResult((persistedDraft.oopResult as 'none' | 'look' | 'noLook') || 'none');
       setOutcomeSelection((persistedDraft.outcomeSelection as VirtualCaddyOutcomeSelection | null) ?? null);
       setPuttCount(typeof persistedDraft.puttCount === 'number' ? persistedDraft.puttCount : null);
+      setPuttMissLong(Number(persistedDraft.puttMissLong || 0));
+      setPuttMissShort(Number(persistedDraft.puttMissShort || 0));
+      setPuttMissWithin2m(Number(persistedDraft.puttMissWithin2m || 0));
+      setShowPuttingDetails(
+        typeof persistedDraft.showPuttingDetails === 'boolean'
+          ? persistedDraft.showPuttingDetails
+          : Number(persistedDraft.puttMissLong || 0) > 0 ||
+              Number(persistedDraft.puttMissShort || 0) > 0 ||
+              Number(persistedDraft.puttMissWithin2m || 0) > 0,
+      );
       setShowAdvanced(Boolean(persistedDraft.showAdvanced));
       setEditingIndex(null);
       setEditingSnapshot(null);
@@ -527,8 +565,12 @@ export function VirtualCaddyPanel({
     oopResult,
     outcomeSelection,
     puttCount,
+    puttMissLong,
+    puttMissShort,
+    puttMissWithin2m,
     selectedClub,
     showClubOverride,
+    showPuttingDetails,
     seededDistanceMeters,
     showAdvanced,
     slope,
@@ -705,6 +747,31 @@ export function VirtualCaddyPanel({
       return nextValue;
     });
   };
+  const setPuttDetailValue = (statKey: 'puttMissLong' | 'puttMissShort' | 'puttMissWithin2m', nextValue: number) => {
+    const safeValue = Math.max(0, Math.floor(nextValue));
+    if (statKey === 'puttMissLong') {
+      setPuttMissLong(safeValue);
+      return;
+    }
+    if (statKey === 'puttMissShort') {
+      setPuttMissShort(safeValue);
+      return;
+    }
+    setPuttMissWithin2m(safeValue);
+  };
+  const getPuttDetailValue = (statKey: 'puttMissLong' | 'puttMissShort' | 'puttMissWithin2m') => {
+    if (statKey === 'puttMissLong') {
+      return puttMissLong;
+    }
+    if (statKey === 'puttMissShort') {
+      return puttMissShort;
+    }
+    return puttMissWithin2m;
+  };
+  const toggleCustomPuttDetailInput = (statKey: 'puttMissLong' | 'puttMissShort' | 'puttMissWithin2m') => {
+    const currentValue = getPuttDetailValue(statKey);
+    setPuttDetailValue(statKey, currentValue >= 4 ? currentValue + 1 : 4);
+  };
 
   const getTrailRecordedDistanceMeters = (shot: PlannerShot, index: number) => {
     const nextShot = trail[index + 1];
@@ -798,11 +865,14 @@ export function VirtualCaddyPanel({
       club: recommendation.club,
       carryMeters: recommendation.carryMeters,
       puttCount,
+      puttMissLong,
+      puttMissShort,
+      puttMissWithin2m,
       clubActualEntryId,
       scoreDelta: actionType === 'putting' ? Math.max(1, puttCount ?? 1) : 1,
       oopResult: deriveOopResult(actionType, surface, oopResult),
       shotCategory: deriveShotCategory(actionType, surface, distanceToMiddleMeters, recommendation.club),
-      inside100Over3: false,
+      inside100Over3: 0,
       outcomeSelection,
     };
 
@@ -830,6 +900,10 @@ export function VirtualCaddyPanel({
           oopResult: 'none',
           outcomeSelection: null,
           puttCount: null,
+          puttMissLong: 0,
+          puttMissShort: 0,
+          puttMissWithin2m: 0,
+          showPuttingDetails: false,
           showAdvanced: false,
         })
       : buildPersistedDraft({
@@ -844,8 +918,12 @@ export function VirtualCaddyPanel({
       setActionType(nextActionType);
       resetDraft(remainingDistanceMeters, nextSurface);
     }
+    let didPersist = true;
     if (saveHoleStatsRef.current) {
-      await saveHoleStatsRef.current(nextHoleStats);
+      didPersist = await saveHoleStatsRef.current(nextHoleStats);
+    }
+    if (didPersist && !nextActionType) {
+      onHoleComplete?.();
     }
     setEditingIndex(null);
     setEditingSnapshot(null);
@@ -890,6 +968,10 @@ export function VirtualCaddyPanel({
     setOopResult(shot.oopResult);
     setOutcomeSelection(shot.outcomeSelection);
     setPuttCount(shot.puttCount ?? null);
+    setPuttMissLong(shot.puttMissLong ?? 0);
+    setPuttMissShort(shot.puttMissShort ?? 0);
+    setPuttMissWithin2m(shot.puttMissWithin2m ?? 0);
+    setShowPuttingDetails((shot.puttMissLong ?? 0) > 0 || (shot.puttMissShort ?? 0) > 0 || (shot.puttMissWithin2m ?? 0) > 0);
     setShowAdvanced(showAdvancedValue);
     setNextShotId(shot.id);
   };
@@ -977,8 +1059,13 @@ export function VirtualCaddyPanel({
                     ) : null}
                     {distanceMode !== 'point' ? (
                       <div className="distance-header">
-                        <span>Distance left</span>
-                        <strong>{distanceToHoleMeters}m</strong>
+                        <span>Actual distance left</span>
+                        <div className="distance-header-actions">
+                          <strong>{distanceToHoleMeters}m</strong>
+                          <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
+                            Reset
+                          </button>
+                        </div>
                       </div>
                     ) : null}
                     {isStandardShot ? (
@@ -1007,7 +1094,12 @@ export function VirtualCaddyPanel({
                         <div className="prototype-block">
                           <div className="distance-header">
                             <span>Distance to green</span>
-                            <strong>{distanceToHoleMeters}m</strong>
+                            <div className="distance-header-actions">
+                              <strong>{distanceToHoleMeters}m</strong>
+                              <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
+                                Reset
+                              </button>
+                            </div>
                           </div>
                         <div className="virtual-caddy-slider-row">
                           <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters - 5)}>
@@ -1031,15 +1123,17 @@ export function VirtualCaddyPanel({
                             <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters + 5)}>
                               +5m
                             </button>
-                            <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
-                              Reset
-                            </button>
                           </div>
                         </div>
                         <div className="prototype-block">
                           <div className="distance-header">
                             <span>Distance to target</span>
-                            <strong>{distanceToMiddleMeters}m</strong>
+                            <div className="distance-header-actions">
+                              <strong>{distanceToMiddleMeters}m</strong>
+                              <button type="button" className="setup-toggle" onClick={() => setShotDistance(distanceToHoleMeters)}>
+                                Reset
+                              </button>
+                            </div>
                           </div>
                           <div className="virtual-caddy-slider-row">
                             <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters - 5)}>
@@ -1062,9 +1156,6 @@ export function VirtualCaddyPanel({
                             </button>
                             <button type="button" className="choice-chip" onClick={() => setShotDistance(distanceToMiddleMeters + 5)}>
                               +5m
-                            </button>
-                            <button type="button" className="setup-toggle" onClick={() => setShotDistance(distanceToHoleMeters)}>
-                              Reset
                             </button>
                           </div>
                         </div>
@@ -1093,12 +1184,132 @@ export function VirtualCaddyPanel({
                           <button type="button" className="choice-chip" onClick={() => setHoleDistance(distanceToHoleMeters + 5)}>
                             +5m
                           </button>
-                          <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
-                            Reset
-                          </button>
                         </div>
                       </>
                     )}
+                    {isStandardShot ? (
+                      <div className="virtual-caddy-setup-actions">
+                        <button type="button" className="setup-toggle" onClick={() => setShowAdvanced((prev) => !prev)} aria-expanded={showAdvanced}>
+                          {showAdvanced ? 'Hide detail' : 'Add detail'}
+                        </button>
+                      </div>
+                    ) : null}
+                    {showAdvanced && isStandardShot ? (
+                      <div className="virtual-caddy-advanced">
+                        <div className="prototype-block">
+                          <span className="quick-select-label">Surface</span>
+                          <div className="quick-select-row">
+                            {SURFACE_OPTIONS.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={surface === option.key ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setSurface(option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {surface === 'bunker' ? (
+                          <div className="prototype-block">
+                            <span className="quick-select-label">Bunker lie</span>
+                            <div className="quick-select-row">
+                              {BUNKER_LIE_OPTIONS.map((option) => (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  className={bunkerLie === option.key ? 'choice-chip active' : 'choice-chip'}
+                                  onClick={() => setBunkerLie(option.key)}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        <div className="prototype-block">
+                          <span className="quick-select-label">Lie quality</span>
+                          <div className="quick-select-row">
+                            {LIE_QUALITY_OPTIONS.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={lieQuality === option.key ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setLieQuality(option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="prototype-block">
+                          <span className="quick-select-label">Slope</span>
+                          <div className="quick-select-row">
+                            {SLOPE_OPTIONS.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={slope === option.key ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setSlope(option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="prototype-block">
+                          <span className="quick-select-label">Wind</span>
+                          <div className="quick-select-row">
+                            {WIND_DIRECTION_OPTIONS.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={windDirection === option.key ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setWindDirection(option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          {windDirection !== 'none' ? (
+                            <div className="quick-select-row">
+                              {WIND_STRENGTH_OPTIONS.filter((option) => option.key !== 'calm').map((option) => (
+                                <button
+                                  key={option.key}
+                                  type="button"
+                                  className={windStrength === option.key ? 'choice-chip active' : 'choice-chip'}
+                                  onClick={() => setWindStrength(option.key)}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="prototype-block">
+                          <span className="quick-select-label">Trouble</span>
+                          <div className="quick-select-row">
+                            {HAZARD_OPTIONS.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={hazards.includes(option.key) ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => toggleHazard(option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="prototype-block virtual-caddy-notes">
+                          <span className="quick-select-label">Why</span>
+                          <ul className="virtual-caddy-reason-list">
+                            {recommendation.reasons.length > 0 ? recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Stock shot.</li>}
+                          </ul>
+                        </div>
+                      </div>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -1106,7 +1317,12 @@ export function VirtualCaddyPanel({
 
             <div className="virtual-caddy-recommendation">
               <div className="virtual-caddy-recommendation-copy">
-                <p className="virtual-caddy-label">Action to take</p>
+                <div className="virtual-caddy-recommendation-header">
+                  <p className="virtual-caddy-label">Action to take</p>
+                  <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot} onClick={saveShot}>
+                    Save
+                  </button>
+                </div>
                 <div className="virtual-caddy-club-row">
                   <strong>
                     {recommendation.club}
@@ -1175,7 +1391,7 @@ export function VirtualCaddyPanel({
                 {!isPutting && !isChipping ? (
                   <div className="virtual-caddy-metrics">
                     <div className="virtual-caddy-metric">
-                      <span>Distance left</span>
+                      <span>Actual distance left</span>
                       <strong>{distanceToMiddleMeters}m</strong>
                     </div>
                     {recommendation.effectiveDistanceMeters !== distanceToMiddleMeters ? (
@@ -1190,7 +1406,7 @@ export function VirtualCaddyPanel({
                   <span className="quick-select-label">
                     {isPutting ? 'Putts' : isChipping ? 'Chip result' : outcomeMode === 'fairway' ? 'Fairway result' : 'Green result'}
                   </span>
-                  <div className="quick-select-row">
+                  <div className="quick-select-row" role={isPutting ? 'group' : undefined} aria-label={isPutting ? 'Virtual caddy putts selection' : undefined}>
                     {isPutting
                       ? PUTT_COUNT_OPTIONS.map((value) => (
                           <button
@@ -1241,154 +1457,74 @@ export function VirtualCaddyPanel({
                         ))}
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="virtual-caddy-actions">
-              <div className="virtual-caddy-action-buttons">
-                {isStandardShot ? (
-                  <button type="button" className="setup-toggle" onClick={() => setShowAdvanced((prev) => !prev)} aria-expanded={showAdvanced}>
-                    {showAdvanced ? 'Hide detail' : 'Add detail'}
-                  </button>
-                ) : null}
-                <button type="button" className="save-btn" disabled={!canSaveShot} onClick={saveShot}>
-                  Save
-                </button>
-              </div>
-              {hasCustomContext ? <p className="virtual-caddy-state-note">Recommendation adjusted for current conditions.</p> : null}
-            </div>
-
-            {showAdvanced && isStandardShot ? (
-              <div className="virtual-caddy-advanced">
-                <div className="prototype-block">
-                  <span className="quick-select-label">Surface</span>
-                  <div className="quick-select-row">
-                    {SURFACE_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={surface === option.key ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setSurface(option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {surface === 'bunker' ? (
+                {isPutting ? (
                   <div className="prototype-block">
-                    <span className="quick-select-label">Bunker lie</span>
-                    <div className="quick-select-row">
-                      {BUNKER_LIE_OPTIONS.map((option) => (
-                        <button
-                          key={option.key}
-                          type="button"
-                          className={bunkerLie === option.key ? 'choice-chip active' : 'choice-chip'}
-                          onClick={() => setBunkerLie(option.key)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                    <div className="virtual-caddy-detail-toggle-row">
+                      <span className="quick-select-label">Detailed stats</span>
+                      <button
+                        type="button"
+                        className="setup-toggle"
+                        onClick={() => setShowPuttingDetails((prev) => !prev)}
+                        aria-expanded={showPuttingDetails}
+                      >
+                        {showPuttingDetails ? 'Hide detail' : 'Add detail'}
+                      </button>
                     </div>
+                    {showPuttingDetails ? (
+                      <div className="stat-list">
+                        {PUTTING_DETAIL_OPTIONS.map((stat) => (
+                          <div key={stat.key} className="counter-tile">
+                            <div className="counter-tile-header">
+                              <span>{stat.label}</span>
+                              <div className="counter-value-grid" role="group" aria-label={`${stat.label} value`}>
+                                <button
+                                  type="button"
+                                  className={getPuttDetailValue(stat.key) === 0 ? 'counter-value-btn counter-reset-btn active' : 'counter-value-btn counter-reset-btn'}
+                                  onClick={() => setPuttDetailValue(stat.key, 0)}
+                                >
+                                  0
+                                </button>
+                                {[1, 2, 3].map((value) => (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    className={getPuttDetailValue(stat.key) === value ? 'counter-value-btn active' : 'counter-value-btn'}
+                                    onClick={() => setPuttDetailValue(stat.key, value)}
+                                  >
+                                    {value}
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  className={getPuttDetailValue(stat.key) >= 4 ? 'counter-value-btn active' : 'counter-value-btn'}
+                                  onClick={() => toggleCustomPuttDetailInput(stat.key)}
+                                  aria-expanded={getPuttDetailValue(stat.key) >= 4}
+                                  aria-label={`Enter a custom value for ${stat.label}`}
+                                >
+                                  +
+                                </button>
+                                {getPuttDetailValue(stat.key) >= 4 ? (
+                                  <button
+                                    type="button"
+                                    className="counter-inline-value"
+                                    onClick={() => setPuttDetailValue(stat.key, Math.max(4, getPuttDetailValue(stat.key) - 1))}
+                                    aria-label={`Decrease custom value for ${stat.label}`}
+                                  >
+                                    {Math.max(4, getPuttDetailValue(stat.key))}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
-                <div className="prototype-block">
-                  <span className="quick-select-label">Lie quality</span>
-                  <div className="quick-select-row">
-                    {LIE_QUALITY_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={lieQuality === option.key ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setLieQuality(option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="prototype-block">
-                  <span className="quick-select-label">Slope</span>
-                  <div className="quick-select-row">
-                    {SLOPE_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={slope === option.key ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setSlope(option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="prototype-block">
-                  <span className="quick-select-label">Temperature</span>
-                  <div className="quick-select-row">
-                    {TEMPERATURE_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={temperature === option.key ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setTemperature(option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="prototype-block">
-                  <span className="quick-select-label">Wind</span>
-                  <div className="quick-select-row">
-                    {WIND_DIRECTION_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={windDirection === option.key ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => setWindDirection(option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  {windDirection !== 'none' ? (
-                    <div className="quick-select-row">
-                      {WIND_STRENGTH_OPTIONS.filter((option) => option.key !== 'calm').map((option) => (
-                        <button
-                          key={option.key}
-                          type="button"
-                          className={windStrength === option.key ? 'choice-chip active' : 'choice-chip'}
-                          onClick={() => setWindStrength(option.key)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="prototype-block">
-                  <span className="quick-select-label">Trouble</span>
-                  <div className="quick-select-row">
-                    {HAZARD_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={hazards.includes(option.key) ? 'choice-chip active' : 'choice-chip'}
-                        onClick={() => toggleHazard(option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="prototype-block virtual-caddy-notes">
-                  <span className="quick-select-label">Why</span>
-                  <ul className="virtual-caddy-reason-list">
-                    {recommendation.reasons.length > 0 ? recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Stock shot.</li>}
-                  </ul>
-                </div>
               </div>
-            ) : null}
+            </div>
+
+            {hasCustomContext ? <p className="virtual-caddy-state-note">Recommendation adjusted for current conditions.</p> : null}
 
           </>
         ) : (

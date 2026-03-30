@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,7 +24,7 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.queryByRole('group', { name: 'Virtual caddy club selection' })).toBeNull();
     expect(screen.queryByText('Selected club')).toBeNull();
     expect(screen.getByText('(150m carry)')).toBeTruthy();
-    expect(screen.getAllByText('Distance left').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Actual distance left').length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText('Effective')).toBeNull();
   });
 
@@ -39,7 +39,7 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Trouble left' }));
 
     expect(screen.getByText('(170m carry)')).toBeTruthy();
-    expect(screen.getAllByText('Distance left').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Actual distance left').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Effective')).toBeTruthy();
     expect(getVisibleDistanceValue()).toBe('150m');
     expect(screen.getByText('Left-side trouble: bias the target slightly right of center.')).toBeTruthy();
@@ -187,7 +187,7 @@ describe('VirtualCaddyPanel', () => {
                 scoreDelta: 1,
                 oopResult: 'none',
                 shotCategory: 'none',
-                inside100Over3: false,
+                inside100Over3: 0,
                 outcomeSelection: 'fairwayHit',
                 puttCount: null,
               },
@@ -289,14 +289,15 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
+    const puttsGroup = screen.getByRole('group', { name: 'Virtual caddy putts selection' });
     expect(screen.getByRole('heading', { name: 'Putting' })).toBeTruthy();
     expect(screen.getByText('Putter')).toBeTruthy();
     expect(screen.getByText('Finish out')).toBeTruthy();
     expect(screen.getByText('Putts')).toBeTruthy();
-    expect(screen.getByRole('button', { name: '1' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '2' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '3' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Add more than 3 putts' })).toBeTruthy();
+    expect(within(puttsGroup).getByRole('button', { name: '1' })).toBeTruthy();
+    expect(within(puttsGroup).getByRole('button', { name: '2' })).toBeTruthy();
+    expect(within(puttsGroup).getByRole('button', { name: '3' })).toBeTruthy();
+    expect(within(puttsGroup).getByRole('button', { name: 'Add more than 3 putts' })).toBeTruthy();
   });
 
   it('records putt count into the trail and hole stats', async () => {
@@ -307,7 +308,7 @@ describe('VirtualCaddyPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await user.click(screen.getByRole('button', { name: '2' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(screen.getByText('Trail complete')).toBeTruthy();
@@ -318,6 +319,43 @@ describe('VirtualCaddyPanel', () => {
     expect(lastCall?.totalPutts).toBe(2);
   });
 
+  it('records putting detailed stats into the hole totals', async () => {
+    const user = userEvent.setup();
+    const onReplaceHoleStats = vi.fn();
+
+    render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={onReplaceHoleStats} />);
+
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    expect(screen.queryByRole('group', { name: 'Miss long value' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add detail' }));
+    await user.click(within(screen.getByRole('group', { name: 'Miss long value' })).getByRole('button', { name: '1' }));
+    await user.click(within(screen.getByRole('group', { name: 'Miss within 2m value' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    const lastCall = onReplaceHoleStats.mock.calls.at(-1)?.[0];
+    expect(lastCall?.totalPutts).toBe(2);
+    expect(lastCall?.puttMissLong).toBe(1);
+    expect(lastCall?.puttMissWithin2m).toBe(2);
+  });
+
+  it('keeps putting detailed stats collapsed until opened', async () => {
+    const user = userEvent.setup();
+
+    render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(screen.queryByRole('group', { name: 'Miss long value' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Add detail' }));
+
+    expect(screen.getByRole('group', { name: 'Miss long value' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Hide detail' })).toBeTruthy();
+  });
+
   it('supports custom putt counts above 3 with a plus button', async () => {
     const user = userEvent.setup();
     const onReplaceHoleStats = vi.fn();
@@ -326,8 +364,9 @@ describe('VirtualCaddyPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await user.click(screen.getByRole('button', { name: 'Add more than 3 putts' }));
-    await user.click(screen.getByRole('button', { name: 'Add more than 3 putts' }));
+    const puttsGroup = screen.getByRole('group', { name: 'Virtual caddy putts selection' });
+    await user.click(within(puttsGroup).getByRole('button', { name: 'Add more than 3 putts' }));
+    await user.click(within(puttsGroup).getByRole('button', { name: 'Add more than 3 putts' }));
 
     expect(screen.getByRole('button', { name: 'Decrease custom putts value' }).textContent).toBe('5');
 
@@ -477,7 +516,7 @@ describe('VirtualCaddyPanel', () => {
 
     expect(screen.getByRole('heading', { name: 'Shot 3' })).toBeTruthy();
     expect(screen.getByText('(150m carry)')).toBeTruthy();
-    expect(screen.getAllByText('Distance left').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Actual distance left').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Effective')).toBeTruthy();
   });
 
