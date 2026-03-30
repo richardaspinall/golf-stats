@@ -82,7 +82,12 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
     listClubCarry: vi.fn().mockResolvedValue({}),
     saveClubCarry: vi.fn().mockResolvedValue({}),
     listClubActualAverages: vi.fn().mockResolvedValue({}),
-    insertClubActualDistance: vi.fn().mockResolvedValue(undefined),
+    insertClubActualDistance: vi.fn().mockResolvedValue({
+      id: 123,
+      club: 'Driver',
+      actualMeters: 245,
+      createdAt: 'now',
+    }),
     listClubActualEntries: vi.fn().mockResolvedValue([]),
     deleteClubActualEntry: vi.fn().mockResolvedValue(false),
   }));
@@ -275,6 +280,31 @@ describe('handler', () => {
     expect(res.statusCode).toBe(200);
     const payload = JSON.parse(getBody());
     expect(payload.rounds).toHaveLength(1);
+  });
+
+  it('creates a club actual entry and returns it', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/club-actuals',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { club: 'Driver', actualMeters: 245 },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      entry: {
+        id: 123,
+        club: 'Driver',
+        actualMeters: 245,
+        createdAt: 'now',
+      },
+    });
   });
 
   it('updates wedge matrix metadata with valid token', async () => {

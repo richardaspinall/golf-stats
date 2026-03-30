@@ -29,6 +29,7 @@ export type HoleStats = {
   bunkerSelection: BunkerSelection | null;
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
+  virtualCaddyState?: Record<string, unknown> | null;
 } & Record<CounterOption, number>;
 
 export type StatsByHole = Record<number, HoleStats>;

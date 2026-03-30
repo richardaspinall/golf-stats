@@ -48,6 +48,10 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
     safe[hole].bunkerSelection = isBunkerSelection(holeRaw.bunkerSelection) ? holeRaw.bunkerSelection : null;
     safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
+    safe[hole].virtualCaddyState =
+      holeRaw.virtualCaddyState && typeof holeRaw.virtualCaddyState === 'object'
+        ? (holeRaw.virtualCaddyState as Record<string, unknown>)
+        : null;
   });
 
   return safe;

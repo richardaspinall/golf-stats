@@ -13,6 +13,7 @@ describe('applyVirtualCaddyExecution', () => {
       oopResult: 'look',
       shotCategory: 'chip',
       inside100Over3: true,
+      puttCount: null,
     });
 
     expect(updated[3].score).toBe(1);
@@ -31,9 +32,11 @@ describe('applyVirtualCaddyExecution', () => {
       oopResult: 'noLook',
       shotCategory: 'bunker',
       inside100Over3: false,
+      puttCount: 2,
     });
 
     expect(updated[7].score).toBe(2);
+    expect(updated[7].totalPutts).toBe(2);
     expect(updated[7].oopNoLook).toBe(1);
     expect(updated[7].inside100Bunkers).toBe(1);
     expect(updated[7].inside100Over3).toBe(0);

@@ -45,7 +45,7 @@ import {
   SWING_CLOCK_OPTIONS,
 } from './lib/constants';
 import { GOOGLE_CLIENT_ID, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './lib/config';
-import { metersToPaces, pacesToMeters } from './lib/geometry';
+import { distanceMetersBetween, metersToPaces, pacesToMeters } from './lib/geometry';
 import { isGoogleAuthEnabled, loadGoogleIdentityScript } from './lib/googleAuth';
 import {
   buildInitialByHole,
@@ -58,7 +58,6 @@ import {
 } from './lib/rounds';
 import { clearAuthToken, loadStoredAuthToken, saveAuthToken } from './lib/storage';
 import { buildShotSummary, getDisplayHoleIndex, toggleHoleSelection, updateHoleCounter, updateHoleScoreValue } from './lib/track';
-import { applyVirtualCaddyExecution } from './lib/virtualCaddyExecution';
 import { buildWedgeMatrixRows, sortClubsByDefaultOrder } from './lib/wedgeMatrix';
 
 function VirtualCaddyTabIcon() {
@@ -202,6 +201,7 @@ export default function App() {
   const [mapSetupHole, setMapSetupHole] = useState(1);
   const [isMapSetupOpen, setIsMapSetupOpen] = useState(false);
   const [isTrackMapOpen, setIsTrackMapOpen] = useState(false);
+  const [isVirtualCaddyFocusMode, setIsVirtualCaddyFocusMode] = useState(false);
 
   const hasLoadedRef = useRef(false);
   const skipNextSaveRef = useRef(false);
@@ -217,6 +217,11 @@ export default function App() {
   const courseEditor = courses.find((course) => course.id === courseEditorId);
   const displayHoleIndex = getDisplayHoleIndex(activeCourse, holeStats, selectedHole);
   const displayHolePar = activeCourse?.markers?.[selectedHole]?.par ?? null;
+  const selectedHoleMarker = activeCourse?.markers?.[selectedHole];
+  const derivedTeeToGreenMeters =
+    selectedHoleMarker?.teePosition && selectedHoleMarker?.greenPosition
+      ? Math.round(distanceMetersBetween(selectedHoleMarker.teePosition, selectedHoleMarker.greenPosition))
+      : null;
   const isMapOpen = page === 'courses' ? isMapSetupOpen : page === 'track' ? isTrackMapOpen : false;
   const activeMapHole = page === 'courses' ? mapSetupHole : selectedHole;
   const activeMapCourse = page === 'courses' ? courseEditor : activeCourse;
@@ -243,6 +248,7 @@ export default function App() {
     setCourses,
     setCourseSaveState,
   });
+  const effectiveTeeToGreenMeters = teeToGreenMeters ?? derivedTeeToGreenMeters;
 
   const handleAuthFailure = (message = 'Session expired. Log in again.') => {
     clearAuthToken();
@@ -488,14 +494,14 @@ export default function App() {
     setSaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
   }, [authToken, selectedRoundId, statsByHole, roundHandicap, roundNotes, selectedCourseId]);
 
-  const saveCurrentRound = async () => {
+  const persistRoundStats = async (nextStatsByHole = statsByHole) => {
     if (!authToken || !selectedRoundId) {
       return false;
     }
 
     setSaveState('saving');
     try {
-      const savedRound = await saveRoundToApi(selectedRoundId, statsByHole, roundNotes, roundHandicap, selectedCourseId, authToken);
+      const savedRound = await saveRoundToApi(selectedRoundId, nextStatsByHole, roundNotes, roundHandicap, selectedCourseId, authToken);
       const savedCourse = courses.find((course) => course.id === (savedRound?.courseId || selectedCourseId));
       setSaveState('saved');
       setRounds((prev) =>
@@ -514,7 +520,7 @@ export default function App() {
       setRoundSummaries((prev) => ({
         ...prev,
         [selectedRoundId]: {
-          totals: computeTotalsForStats(savedRound?.statsByHole ?? statsByHole, savedCourse?.markers, savedRound?.handicap ?? roundHandicap),
+          totals: computeTotalsForStats(savedRound?.statsByHole ?? nextStatsByHole, savedCourse?.markers, savedRound?.handicap ?? roundHandicap),
         },
       }));
       return true;
@@ -527,6 +533,10 @@ export default function App() {
       setSaveState('error');
       return false;
     }
+  };
+
+  const saveCurrentRound = async () => {
+    return persistRoundStats(statsByHole);
   };
 
   const saveAndNextHole = async () => {
@@ -688,8 +698,20 @@ export default function App() {
     setStatsByHole((prev) => updateHoleScoreValue(prev, hole, delta));
   };
 
-  const executeVirtualCaddyShot = (execution) => {
-    setStatsByHole((prev) => applyVirtualCaddyExecution(prev, execution));
+  const replaceHoleStats = (hole, nextHoleStats) => {
+    setStatsByHole((prev) => ({
+      ...prev,
+      [hole]: nextHoleStats,
+    }));
+  };
+
+  const saveHoleStats = async (hole, nextHoleStats) => {
+    const nextStatsByHole = {
+      ...statsByHole,
+      [hole]: nextHoleStats,
+    };
+    setStatsByHole(nextStatsByHole);
+    return persistRoundStats(nextStatsByHole);
   };
 
   const toggleSetupSelection = (setupKey) => {
@@ -881,6 +903,31 @@ export default function App() {
       setClubActualEntries(previousEntries);
       setClubActualEntriesError('Unable to delete shot log right now.');
     }
+  };
+
+  const saveVirtualCaddyClubActual = async ({ club, actualMeters }) => {
+    if (!authToken) {
+      return null;
+    }
+
+    const entry = await saveClubActualToApi({ club, actualMeters }, authToken);
+    if (entry) {
+      setClubActualEntries((prev) => [entry, ...prev.filter((existing) => existing.id !== entry.id)].slice(0, 20));
+    }
+    setClubAveragesDirty(true);
+    setClubActualEntriesDirty(true);
+    return entry?.id ?? null;
+  };
+
+  const deleteVirtualCaddyClubActualEntry = async (entryId) => {
+    if (!authToken) {
+      return;
+    }
+
+    setClubActualEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+    await deleteClubActualEntryInApi(entryId, authToken);
+    setClubAveragesDirty(true);
+    setClubActualEntriesDirty(true);
   };
 
   const login = async (event) => {
@@ -1431,71 +1478,75 @@ export default function App() {
     );
   }
 
-  const appClassName = page === 'track' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : 'app';
+  const isVirtualCaddyShellHidden = page === 'virtualCaddy' && isVirtualCaddyFocusMode;
+  const appClassName =
+    page === 'track' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : isVirtualCaddyShellHidden ? 'app app-focus-mode' : 'app';
 
   return (
     <main className={appClassName}>
-      <header className="header">
-        <h1>Golf Stat Tracker</h1>
-        {currentUser ? (
-          <p className="hint">
-            Signed in as {currentUser.displayName || currentUser.username}
-            {currentUser.googleLinked ? ' · Google linked' : ''}
-          </p>
-        ) : null}
-        {!showNewRoundForm ? (
-          <div className="header-controls">
-            <button
-              onClick={() => {
-                setNewRoundCourseId(selectedCourseId);
-                setNewRoundHandicap('');
-                setShowNewRoundForm(true);
-              }}
-              disabled={isSwitchingRound}
-            >
-              New round
-            </button>
-            <button onClick={logout} disabled={isSwitchingRound}>
-              Log out
-            </button>
-            <div className="manage-menu">
+      {!isVirtualCaddyShellHidden ? (
+        <header className="header">
+          <h1>Golf Stat Tracker</h1>
+          {currentUser ? (
+            <p className="hint">
+              Signed in as {currentUser.displayName || currentUser.username}
+              {currentUser.googleLinked ? ' · Google linked' : ''}
+            </p>
+          ) : null}
+          {!showNewRoundForm ? (
+            <div className="header-controls">
               <button
-                type="button"
-                onClick={() => setIsManageMenuOpen((prev) => !prev)}
+                onClick={() => {
+                  setNewRoundCourseId(selectedCourseId);
+                  setNewRoundHandicap('');
+                  setShowNewRoundForm(true);
+                }}
                 disabled={isSwitchingRound}
-                aria-expanded={isManageMenuOpen}
-                aria-haspopup="true"
               >
-                Manage
+                New round
               </button>
-              {isManageMenuOpen ? (
-                <div className="manage-dropdown" role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setPage('rounds');
-                      setIsManageMenuOpen(false);
-                    }}
-                  >
-                    Rounds
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setPage('courses');
-                      setIsManageMenuOpen(false);
-                    }}
-                  >
-                    Courses
-                  </button>
-                </div>
-              ) : null}
+              <button onClick={logout} disabled={isSwitchingRound}>
+                Log out
+              </button>
+              <div className="manage-menu">
+                <button
+                  type="button"
+                  onClick={() => setIsManageMenuOpen((prev) => !prev)}
+                  disabled={isSwitchingRound}
+                  aria-expanded={isManageMenuOpen}
+                  aria-haspopup="true"
+                >
+                  Manage
+                </button>
+                {isManageMenuOpen ? (
+                  <div className="manage-dropdown" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setPage('rounds');
+                        setIsManageMenuOpen(false);
+                      }}
+                    >
+                      Rounds
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setPage('courses');
+                        setIsManageMenuOpen(false);
+                      }}
+                    >
+                      Courses
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ) : null}
-      </header>
+          ) : null}
+        </header>
+      ) : null}
       {currentUser && !currentUser.googleLinked && isGoogleAuthEnabled() ? (
         <section className="card auth-link-card">
           <h2>Link Google</h2>
@@ -1564,19 +1615,21 @@ export default function App() {
       ) : null}
       {!showNewRoundForm ? (
         <>
-          <SavePill state={saveState} />
+          {!isVirtualCaddyShellHidden ? <SavePill state={saveState} /> : null}
 
-          <PageTabs
-            activePage={page}
-            onChange={setPage}
-            tabs={[
-              { key: 'track', label: 'Track', icon: <DistanceTabIcon /> },
-              { key: 'virtualCaddy', label: 'Virtual caddy', icon: <VirtualCaddyTabIcon /> },
-              { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
-              { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
-              { key: 'totals', label: 'Round totals', icon: <TotalsTabIcon /> },
-            ]}
-          />
+          {!isVirtualCaddyShellHidden ? (
+            <PageTabs
+              activePage={page}
+              onChange={setPage}
+              tabs={[
+                { key: 'track', label: 'Track', icon: <DistanceTabIcon /> },
+                { key: 'virtualCaddy', label: 'Virtual caddy', icon: <VirtualCaddyTabIcon /> },
+                { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
+                { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
+                { key: 'totals', label: 'Round totals', icon: <TotalsTabIcon /> },
+              ]}
+            />
+          ) : null}
 
           {page === 'track' ? (
             <TrackPage
@@ -1590,7 +1643,7 @@ export default function App() {
                 selectedRoundId,
                 saveState,
                 isTrackMapOpen,
-                teeToGreenMeters,
+                teeToGreenMeters: effectiveTeeToGreenMeters,
                 mapStatusLabel,
                 rotationSupportLabel,
                 mapDebugInfo,
@@ -1648,13 +1701,18 @@ export default function App() {
                 activeCourse,
                 holeStats,
                 saveState,
-                teeToGreenMeters,
+                teeToGreenMeters: effectiveTeeToGreenMeters,
                 clubCarryByClub,
+                isFocusMode: isVirtualCaddyFocusMode,
               }}
               actions={{
                 setSelectedHole,
                 saveCurrentRound,
-                executeVirtualCaddyShot,
+                replaceHoleStats,
+                saveHoleStats,
+                saveClubActual: saveVirtualCaddyClubActual,
+                deleteClubActualEntry: deleteVirtualCaddyClubActualEntry,
+                onToggleFocusMode: () => setIsVirtualCaddyFocusMode((prev) => !prev),
               }}
             />
           ) : page === 'courses' ? (
@@ -1670,7 +1728,7 @@ export default function App() {
                 courseHoleIndexCounts,
                 isMapSetupOpen,
                 mapSetupHole,
-                teeToGreenMeters,
+                teeToGreenMeters: effectiveTeeToGreenMeters,
                 mapStatus,
                 mapStatusLabel,
                 rotationSupportLabel,

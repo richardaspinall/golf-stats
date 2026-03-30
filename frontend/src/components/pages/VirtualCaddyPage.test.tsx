@@ -1,0 +1,98 @@
+/** @vitest-environment jsdom */
+
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { VirtualCaddyPage } from './VirtualCaddyPage';
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('VirtualCaddyPage', () => {
+  it('hides extra page chrome in focus mode', async () => {
+    render(
+      <VirtualCaddyPage
+        round={{
+          selectedHole: 4,
+          displayHoleIndex: 7,
+          displayHolePar: 4,
+          activeRound: { id: 'r1', name: 'Morning Round' },
+          activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+          holeStats: {
+            score: 4,
+            holeIndex: 7,
+            fairwaySelection: 'fairwayHit',
+            girSelection: 'girHit',
+            teePosition: null,
+            greenPosition: null,
+          },
+          saveState: 'saved',
+          teeToGreenMeters: 152,
+          clubCarryByClub: {},
+          isFocusMode: true,
+        }}
+        actions={{
+          setSelectedHole: vi.fn(),
+          saveCurrentRound: vi.fn(async () => true),
+          replaceHoleStats: vi.fn(),
+          saveHoleStats: vi.fn(async () => true),
+          saveClubActual: vi.fn(async () => null),
+          deleteClubActualEntry: vi.fn(async () => {}),
+          onToggleFocusMode: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.getByLabelText('hole picker')).toBeTruthy();
+    expect(screen.getByLabelText('hole picker')).toBeTruthy();
+    expect(screen.queryByText('Hole status')).toBeNull();
+    expect(screen.queryByText(/focus mode/i)).toBeNull();
+  });
+
+  it('persists the round when saving a caddy shot', async () => {
+    const user = userEvent.setup();
+    const saveHoleStats = vi.fn(async () => true);
+    const saveClubActual = vi.fn(async () => 99);
+
+    render(
+      <VirtualCaddyPage
+        round={{
+          selectedHole: 4,
+          displayHoleIndex: 7,
+          displayHolePar: 4,
+          activeRound: { id: 'r1', name: 'Morning Round' },
+          activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+          holeStats: {
+            score: 0,
+            holeIndex: 7,
+            fairwaySelection: null,
+            girSelection: null,
+            teePosition: null,
+            greenPosition: null,
+          },
+          saveState: 'saved',
+          teeToGreenMeters: 400,
+          clubCarryByClub: { Driver: 200, 'Mini Driver': 190, '3 wood': 180 },
+          isFocusMode: false,
+        }}
+        actions={{
+          setSelectedHole: vi.fn(),
+          saveCurrentRound: vi.fn(async () => true),
+          replaceHoleStats: vi.fn(),
+          saveHoleStats,
+          saveClubActual,
+          deleteClubActualEntry: vi.fn(async () => {}),
+          onToggleFocusMode: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(saveHoleStats).toHaveBeenCalledTimes(1);
+    expect(saveClubActual).toHaveBeenCalledTimes(1);
+  });
+});

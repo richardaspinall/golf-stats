@@ -81,13 +81,22 @@ export const insertClubActualDistance = async ({
   }
 
   const db = getPool();
-  await db.query(
+  const result = await db.query(
     `
       INSERT INTO club_actual_distances (user_id, club, actual_meters, created_at)
       VALUES ($1, $2, $3, $4::timestamptz)
+      RETURNING id, club, actual_meters, created_at
     `,
     [userId, club, sanitizedActual, new Date().toISOString()],
   );
+
+  const row = result.rows[0];
+  return {
+    id: Number(row.id),
+    club,
+    actualMeters: sanitizedActual,
+    createdAt: new Date(row.created_at).toISOString(),
+  };
 };
 
 export const listClubActualAverages = async (userId: string) => {

@@ -417,12 +417,12 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     if (pathname === '/api/club-actuals' && method === 'POST') {
       try {
         const body = await parseBody(req as BodyAwareRequest);
-        await insertClubActualDistance({
+        const entry = await insertClubActualDistance({
           userId: currentUserId,
           club: String((body as any)?.club || '').trim(),
           actualMeters: (body as any)?.actualMeters,
         });
-        sendJson(res, 201, { ok: true });
+        sendJson(res, 201, { ok: true, entry });
       } catch (error: any) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
