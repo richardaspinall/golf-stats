@@ -1892,13 +1892,15 @@ export default function App() {
             />
           ) : null}
 
-          <NotesSection
-            noteDraft={noteDraft}
-            setNoteDraft={setNoteDraft}
-            addNote={addNote}
-            roundNotes={roundNotes}
-            deleteNote={deleteNote}
-          />
+          {!isVirtualCaddyFocusMode ? (
+            <NotesSection
+              noteDraft={noteDraft}
+              setNoteDraft={setNoteDraft}
+              addNote={addNote}
+              roundNotes={roundNotes}
+              deleteNote={deleteNote}
+            />
+          ) : null}
         </>
       ) : null}
     </main>

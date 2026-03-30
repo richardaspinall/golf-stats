@@ -102,6 +102,7 @@ const PUTTING_DETAIL_OPTIONS = [
 type VirtualCaddyPanelProps = {
   hole: number;
   holeStats: HoleStats;
+  displayHoleIndex?: number | null;
   displayHolePar: number | null;
   defaultDistanceMeters: number | null;
   carryByClub?: Record<string, number>;
@@ -116,11 +117,13 @@ type VirtualCaddyPanelProps = {
 };
 
 type PlannerActionType = 'tee' | 'shot' | 'chipping' | 'putting';
+type VirtualCaddyFlowStep = 'overview' | 'setup' | 'action';
 
 type PlannerShot = VirtualCaddyExecutedShot & {
   id: number;
   label: string;
   actionType: PlannerActionType;
+  firstPuttDistanceMeters?: number | null;
   distanceStartMeters: number;
   plannedDistanceMeters: number;
   remainingDistanceMeters: number;
@@ -144,6 +147,7 @@ type PlannerShot = VirtualCaddyExecutedShot & {
 
 type PersistedPlannerDraft = {
   nextShotId: number;
+  flowStep: VirtualCaddyFlowStep;
   actionType: PlannerActionType;
   seededDistanceMeters: number;
   distanceToHoleMeters: number;
@@ -161,10 +165,12 @@ type PersistedPlannerDraft = {
   showClubOverride: boolean;
   oopResult: 'none' | 'look' | 'noLook';
   outcomeSelection: VirtualCaddyOutcomeSelection | null;
+  firstPuttDistanceMeters: number | null;
   puttCount: number | null;
   puttMissLong: number;
   puttMissShort: number;
   puttMissWithin2m: number;
+  showRecommendationWhy: boolean;
   showPuttingDetails: boolean;
   showAdvanced: boolean;
 };
@@ -173,6 +179,11 @@ type PlannerSnapshot = {
   baseHoleStats: HoleStats;
   trail: PlannerShot[];
   draft: PersistedPlannerDraft;
+};
+
+const buildComparableDraft = (draft: PersistedPlannerDraft) => {
+  const { flowStep: _flowStep, ...comparableDraft } = draft;
+  return comparableDraft;
 };
 
 const stripVirtualCaddyState = (holeStats: HoleStats): HoleStats => ({
@@ -191,6 +202,7 @@ const buildShotDraftFromShot = (
   wedgeMatrixSources: WedgeMatrixSource[] = [],
 ): PersistedPlannerDraft => ({
   nextShotId: shot.id,
+  flowStep: 'setup',
   actionType: shot.actionType,
   seededDistanceMeters: shot.distanceStartMeters,
   distanceToHoleMeters: shot.distanceStartMeters,
@@ -221,9 +233,11 @@ const buildShotDraftFromShot = (
   oopResult: shot.oopResult,
   outcomeSelection: shot.outcomeSelection,
   puttCount: shot.puttCount ?? null,
+  firstPuttDistanceMeters: shot.firstPuttDistanceMeters ?? null,
   puttMissLong: shot.puttMissLong ?? 0,
   puttMissShort: shot.puttMissShort ?? 0,
   puttMissWithin2m: shot.puttMissWithin2m ?? 0,
+  showRecommendationWhy: false,
   showPuttingDetails: (shot.puttMissLong ?? 0) > 0 || (shot.puttMissShort ?? 0) > 0 || (shot.puttMissWithin2m ?? 0) > 0,
   showAdvanced: showAdvancedValue,
 });
@@ -310,6 +324,16 @@ const formatTrailResultLabel = (shot: PlannerShot) => {
   return formatOutcomeLabel(shot.outcomeSelection);
 };
 
+const formatTrailSummary = (shot: PlannerShot) => {
+  if (shot.actionType === 'putting') {
+    const firstPuttDistanceSuffix =
+      typeof shot.firstPuttDistanceMeters === 'number' && shot.firstPuttDistanceMeters > 0 ? ` from ${shot.firstPuttDistanceMeters}m` : '';
+    return `${shot.club}: ${formatTrailResultLabel(shot)}${firstPuttDistanceSuffix}`;
+  }
+
+  return `Started at ${shot.distanceStartMeters}m with ${shot.carryMeters}m carry. ${formatTrailResultLabel(shot)}.`;
+};
+
 const deriveOopResult = (
   actionType: PlannerActionType,
   surface: NonNullable<VirtualCaddyInputs['surface']>,
@@ -340,6 +364,7 @@ const deriveShotCategory = (
 export function VirtualCaddyPanel({
   hole,
   holeStats,
+  displayHoleIndex = null,
   displayHolePar,
   defaultDistanceMeters,
   carryByClub,
@@ -356,6 +381,7 @@ export function VirtualCaddyPanel({
   const [baseHoleStats, setBaseHoleStats] = useState(holeStats);
   const [trail, setTrail] = useState<PlannerShot[]>([]);
   const [nextShotId, setNextShotId] = useState(1);
+  const [flowStep, setFlowStep] = useState<VirtualCaddyFlowStep>('overview');
   const [actionType, setActionType] = useState<PlannerActionType>('tee');
   const [seededDistanceMeters, setSeededDistanceMeters] = useState(defaultDistanceMeters ?? 150);
 
@@ -376,13 +402,16 @@ export function VirtualCaddyPanel({
   const [oopResult, setOopResult] = useState<'none' | 'look' | 'noLook'>('none');
   const [outcomeSelection, setOutcomeSelection] = useState<VirtualCaddyOutcomeSelection | null>(null);
   const [puttCount, setPuttCount] = useState<number | null>(null);
+  const [firstPuttDistanceMeters, setFirstPuttDistanceMeters] = useState<number | null>(null);
   const [puttMissLong, setPuttMissLong] = useState(0);
   const [puttMissShort, setPuttMissShort] = useState(0);
   const [puttMissWithin2m, setPuttMissWithin2m] = useState(0);
+  const [showRecommendationWhy, setShowRecommendationWhy] = useState(false);
   const [showPuttingDetails, setShowPuttingDetails] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingSnapshot, setEditingSnapshot] = useState<PlannerSnapshot | null>(null);
   const [editingOriginalShot, setEditingOriginalShot] = useState<PlannerShot | null>(null);
+  const [editingBaselineDraft, setEditingBaselineDraft] = useState<PersistedPlannerDraft | null>(null);
   const lastSyncedHoleStatsRef = useRef<string | null>(null);
   const replaceHoleStatsRef = useRef(onReplaceHoleStats);
   const saveHoleStatsRef = useRef(onSaveHoleStats);
@@ -414,9 +443,11 @@ export function VirtualCaddyPanel({
     setOopResult('none');
     setOutcomeSelection(null);
     setPuttCount(null);
+    setFirstPuttDistanceMeters(null);
     setPuttMissLong(0);
     setPuttMissShort(0);
     setPuttMissWithin2m(0);
+    setShowRecommendationWhy(false);
     setShowPuttingDetails(false);
     setShowAdvanced(false);
   };
@@ -425,6 +456,7 @@ export function VirtualCaddyPanel({
     overrides: Partial<PersistedPlannerDraft> = {},
   ): PersistedPlannerDraft => ({
     nextShotId,
+    flowStep,
     actionType,
     seededDistanceMeters,
     distanceToHoleMeters,
@@ -442,14 +474,24 @@ export function VirtualCaddyPanel({
     showClubOverride,
     oopResult,
     outcomeSelection,
+    firstPuttDistanceMeters,
     puttCount,
     puttMissLong,
     puttMissShort,
     puttMissWithin2m,
+    showRecommendationWhy,
     showPuttingDetails,
     showAdvanced,
     ...overrides,
   });
+
+  useEffect(() => {
+    if (editingIndex == null || editingBaselineDraft) {
+      return;
+    }
+
+    setEditingBaselineDraft(buildPersistedDraft());
+  }, [editingBaselineDraft, editingIndex]);
 
   const buildNextHoleStats = (
     nextBaseHoleStats: HoleStats,
@@ -471,6 +513,7 @@ export function VirtualCaddyPanel({
     setBaseHoleStats(snapshot.baseHoleStats);
     setTrail(snapshot.trail);
     setNextShotId(snapshot.draft.nextShotId);
+    setFlowStep(snapshot.draft.flowStep);
     setActionType(snapshot.draft.actionType);
     setSeededDistanceMeters(snapshot.draft.seededDistanceMeters);
     setDistanceToHoleMeters(snapshot.draft.distanceToHoleMeters);
@@ -489,10 +532,12 @@ export function VirtualCaddyPanel({
     setShowAllOverrideClubs(false);
     setOopResult(snapshot.draft.oopResult);
     setOutcomeSelection(snapshot.draft.outcomeSelection);
+    setFirstPuttDistanceMeters(snapshot.draft.firstPuttDistanceMeters);
     setPuttCount(snapshot.draft.puttCount);
     setPuttMissLong(snapshot.draft.puttMissLong);
     setPuttMissShort(snapshot.draft.puttMissShort);
     setPuttMissWithin2m(snapshot.draft.puttMissWithin2m);
+    setShowRecommendationWhy(snapshot.draft.showRecommendationWhy);
     setShowPuttingDetails(snapshot.draft.showPuttingDetails);
     setShowAdvanced(snapshot.draft.showAdvanced);
   };
@@ -510,6 +555,7 @@ export function VirtualCaddyPanel({
       setBaseHoleStats(stripVirtualCaddyState(persistedBaseHoleStats));
       setTrail(persistedTrail);
       setNextShotId(Number(persistedDraft.nextShotId || persistedTrail.length + 1));
+      setFlowStep((persistedDraft.flowStep as VirtualCaddyFlowStep) || 'overview');
       setActionType((persistedDraft.actionType as PlannerActionType) || 'tee');
       setSeededDistanceMeters(Number(persistedDraft.seededDistanceMeters || defaultDistanceMeters || 150));
       setDistanceToHoleMeters(Number(persistedDraft.distanceToHoleMeters || persistedDraft.seededDistanceMeters || defaultDistanceMeters || 150));
@@ -528,10 +574,12 @@ export function VirtualCaddyPanel({
       setShowAllOverrideClubs(false);
       setOopResult((persistedDraft.oopResult as 'none' | 'look' | 'noLook') || 'none');
       setOutcomeSelection((persistedDraft.outcomeSelection as VirtualCaddyOutcomeSelection | null) ?? null);
+      setFirstPuttDistanceMeters(typeof persistedDraft.firstPuttDistanceMeters === 'number' ? persistedDraft.firstPuttDistanceMeters : null);
       setPuttCount(typeof persistedDraft.puttCount === 'number' ? persistedDraft.puttCount : null);
       setPuttMissLong(Number(persistedDraft.puttMissLong || 0));
       setPuttMissShort(Number(persistedDraft.puttMissShort || 0));
       setPuttMissWithin2m(Number(persistedDraft.puttMissWithin2m || 0));
+      setShowRecommendationWhy(Boolean(persistedDraft.showRecommendationWhy));
       setShowPuttingDetails(
         typeof persistedDraft.showPuttingDetails === 'boolean'
           ? persistedDraft.showPuttingDetails
@@ -543,17 +591,20 @@ export function VirtualCaddyPanel({
       setEditingIndex(null);
       setEditingSnapshot(null);
       setEditingOriginalShot(null);
+      setEditingBaselineDraft(null);
       return;
     }
 
     setBaseHoleStats(stripVirtualCaddyState(holeStats));
     setTrail([]);
     setNextShotId(1);
+    setFlowStep('overview');
     setActionType('tee');
     resetDraft(defaultDistanceMeters ?? 150, 'tee');
     setEditingIndex(null);
     setEditingSnapshot(null);
     setEditingOriginalShot(null);
+    setEditingBaselineDraft(null);
   }, [defaultDistanceMeters, hole]);
 
   useEffect(() => {
@@ -576,12 +627,15 @@ export function VirtualCaddyPanel({
     hazards,
     lieQuality,
     nextShotId,
+    flowStep,
     oopResult,
     outcomeSelection,
+    firstPuttDistanceMeters,
     puttCount,
     puttMissLong,
     puttMissShort,
     puttMissWithin2m,
+    showRecommendationWhy,
     selectedClub,
     showClubOverride,
     showPuttingDetails,
@@ -608,6 +662,7 @@ export function VirtualCaddyPanel({
   }, [actionType, distanceMode, distanceToMiddleMeters]);
 
   const shotNumber = trail.length + 1;
+  const isFirstShot = trail.length === 0;
   const isTeeShot = actionType === 'tee';
   const isPutting = actionType === 'putting';
   const isChipping = actionType === 'chipping';
@@ -750,11 +805,11 @@ export function VirtualCaddyPanel({
   const isHoleComplete = trail.length > 0 && trail[trail.length - 1].outcomeSelection === 'puttHoled';
   const previousShot = trail[trail.length - 1];
   const currentDraft = buildPersistedDraft();
-  const isEditDirty = editingOriginalShot
-    ? JSON.stringify(currentDraft) !==
-      JSON.stringify(buildShotDraftFromShot(editingOriginalShot, currentDraft.showAdvanced, carryByClub, wedgeMatrixSources))
+  const isEditDirty = editingBaselineDraft
+    ? JSON.stringify(buildComparableDraft(currentDraft)) !== JSON.stringify(buildComparableDraft(editingBaselineDraft))
     : true;
   const canSaveShot = (isPutting ? puttCount != null : outcomeSelection != null) && (editingIndex == null || isEditDirty);
+  const overviewTitle = isFirstShot ? 'Hole status' : 'Distance left';
   const distanceSliderMax = Math.max(300, seededDistanceMeters, distanceToHoleMeters, distanceToMiddleMeters);
   const showOopOptions =
     !isPutting && (isOopSurface(surface) || (trail.length >= 2 && !isGreenHitOutcome(previousShot?.outcomeSelection ?? null)));
@@ -830,8 +885,15 @@ export function VirtualCaddyPanel({
     const currentValue = getPuttDetailValue(statKey);
     setPuttDetailValue(statKey, currentValue >= 4 ? currentValue + 1 : 4);
   };
+  const setFirstPuttDistance = (nextDistanceMeters: number) => {
+    setFirstPuttDistanceMeters(Math.min(60, Math.max(1, Math.round(nextDistanceMeters))));
+  };
 
   const getTrailRecordedDistanceMeters = (shot: PlannerShot, index: number) => {
+    if (shot.actionType === 'putting' && typeof shot.firstPuttDistanceMeters === 'number' && shot.firstPuttDistanceMeters > 0) {
+      return shot.firstPuttDistanceMeters;
+    }
+
     const nextShot = trail[index + 1];
     if (nextShot) {
       return getActualDistanceFromStart(shot.distanceStartMeters, nextShot.distanceStartMeters);
@@ -931,6 +993,7 @@ export function VirtualCaddyPanel({
       hazards,
       club: recommendation.club,
       carryMeters: recommendation.carryMeters,
+      firstPuttDistanceMeters,
       puttCount,
       puttMissLong,
       puttMissShort,
@@ -966,10 +1029,12 @@ export function VirtualCaddyPanel({
           showClubOverride: false,
           oopResult: 'none',
           outcomeSelection: null,
+          firstPuttDistanceMeters: nextActionType === 'putting' ? 10 : null,
           puttCount: null,
           puttMissLong: 0,
           puttMissShort: 0,
           puttMissWithin2m: 0,
+          showRecommendationWhy: false,
           showPuttingDetails: false,
           showAdvanced: false,
         })
@@ -981,6 +1046,7 @@ export function VirtualCaddyPanel({
     replaceHoleStatsRef.current(nextHoleStats);
     setTrail(nextTrail);
     setNextShotId((prev) => prev + 1);
+    setFlowStep(nextActionType === 'putting' ? 'setup' : nextActionType ? 'overview' : 'action');
     if (nextActionType) {
       setActionType(nextActionType);
       resetDraft(remainingDistanceMeters, nextSurface);
@@ -995,6 +1061,7 @@ export function VirtualCaddyPanel({
     setEditingIndex(null);
     setEditingSnapshot(null);
     setEditingOriginalShot(null);
+    setEditingBaselineDraft(null);
   };
 
   const startEdit = (index: number) => {
@@ -1010,12 +1077,14 @@ export function VirtualCaddyPanel({
       shot.hazards.length > 0;
     setEditingIndex(index);
     setEditingOriginalShot(shot);
+    setEditingBaselineDraft(null);
     setEditingSnapshot({
       baseHoleStats,
       trail,
       draft: currentDraft,
     });
     setTrail(trail.slice(0, index));
+    setFlowStep('setup');
     setActionType(shot.actionType);
     setDistanceToHoleMeters(shot.distanceStartMeters);
     setDistanceToMiddleMeters(shot.plannedDistanceMeters);
@@ -1034,10 +1103,12 @@ export function VirtualCaddyPanel({
     setShowAllOverrideClubs(false);
     setOopResult(shot.oopResult);
     setOutcomeSelection(shot.outcomeSelection);
+    setFirstPuttDistanceMeters(shot.firstPuttDistanceMeters ?? null);
     setPuttCount(shot.puttCount ?? null);
     setPuttMissLong(shot.puttMissLong ?? 0);
     setPuttMissShort(shot.puttMissShort ?? 0);
     setPuttMissWithin2m(shot.puttMissWithin2m ?? 0);
+    setShowRecommendationWhy(false);
     setShowPuttingDetails((shot.puttMissLong ?? 0) > 0 || (shot.puttMissShort ?? 0) > 0 || (shot.puttMissWithin2m ?? 0) > 0);
     setShowAdvanced(showAdvancedValue);
     setNextShotId(shot.id);
@@ -1052,6 +1123,7 @@ export function VirtualCaddyPanel({
     setEditingIndex(null);
     setEditingSnapshot(null);
     setEditingOriginalShot(null);
+    setEditingBaselineDraft(null);
   };
 
   return (
@@ -1059,28 +1131,80 @@ export function VirtualCaddyPanel({
       <div className="virtual-caddy-panel active-panel">
         {!isHoleComplete ? (
           <>
-            <div className="virtual-caddy-step">
-              <div className="virtual-caddy-step-header">
-                <div className="virtual-caddy-step-title">
-                  <span className="virtual-caddy-step-number">{shotNumber}</span>
-                  <div>
-                    <h5>{shotLabel}</h5>
+            {flowStep === 'overview' ? (
+              <div className="virtual-caddy-step">
+                <div className="virtual-caddy-step-header">
+                  <div className="virtual-caddy-step-title">
+                    <span className="virtual-caddy-step-number">{shotNumber}</span>
+                    <div>
+                      <h5>{overviewTitle}</h5>
+                    </div>
+                  </div>
+                  {editingIndex != null ? (
+                    <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={cancelEdit}>
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+                <div className="prototype-block virtual-caddy-distance-block">
+                  <div className="virtual-caddy-overview-card">
+                    <div className="virtual-caddy-overview-hero">
+                      <span className="virtual-caddy-overview-kicker">{isFirstShot ? 'Hole' : 'Distance left'}</span>
+                      <strong>{isFirstShot ? hole : `${distanceToHoleMeters}m`}</strong>
+                    </div>
+                    <div className="virtual-caddy-overview-details">
+                      {displayHoleIndex != null ? (
+                        <div className="virtual-caddy-overview-detail">
+                          <span>Index</span>
+                          <strong>{displayHoleIndex}</strong>
+                        </div>
+                      ) : null}
+                      {displayHolePar != null ? (
+                        <div className="virtual-caddy-overview-detail">
+                          <span>Par</span>
+                          <strong>{displayHolePar}</strong>
+                        </div>
+                      ) : null}
+                      {isFirstShot && defaultDistanceMeters != null ? (
+                        <div className="virtual-caddy-overview-detail">
+                          <span>Start distance</span>
+                          <strong>{defaultDistanceMeters}m</strong>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-                {editingIndex != null ? (
-                  <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={cancelEdit}>
-                    ×
+                <div className="virtual-caddy-card-footer">
+                  <button type="button" className="save-btn virtual-caddy-save-btn" onClick={() => setFlowStep('setup')}>
+                    Next
                   </button>
-                ) : null}
+                </div>
               </div>
-              <div className="prototype-block virtual-caddy-distance-block">
-                {isPutting ? (
-                  <div className="distance-header">
-                    <span>On green</span>
-                    <strong>Putting</strong>
+            ) : null}
+
+            {flowStep === 'setup' ? (
+              <div className="virtual-caddy-step">
+                <div className="virtual-caddy-step-header">
+                  <div className="virtual-caddy-step-title">
+                    <span className="virtual-caddy-step-number">{shotNumber}</span>
+                    <div>
+                      <h5>{shotLabel}</h5>
+                    </div>
                   </div>
-                ) : (
-                  <>
+                  {editingIndex != null ? (
+                    <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={cancelEdit}>
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+                <div className="prototype-block virtual-caddy-distance-block">
+                  {isPutting ? (
+                    <div className="distance-header">
+                      <span>On green</span>
+                      <strong>Putting</strong>
+                    </div>
+                  ) : (
+                    <>
                     {showOopOptions ? (
                       <div className="prototype-block">
                         <span className="quick-select-label">Out of position</span>
@@ -1359,238 +1483,315 @@ export function VirtualCaddyPanel({
                             ))}
                           </div>
                         </div>
-                        <div className="prototype-block virtual-caddy-notes">
-                          <span className="quick-select-label">Why</span>
-                          <ul className="virtual-caddy-reason-list">
-                            {recommendation.reasons.length > 0 ? recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Stock shot.</li>}
-                          </ul>
-                        </div>
                       </div>
                     ) : null}
                   </>
-                )}
-              </div>
-            </div>
-
-            <div className="virtual-caddy-recommendation">
-              <div className="virtual-caddy-recommendation-copy">
-                <div className="virtual-caddy-recommendation-header">
-                  <p className="virtual-caddy-label">Action to take</p>
-                  <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot} onClick={saveShot}>
-                    Save
+                  )}
+                </div>
+                <div className="virtual-caddy-card-footer">
+                  <button type="button" className="setup-toggle" onClick={() => setFlowStep('overview')}>
+                    Back
+                  </button>
+                  <button type="button" className="save-btn virtual-caddy-save-btn" onClick={() => setFlowStep('action')}>
+                    Next
                   </button>
                 </div>
-                <div className={isChipping ? 'virtual-caddy-club-row virtual-caddy-club-row-chip' : 'virtual-caddy-club-row'}>
-                  <strong>
-                    {recommendation.club}
-                    {!isPutting && (!isChipping || isWedgeMatrixChip) ? <span className="virtual-caddy-carry-inline">({recommendation.carryMeters}m carry)</span> : null}
-                    {canOverrideClub ? (
-                      <button
-                        type="button"
-                        className="virtual-caddy-override-toggle"
-                        onClick={() => {
-                          setShowClubOverride((prev) => {
-                            const nextValue = !prev;
-                            if (!nextValue) {
-                              setShowAllOverrideClubs(false);
-                            }
-                            return nextValue;
-                          });
-                        }}
-                        aria-expanded={showClubOverride}
-                      >
-                        {showClubOverride ? 'Hide override' : 'Override club'}
-                      </button>
-                    ) : null}
-                  </strong>
-                  <div className="virtual-caddy-club-meta">
-                    {isPutting ? <span>Finish out</span> : null}
-                    {recommendation.source === 'wedgeMatrix' && recommendation.swingClock ? (
-                      <>
-                        <span>
-                          {recommendation.swingClock}
-                          {recommendation.wedgeMatrixName ? ` · ${recommendation.wedgeMatrixName}` : ''}
-                        </span>
-                        {recommendation.wedgeMatrixSetup ? <span>{recommendation.wedgeMatrixSetup}</span> : null}
-                      </>
-                    ) : null}
-                    {canOverrideClub && selectedClub && selectedClub !== baseRecommendation?.recommendedClub ? (
-                      <button
-                        type="button"
-                        className="virtual-caddy-recommended-reset"
-                        onClick={() => {
-                          setSelectedClub(null);
-                          setShowClubOverride(false);
-                          setShowAllOverrideClubs(false);
-                        }}
-                      >
-                        Recommended: {baseRecommendation?.recommendedClub}
-                      </button>
-                    ) : null}
+              </div>
+            ) : null}
+
+            {flowStep === 'action' ? (
+              <div className="virtual-caddy-step">
+                <div className="virtual-caddy-step-header">
+                  <div className="virtual-caddy-step-title">
+                    <span className="virtual-caddy-step-number">{shotNumber}</span>
+                    <div>
+                      <h5>Action to take</h5>
+                    </div>
                   </div>
+                  {editingIndex != null ? (
+                    <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={cancelEdit}>
+                      ×
+                    </button>
+                  ) : null}
                 </div>
-                {canOverrideClub && showClubOverride ? (
-                  <div className="virtual-caddy-club-picker">
-                    <div className="quick-select-row" role="group" aria-label="Virtual caddy club selection">
-                      {visibleOverrideClubs.map((entry) => (
+                <div className="virtual-caddy-recommendation">
+                  <div className="virtual-caddy-recommendation-copy">
+                    <div className={isChipping ? 'virtual-caddy-club-row virtual-caddy-club-row-chip' : 'virtual-caddy-club-row'}>
+                      <strong>
+                        {recommendation.club}
+                        {!isPutting && (!isChipping || isWedgeMatrixChip) ? <span className="virtual-caddy-carry-inline">({recommendation.carryMeters}m carry)</span> : null}
+                        {canOverrideClub ? (
                           <button
-                            key={entry.club}
                             type="button"
-                            className={recommendation.club === entry.club ? 'choice-chip active' : 'choice-chip'}
+                            className="virtual-caddy-override-toggle"
                             onClick={() => {
-                              setSelectedClub(entry.club === baseRecommendation?.recommendedClub ? null : entry.club);
+                              setShowClubOverride((prev) => {
+                                const nextValue = !prev;
+                                if (!nextValue) {
+                                  setShowAllOverrideClubs(false);
+                                }
+                                return nextValue;
+                              });
+                            }}
+                            aria-expanded={showClubOverride}
+                          >
+                            {showClubOverride ? 'Hide override' : 'Override club'}
+                          </button>
+                        ) : null}
+                      </strong>
+                      <div className="virtual-caddy-club-meta">
+                        {isPutting ? <span>Finish out</span> : null}
+                        {recommendation.source === 'wedgeMatrix' && recommendation.swingClock ? (
+                          <>
+                            <span>
+                              {recommendation.swingClock}
+                              {recommendation.wedgeMatrixName ? ` · ${recommendation.wedgeMatrixName}` : ''}
+                            </span>
+                            {recommendation.wedgeMatrixSetup ? <span>{recommendation.wedgeMatrixSetup}</span> : null}
+                          </>
+                        ) : null}
+                        {canOverrideClub && selectedClub && selectedClub !== baseRecommendation?.recommendedClub ? (
+                          <button
+                            type="button"
+                            className="virtual-caddy-recommended-reset"
+                            onClick={() => {
+                              setSelectedClub(null);
                               setShowClubOverride(false);
                               setShowAllOverrideClubs(false);
                             }}
                           >
-                            {entry.club}
+                            Recommended: {baseRecommendation?.recommendedClub}
                           </button>
-                        ))}
+                        ) : null}
+                      </div>
                     </div>
-                    {canShowAllOverrideClubs ? (
-                      <button type="button" className="setup-toggle" onClick={() => setShowAllOverrideClubs(true)}>
-                        Show all clubs
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
-                {!isPutting && (!isChipping || isWedgeMatrixChip) ? (
-                  <div className="virtual-caddy-metrics">
-                    <div className="virtual-caddy-metric">
-                      <span>Actual distance left</span>
-                      <strong>{distanceToMiddleMeters}m</strong>
-                    </div>
-                    {recommendation.effectiveDistanceMeters !== distanceToMiddleMeters ? (
-                      <div className="virtual-caddy-metric">
-                        <span>Effective</span>
-                        <strong>{recommendation.effectiveDistanceMeters}m</strong>
+                    {canOverrideClub && showClubOverride ? (
+                      <div className="virtual-caddy-club-picker">
+                        <div className="quick-select-row" role="group" aria-label="Virtual caddy club selection">
+                          {visibleOverrideClubs.map((entry) => (
+                            <button
+                              key={entry.club}
+                              type="button"
+                              className={recommendation.club === entry.club ? 'choice-chip active' : 'choice-chip'}
+                              onClick={() => {
+                                setSelectedClub(entry.club === baseRecommendation?.recommendedClub ? null : entry.club);
+                                setShowClubOverride(false);
+                                setShowAllOverrideClubs(false);
+                              }}
+                            >
+                              {entry.club}
+                            </button>
+                          ))}
+                        </div>
+                        {canShowAllOverrideClubs ? (
+                          <button type="button" className="setup-toggle" onClick={() => setShowAllOverrideClubs(true)}>
+                            Show all clubs
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
-                  </div>
-                ) : null}
-                <div className="prototype-block virtual-caddy-inline-result">
-                  <div className="virtual-caddy-inline-result-header">
-                    <span className="quick-select-label">
-                      {isPutting ? 'Putts' : isChipping ? 'Chip result' : outcomeMode === 'fairway' ? 'Fairway result' : 'Green result'}
-                    </span>
-                    {isPutting ? (
-                      <button
-                        type="button"
-                        className="setup-toggle"
-                        onClick={() => setShowPuttingDetails((prev) => !prev)}
-                        aria-expanded={showPuttingDetails}
-                      >
-                        {showPuttingDetails ? 'Hide detail' : 'Add detail'}
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="quick-select-row" role={isPutting ? 'group' : undefined} aria-label={isPutting ? 'Virtual caddy putts selection' : undefined}>
-                    {isPutting
-                      ? PUTT_COUNT_OPTIONS.map((value) => (
-                          <button
-                            key={value}
-                            type="button"
-                            className={puttCount === value ? 'choice-chip active' : 'choice-chip'}
-                            onClick={() => {
-                              setPuttCount(value);
-                              setOutcomeSelection('puttHoled');
-                            }}
-                          >
-                            {value}
-                          </button>
-                        )).concat([
-                          <button
-                            key="putt-plus"
-                            type="button"
-                            className={typeof puttCount === 'number' && puttCount >= 4 ? 'choice-chip active' : 'choice-chip'}
-                            onClick={incrementPuttCount}
-                            aria-expanded={typeof puttCount === 'number' && puttCount >= 4}
-                            aria-label="Add more than 3 putts"
-                          >
-                            +
-                          </button>,
-                          ...(typeof puttCount === 'number' && puttCount >= 4
-                            ? [
+                    {!isPutting && (!isChipping || isWedgeMatrixChip) ? (
+                      <>
+                        <div className="virtual-caddy-metrics">
+                          <div className="virtual-caddy-metric">
+                            <span>{distanceMode === 'point' ? 'Distance to target' : 'Distance to green'}</span>
+                            <strong>{distanceToMiddleMeters}m</strong>
+                          </div>
+                          {recommendation.effectiveDistanceMeters !== distanceToMiddleMeters ? (
+                            <div className="virtual-caddy-metric">
+                              <div className="virtual-caddy-metric-topline">
+                                <span>Effective</span>
                                 <button
-                                  key="putt-inline-value"
                                   type="button"
-                                  className="counter-inline-value"
-                                  onClick={decrementPuttCount}
-                                  aria-label="Decrease custom putts value"
+                                  className="virtual-caddy-inline-toggle-btn"
+                                  onClick={() => setShowRecommendationWhy((prev) => !prev)}
+                                  aria-expanded={showRecommendationWhy}
                                 >
-                                  {puttCount}
-                                </button>,
-                              ]
-                            : []),
-                        ])
-                      : outcomeOptions.map((option) => (
+                                  {showRecommendationWhy ? 'Hide why' : 'Why'}
+                                </button>
+                              </div>
+                              <strong>{recommendation.effectiveDistanceMeters}m</strong>
+                            </div>
+                          ) : null}
+                        </div>
+                        {showRecommendationWhy ? (
+                          <div className="prototype-block virtual-caddy-notes">
+                            <span className="quick-select-label">Why</span>
+                            <ul className="virtual-caddy-reason-list">
+                              {recommendation.reasons.length > 0 ? recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>) : <li>Stock shot.</li>}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {isPutting ? (
+                      <div className="prototype-block">
+                        <div className="distance-header">
+                          <span>1st putt distance</span>
+                          <strong>{firstPuttDistanceMeters ?? 10}m</strong>
+                        </div>
+                        <div className="virtual-caddy-slider-stack">
+                          <div className="virtual-caddy-slider-only-row">
+                            <input
+                              type="range"
+                              min={1}
+                              max={60}
+                              step={1}
+                              value={firstPuttDistanceMeters ?? 10}
+                              aria-label="Virtual caddy first putt distance"
+                              onChange={(event) => setFirstPuttDistance(Number(event.target.value))}
+                            />
+                          </div>
+                          <div className="virtual-caddy-slider-row">
+                            <button type="button" className="choice-chip" onClick={() => setFirstPuttDistance((firstPuttDistanceMeters ?? 10) - 5)}>
+                              -5m
+                            </button>
+                            <button type="button" className="choice-chip" onClick={() => setFirstPuttDistance((firstPuttDistanceMeters ?? 10) - 1)}>
+                              -1m
+                            </button>
+                            <button type="button" className="choice-chip" onClick={() => setFirstPuttDistance((firstPuttDistanceMeters ?? 10) + 1)}>
+                              +1m
+                            </button>
+                            <button type="button" className="choice-chip" onClick={() => setFirstPuttDistance((firstPuttDistanceMeters ?? 10) + 5)}>
+                              +5m
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="prototype-block virtual-caddy-inline-result">
+                      <div className="virtual-caddy-inline-result-header">
+                        <span className="quick-select-label">
+                          {isPutting ? 'Putts' : isChipping ? 'Chip result' : outcomeMode === 'fairway' ? 'Fairway result' : 'Green result'}
+                        </span>
+                        {isPutting ? (
                           <button
-                            key={option.key}
                             type="button"
-                            className={outcomeSelection === option.key ? 'choice-chip active' : 'choice-chip'}
-                            onClick={() => setOutcomeSelection(option.key)}
+                            className="setup-toggle"
+                            onClick={() => setShowPuttingDetails((prev) => !prev)}
+                            aria-expanded={showPuttingDetails}
                           >
-                            {option.label}
+                            {showPuttingDetails ? 'Hide detail' : 'Add detail'}
                           </button>
-                        ))}
+                        ) : null}
+                      </div>
+                      <div className="quick-select-row" role={isPutting ? 'group' : undefined} aria-label={isPutting ? 'Virtual caddy putts selection' : undefined}>
+                        {isPutting
+                          ? PUTT_COUNT_OPTIONS.map((value) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={puttCount === value ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => {
+                                  setPuttCount(value);
+                                  setOutcomeSelection('puttHoled');
+                                }}
+                              >
+                                {value}
+                              </button>
+                            )).concat([
+                              <button
+                                key="putt-plus"
+                                type="button"
+                                className={typeof puttCount === 'number' && puttCount >= 4 ? 'choice-chip active' : 'choice-chip'}
+                                onClick={incrementPuttCount}
+                                aria-expanded={typeof puttCount === 'number' && puttCount >= 4}
+                                aria-label="Add more than 3 putts"
+                              >
+                                +
+                              </button>,
+                              ...(typeof puttCount === 'number' && puttCount >= 4
+                                ? [
+                                    <button
+                                      key="putt-inline-value"
+                                      type="button"
+                                      className="counter-inline-value"
+                                      onClick={decrementPuttCount}
+                                      aria-label="Decrease custom putts value"
+                                    >
+                                      {puttCount}
+                                    </button>,
+                                  ]
+                                : []),
+                            ])
+                          : outcomeOptions.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                className={outcomeSelection === option.key ? 'choice-chip active' : 'choice-chip'}
+                                onClick={() => setOutcomeSelection(option.key)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                      </div>
+                    </div>
+                    {isPutting ? (
+                      showPuttingDetails ? (
+                        <div className="prototype-block">
+                          <span className="quick-select-label">Detailed stats</span>
+                          <div className="stat-list">
+                            {PUTTING_DETAIL_OPTIONS.map((stat) => (
+                              <div key={stat.key} className="counter-tile">
+                                <div className="counter-tile-header">
+                                  <span>{stat.label}</span>
+                                  <div className="counter-value-grid" role="group" aria-label={`${stat.label} value`}>
+                                    <button
+                                      type="button"
+                                      className={getPuttDetailValue(stat.key) === 0 ? 'counter-value-btn counter-reset-btn active' : 'counter-value-btn counter-reset-btn'}
+                                      onClick={() => setPuttDetailValue(stat.key, 0)}
+                                    >
+                                      0
+                                    </button>
+                                    {[1, 2, 3].map((value) => (
+                                      <button
+                                        key={value}
+                                        type="button"
+                                        className={getPuttDetailValue(stat.key) === value ? 'counter-value-btn active' : 'counter-value-btn'}
+                                        onClick={() => setPuttDetailValue(stat.key, value)}
+                                      >
+                                        {value}
+                                      </button>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      className={getPuttDetailValue(stat.key) >= 4 ? 'counter-value-btn active' : 'counter-value-btn'}
+                                      onClick={() => toggleCustomPuttDetailInput(stat.key)}
+                                      aria-expanded={getPuttDetailValue(stat.key) >= 4}
+                                      aria-label={`Enter a custom value for ${stat.label}`}
+                                    >
+                                      +
+                                    </button>
+                                    {getPuttDetailValue(stat.key) >= 4 ? (
+                                      <button
+                                        type="button"
+                                        className="counter-inline-value"
+                                        onClick={() => setPuttDetailValue(stat.key, Math.max(4, getPuttDetailValue(stat.key) - 1))}
+                                        aria-label={`Decrease custom value for ${stat.label}`}
+                                      >
+                                        {Math.max(4, getPuttDetailValue(stat.key))}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null
+                    ) : null}
+                    <div className="virtual-caddy-card-footer">
+                      <button type="button" className="setup-toggle" onClick={() => setFlowStep('setup')}>
+                        Back
+                      </button>
+                      <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot} onClick={saveShot}>
+                        Execute
+                      </button>
+                    </div>
                   </div>
                 </div>
-                {isPutting ? (
-                  showPuttingDetails ? (
-                    <div className="prototype-block">
-                      <span className="quick-select-label">Detailed stats</span>
-                      <div className="stat-list">
-                        {PUTTING_DETAIL_OPTIONS.map((stat) => (
-                          <div key={stat.key} className="counter-tile">
-                            <div className="counter-tile-header">
-                              <span>{stat.label}</span>
-                              <div className="counter-value-grid" role="group" aria-label={`${stat.label} value`}>
-                                <button
-                                  type="button"
-                                  className={getPuttDetailValue(stat.key) === 0 ? 'counter-value-btn counter-reset-btn active' : 'counter-value-btn counter-reset-btn'}
-                                  onClick={() => setPuttDetailValue(stat.key, 0)}
-                                >
-                                  0
-                                </button>
-                                {[1, 2, 3].map((value) => (
-                                  <button
-                                    key={value}
-                                    type="button"
-                                    className={getPuttDetailValue(stat.key) === value ? 'counter-value-btn active' : 'counter-value-btn'}
-                                    onClick={() => setPuttDetailValue(stat.key, value)}
-                                  >
-                                    {value}
-                                  </button>
-                                ))}
-                                <button
-                                  type="button"
-                                  className={getPuttDetailValue(stat.key) >= 4 ? 'counter-value-btn active' : 'counter-value-btn'}
-                                  onClick={() => toggleCustomPuttDetailInput(stat.key)}
-                                  aria-expanded={getPuttDetailValue(stat.key) >= 4}
-                                  aria-label={`Enter a custom value for ${stat.label}`}
-                                >
-                                  +
-                                </button>
-                                {getPuttDetailValue(stat.key) >= 4 ? (
-                                  <button
-                                    type="button"
-                                    className="counter-inline-value"
-                                    onClick={() => setPuttDetailValue(stat.key, Math.max(4, getPuttDetailValue(stat.key) - 1))}
-                                    aria-label={`Decrease custom value for ${stat.label}`}
-                                  >
-                                    {Math.max(4, getPuttDetailValue(stat.key))}
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null
-                ) : null}
               </div>
-            </div>
+            ) : null}
 
             {hasCustomContext ? <p className="virtual-caddy-state-note">Recommendation adjusted for current conditions.</p> : null}
 
@@ -1622,7 +1823,7 @@ export function VirtualCaddyPanel({
                     </button>
                   </div>
                   <p className="virtual-caddy-trail-summary">
-                    Started at {shot.distanceStartMeters}m with {shot.carryMeters}m carry. {formatTrailResultLabel(shot)}.
+                    {formatTrailSummary(shot)}
                   </p>
                 </div>
               );
