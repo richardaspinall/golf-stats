@@ -49,11 +49,12 @@ describe('VirtualCaddyPage', () => {
 
     expect(screen.getByLabelText('hole picker')).toBeTruthy();
     expect(screen.getByLabelText('hole picker')).toBeTruthy();
-    expect(screen.getByText('Hole status')).toBeTruthy();
-    expect(screen.getByText('Index: 7')).toBeTruthy();
-    expect(screen.getByText('Distance: 152m')).toBeTruthy();
-    expect(screen.getByText('Par: 4')).toBeTruthy();
-    expect(screen.getByText('Score: 4')).toBeTruthy();
+    const caddyRegion = screen.getByLabelText('virtual caddy');
+    expect(within(caddyRegion).getByRole('heading', { name: 'Hole status' })).toBeTruthy();
+    expect(within(caddyRegion).getByText('Index')).toBeTruthy();
+    expect(within(caddyRegion).getByText('7')).toBeTruthy();
+    expect(within(caddyRegion).getByText('152m')).toBeTruthy();
+    expect(within(caddyRegion).getAllByText('4').length).toBeGreaterThan(0);
     expect(screen.queryByText(/focus mode/i)).toBeNull();
   });
 
@@ -97,8 +98,10 @@ describe('VirtualCaddyPage', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Execute' }));
 
     expect(saveHoleStats).toHaveBeenCalledTimes(1);
     expect(saveClubActual).toHaveBeenCalledTimes(1);
@@ -143,10 +146,13 @@ describe('VirtualCaddyPage', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Execute' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '1' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Execute' }));
 
     expect(setSelectedHole).toHaveBeenCalledWith(5);
   });

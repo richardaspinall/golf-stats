@@ -86,29 +86,15 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
 
       <section className={isFocusMode ? 'card virtual-caddy-page virtual-caddy-page-focus' : 'card virtual-caddy-page'} aria-label="virtual caddy">
         <div className="virtual-caddy-page-header">
-          <div className="virtual-caddy-page-header-copy">
-            <h2>{isFocusMode ? 'Virtual Caddy' : 'Plan the next shot'}</h2>
-          </div>
           <button type="button" className={isFocusMode ? 'save-btn virtual-caddy-focus-btn' : 'setup-toggle virtual-caddy-focus-btn'} onClick={onToggleFocusMode}>
             {isFocusMode ? 'Exit focus' : 'Focus'}
           </button>
         </div>
 
-        <div className={isFocusMode ? 'virtual-caddy-overview-grid virtual-caddy-overview-grid-focus' : 'virtual-caddy-overview-grid'}>
-          <div className="prototype-block">
-            <span className="quick-select-label">Hole status</span>
-            <div className="virtual-caddy-overview-values">
-              {displayHoleIndex != null ? <span>Index: {displayHoleIndex}</span> : null}
-              {teeToGreenMeters != null ? <span>Distance: {teeToGreenMeters}m</span> : null}
-              {displayHolePar != null ? <span>Par: {displayHolePar}</span> : null}
-              <span>Score: {holeStats.score}</span>
-            </div>
-          </div>
-        </div>
-
         <VirtualCaddyPanel
           hole={selectedHole}
           holeStats={holeStats}
+          displayHoleIndex={displayHoleIndex}
           displayHolePar={displayHolePar}
           defaultDistanceMeters={teeToGreenMeters}
           carryByClub={clubCarryByClub}

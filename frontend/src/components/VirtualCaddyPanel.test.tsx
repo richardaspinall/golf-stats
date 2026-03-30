@@ -15,16 +15,34 @@ afterEach(() => {
 const getVisibleDistanceValue = () =>
   document.querySelector('.distance-header-actions strong')?.textContent ?? document.querySelector('.distance-header strong')?.textContent ?? '';
 
+const advanceToSetup = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+};
+
+const advanceToAction = async (user: ReturnType<typeof userEvent.setup>) => {
+  await advanceToSetup(user);
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+};
+
+const executeCurrentShot = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole('button', { name: 'Execute' }));
+};
+
 describe('VirtualCaddyPanel', () => {
   it('starts with a tee shot and clubs up to the carry number', async () => {
+    const user = userEvent.setup();
+
     render(<VirtualCaddyPanel hole={1} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
 
-    expect(screen.getByText('Tee shot')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Hole status' })).toBeTruthy();
+    await advanceToSetup(user);
+    expect(screen.getByRole('heading', { name: 'Tee shot' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('button', { name: 'Override club' })).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Virtual caddy club selection' })).toBeNull();
     expect(screen.queryByText('Selected club')).toBeNull();
     expect(screen.getByText('(150m carry)')).toBeTruthy();
-    expect(screen.getAllByText('Actual distance left').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Distance to green').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Effective')).toBeNull();
   });
 
@@ -33,16 +51,18 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={1} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToSetup(user);
     await user.click(screen.getByRole('button', { name: 'Add detail' }));
     await user.click(screen.getByRole('button', { name: 'Rough' }));
     await user.click(screen.getByRole('button', { name: 'Uphill' }));
     await user.click(screen.getByRole('button', { name: 'Trouble left' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(screen.getByText('(170m carry)')).toBeTruthy();
-    expect(screen.getAllByText('Actual distance left').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Distance to green').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Effective')).toBeTruthy();
-    expect(getVisibleDistanceValue()).toBe('150m');
-    expect(screen.getByText('Left-side trouble: bias the target slightly right of center.')).toBeTruthy();
+    expect(screen.getByText('150m')).toBeTruthy();
+    expect(screen.getByText('Recommendation adjusted for current conditions.')).toBeTruthy();
   });
 
   it('lets you override the recommended club and saves the chosen club', async () => {
@@ -60,9 +80,9 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    await advanceToAction(user);
     expect(screen.getByRole('button', { name: 'Override club' })).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Virtual caddy club selection' })).toBeNull();
-
     await user.click(screen.getByRole('button', { name: 'Override club' }));
     expect(screen.getByRole('button', { name: 'Hide override' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Driver' })).toBeNull();
@@ -82,7 +102,7 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('(150m carry)')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(screen.getByText((_, element) => element?.textContent === '6i · 150m')).toBeTruthy();
     expect(onSaveClubActual).toHaveBeenCalledWith({ club: '6i', actualMeters: 150 });
@@ -105,13 +125,14 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(onSaveHoleStats).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(confirmSpy).toHaveBeenCalledTimes(2);
     expect(onSaveHoleStats).toHaveBeenCalledTimes(1);
@@ -125,17 +146,19 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={1} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={80} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToSetup(user);
     await user.click(screen.getByRole('button', { name: 'Add detail' }));
     await user.click(screen.getByRole('button', { name: 'Bunker' }));
 
     expect(screen.getByText('Bunker lie')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Buried' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(screen.getByText('(110m carry)')).toBeTruthy();
     expect(screen.getByText('Effective')).toBeTruthy();
-    expect(getVisibleDistanceValue()).toBe('80m');
-    expect(screen.getByText('Bunker lie: buried +8m')).toBeTruthy();
+    expect(screen.getByText('80m')).toBeTruthy();
+    expect(screen.getByText('Recommendation adjusted for current conditions.')).toBeTruthy();
   });
 
   it('uses the active wedge matrix for shots inside 100m', () => {
@@ -168,6 +191,8 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('(83m carry)')).toBeTruthy();
     expect(screen.getByText('9:00 · Stock wedges')).toBeTruthy();
     expect(screen.getByText('Stance: Medium | Grip: Mid | Ball position: Middle')).toBeTruthy();
@@ -180,12 +205,12 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={420} onReplaceHoleStats={onReplaceHoleStats} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    expect(screen.getByText('Shot 2')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
     expect(screen.getByText('Driver · 230m')).toBeTruthy();
-    expect(getVisibleDistanceValue()).toBe('190m');
     expect(onReplaceHoleStats).toHaveBeenCalled();
   });
 
@@ -203,19 +228,20 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    await advanceToSetup(user);
     expect(getVisibleDistanceValue()).toBe('250m');
 
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '170' } });
     await user.click(screen.getByRole('button', { name: 'To target' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(screen.getByText('(170m carry)')).toBeTruthy();
     expect(screen.getByText('Fairway result')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    expect(screen.getByRole('heading', { name: 'Shot 2' })).toBeTruthy();
-    expect(getVisibleDistanceValue()).toBe('80m');
+    expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
     expect(screen.getByText('5 wood · 170m')).toBeTruthy();
   });
 
@@ -262,8 +288,10 @@ describe('VirtualCaddyPanel', () => {
             ],
             draft: {
               nextShotId: 2,
+              flowStep: 'setup',
               actionType: 'shot',
               seededDistanceMeters: 170,
+              distanceToHoleMeters: 170,
               distanceToMiddleMeters: 170,
               distanceMode: 'hole',
               surface: 'fairway',
@@ -276,6 +304,7 @@ describe('VirtualCaddyPanel', () => {
               hazards: [],
               oopResult: 'none',
               outcomeSelection: null,
+              firstPuttDistanceMeters: null,
               puttCount: null,
               showAdvanced: false,
             },
@@ -306,11 +335,13 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(screen.getByText((_, element) => element?.textContent === 'Driver · 200m' || element?.textContent === 'Mini Driver · 200m')).toBeTruthy();
 
+    await advanceToSetup(user);
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '180' } });
 
     expect(screen.getByText((_, element) => element?.textContent === 'Driver · 220m' || element?.textContent === 'Mini Driver · 220m')).toBeTruthy();
@@ -331,13 +362,16 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    await advanceToSetup(user);
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '170' } });
     await user.click(screen.getByRole('button', { name: 'To target' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(screen.getByText((_, element) => element?.textContent === '5 wood · 170m')).toBeTruthy();
 
+    await advanceToSetup(user);
     await user.click(screen.getByRole('button', { name: 'To target' }));
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to target'), { target: { value: '40' } });
 
@@ -354,11 +388,15 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    const puttsGroup = screen.getByRole('group', { name: 'Virtual caddy putts selection' });
+    expect(screen.queryByRole('heading', { name: 'Distance left' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Putting' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    const puttsGroup = screen.getByRole('group', { name: 'Virtual caddy putts selection' });
     expect(screen.getByText('Putter')).toBeTruthy();
     expect(screen.getByText('Finish out')).toBeTruthy();
     expect(screen.getByText('Putts')).toBeTruthy();
@@ -374,13 +412,16 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={onReplaceHoleStats} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: '+5m' }));
     await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(screen.getByText('Trail complete')).toBeTruthy();
-    expect(screen.getByText(/Started at 0m with 0m carry\. 2 putts\./)).toBeTruthy();
+    expect(screen.getByText('Putter: 2 putts from 15m')).toBeTruthy();
 
     const lastCall = onReplaceHoleStats.mock.calls.at(-1)?.[0];
     expect(lastCall?.score).toBe(3);
@@ -393,14 +434,16 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={onReplaceHoleStats} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
     expect(screen.queryByRole('group', { name: 'Miss long value' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Add detail' }));
     await user.click(within(screen.getByRole('group', { name: 'Miss long value' })).getByRole('button', { name: '1' }));
     await user.click(within(screen.getByRole('group', { name: 'Miss within 2m value' })).getByRole('button', { name: '2' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     const lastCall = onReplaceHoleStats.mock.calls.at(-1)?.[0];
     expect(lastCall?.totalPutts).toBe(2);
@@ -413,8 +456,10 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(screen.queryByRole('group', { name: 'Miss long value' })).toBeNull();
 
@@ -430,15 +475,17 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={onReplaceHoleStats} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     const puttsGroup = screen.getByRole('group', { name: 'Virtual caddy putts selection' });
     await user.click(within(puttsGroup).getByRole('button', { name: 'Add more than 3 putts' }));
     await user.click(within(puttsGroup).getByRole('button', { name: 'Add more than 3 putts' }));
 
     expect(screen.getByRole('button', { name: 'Decrease custom putts value' }).textContent).toBe('5');
 
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     const lastCall = onReplaceHoleStats.mock.calls.at(-1)?.[0];
     expect(lastCall?.score).toBe(6);
@@ -450,10 +497,12 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Left' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    expect(screen.getByText('Chipping')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
+    await advanceToAction(user);
     expect(screen.getByText('Chip shot')).toBeTruthy();
   });
 
@@ -489,10 +538,11 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Left' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    expect(screen.getByText('Chipping')).toBeTruthy();
+    await advanceToAction(user);
     expect(screen.getByText('60w')).toBeTruthy();
     expect(screen.getByText('(19m carry)')).toBeTruthy();
     expect(screen.getByText('7:30 · Stock wedges')).toBeTruthy();
@@ -538,6 +588,8 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('56w')).toBeTruthy();
     expect(screen.getByText('7:30 · Flighted')).toBeTruthy();
     expect(screen.getByText('Stance: Narrow | Grip: Low | Ball position: Back')).toBeTruthy();
@@ -548,8 +600,11 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={420} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Right' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
+
+    await advanceToAction(user);
 
     expect(screen.queryByText('Fairway right')).toBeNull();
   });
@@ -559,9 +614,11 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={420} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Right' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
+    await advanceToSetup(user);
     expect(screen.getByText('Out of position')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Look' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'No look' })).toBeTruthy();
@@ -573,12 +630,15 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={5} holeStats={emptyHoleStats()} displayHolePar={5} defaultDistanceMeters={500} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
+    await advanceToSetup(user);
     expect(screen.getByText('Out of position')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'No' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Look' })).toBeTruthy();
@@ -589,12 +649,14 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={420} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
+    await advanceToSetup(user);
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '39' } });
 
-    expect(screen.getByRole('heading', { name: 'Chipping' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('Chip shot')).toBeTruthy();
   });
 
@@ -603,15 +665,18 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={420} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToSetup(user);
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '300' } });
     expect((screen.getByLabelText('Virtual caddy distance to hole') as HTMLInputElement).value).toBe('300');
 
     await user.click(screen.getByRole('button', { name: 'Reset' }));
     expect(getVisibleDistanceValue()).toBe('420m');
 
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
+    await advanceToSetup(user);
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '150' } });
     expect((screen.getByLabelText('Virtual caddy distance to hole') as HTMLInputElement).value).toBe('150');
 
@@ -624,6 +689,7 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={1} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToSetup(user);
     await user.click(screen.getByRole('button', { name: '+5m' }));
     expect(getVisibleDistanceValue()).toBe('155m');
 
@@ -642,13 +708,16 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Left' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Miss green' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    expect(screen.getByRole('heading', { name: 'Chipping' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
+    await advanceToAction(user);
     expect(screen.getByText('Chip shot')).toBeTruthy();
   });
 
@@ -657,20 +726,25 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={420} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
+    await advanceToSetup(user);
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '150' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Left' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    expect(screen.getByRole('heading', { name: 'Chipping' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
 
+    await advanceToSetup(user);
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '140' } });
 
     expect(screen.getByRole('heading', { name: 'Shot 3' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('(150m carry)')).toBeTruthy();
-    expect(screen.getAllByText('Actual distance left').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Distance to green').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Effective')).toBeTruthy();
   });
 
@@ -693,11 +767,13 @@ describe('VirtualCaddyPanel', () => {
 
     render(<TestHarness />);
 
+    await advanceToSetup(user);
     await user.click(screen.getByRole('button', { name: 'Add detail' }));
     expect(screen.getByRole('button', { name: 'Rough' })).toBeTruthy();
 
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('button', { name: 'Fairway hit' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Execute' })).toBeTruthy();
   });
 
   it('disables save during edit until a change is made and supports cancel', async () => {
@@ -705,22 +781,24 @@ describe('VirtualCaddyPanel', () => {
 
     render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={420} onReplaceHoleStats={vi.fn()} />);
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
-    expect(screen.getByRole('heading', { name: 'Shot 2' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
-    expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('button', { name: 'Execute' }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByRole('button', { name: 'Cancel edit' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Left' }));
-    expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Execute' }).hasAttribute('disabled')).toBe(false);
 
     await user.click(screen.getByRole('button', { name: 'Cancel edit' }));
 
-    expect(screen.getByRole('heading', { name: 'Shot 2' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cancel edit' })).toBeNull();
   });
 
@@ -745,15 +823,17 @@ describe('VirtualCaddyPanel', () => {
       />,
     );
 
+    await advanceToAction(user);
     await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(onSaveClubActual).toHaveBeenCalledWith({ club: 'Driver', actualMeters: 200 });
 
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '180' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByRole('button', { name: 'Left' }));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await executeCurrentShot(user);
 
     expect(onDeleteClubActualEntry).toHaveBeenCalledWith(101);
     expect(onSaveClubActual).toHaveBeenLastCalledWith({ club: 'Driver', actualMeters: 170 });
