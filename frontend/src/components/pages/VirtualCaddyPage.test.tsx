@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -47,7 +47,11 @@ describe('VirtualCaddyPage', () => {
 
     expect(screen.getByLabelText('hole picker')).toBeTruthy();
     expect(screen.getByLabelText('hole picker')).toBeTruthy();
-    expect(screen.queryByText('Hole status')).toBeNull();
+    expect(screen.getByText('Hole status')).toBeTruthy();
+    expect(screen.getByText('Index: 7')).toBeTruthy();
+    expect(screen.getByText('Distance: 152m')).toBeTruthy();
+    expect(screen.getByText('Par: 4')).toBeTruthy();
+    expect(screen.getByText('Score: 4')).toBeTruthy();
     expect(screen.queryByText(/focus mode/i)).toBeNull();
   });
 
@@ -135,7 +139,7 @@ describe('VirtualCaddyPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await user.click(screen.getByRole('button', { name: '1' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '1' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(setSelectedHole).toHaveBeenCalledWith(5);
