@@ -334,6 +334,45 @@ const formatTrailSummary = (shot: PlannerShot) => {
   return `Started at ${shot.distanceStartMeters}m with ${shot.carryMeters}m carry. ${formatTrailResultLabel(shot)}.`;
 };
 
+const summarizeCompletedHole = (trail: PlannerShot[], displayHolePar: number | null) => {
+  const score = trail.reduce((sum, shot) => {
+    if (shot.actionType === 'putting') {
+      return sum + (shot.puttCount ?? 1);
+    }
+    return sum + 1;
+  }, 0);
+  const puttingShot = trail.find((shot) => shot.actionType === 'putting') ?? null;
+
+  return {
+    par: displayHolePar,
+    score,
+    putts: puttingShot?.puttCount ?? 0,
+  };
+};
+
+const getScoreSummaryStyle = (par: number | null, score: number) => {
+  if (par == null) {
+    return {
+      tone: 'neutral' as const,
+    };
+  }
+
+  const diff = score - par;
+  if (diff <= -2) {
+    return { tone: 'eagle' as const };
+  }
+  if (diff === -1) {
+    return { tone: 'birdie' as const };
+  }
+  if (diff === 0) {
+    return { tone: 'par' as const };
+  }
+  if (diff === 1) {
+    return { tone: 'bogey' as const };
+  }
+  return { tone: 'double' as const };
+};
+
 const deriveOopResult = (
   actionType: PlannerActionType,
   surface: NonNullable<VirtualCaddyInputs['surface']>,
@@ -810,6 +849,31 @@ export function VirtualCaddyPanel({
     : true;
   const canSaveShot = (isPutting ? puttCount != null : outcomeSelection != null) && (editingIndex == null || isEditDirty);
   const overviewTitle = isFirstShot ? 'Hole status' : 'Distance left';
+  const completedHoleSummary = summarizeCompletedHole(trail, displayHolePar);
+  const completedHoleScoreStyle = getScoreSummaryStyle(completedHoleSummary.par, completedHoleSummary.score);
+  const overviewDistanceSummary = isFirstShot
+    ? defaultDistanceMeters != null
+      ? `Length ${defaultDistanceMeters}m`
+      : null
+    : `Distance left ${distanceToHoleMeters}m`;
+  const shotDistanceBannerLabel = isPutting
+    ? 'Distance left'
+    : distanceMode === 'point'
+      ? 'Distance to target'
+      : 'Distance to green';
+  const shotDistanceBannerValue = isPutting
+    ? `${distanceToHoleMeters}m`
+    : distanceMode === 'point'
+      ? `${distanceToMiddleMeters}m`
+      : `${distanceToHoleMeters}m`;
+  const canResetShotDistanceBanner = distanceMode === 'point' ? distanceToMiddleMeters !== distanceToHoleMeters : distanceToHoleMeters !== seededDistanceMeters;
+  const resetShotDistanceBanner = () => {
+    if (distanceMode === 'point') {
+      setShotDistance(distanceToHoleMeters);
+      return;
+    }
+    setHoleDistance(seededDistanceMeters);
+  };
   const distanceSliderMax = Math.max(300, seededDistanceMeters, distanceToHoleMeters, distanceToMiddleMeters);
   const showOopOptions =
     !isPutting && (isOopSurface(surface) || (trail.length >= 2 && !isGreenHitOutcome(previousShot?.outcomeSelection ?? null)));
@@ -1138,6 +1202,7 @@ export function VirtualCaddyPanel({
                     <span className="virtual-caddy-step-number">{shotNumber}</span>
                     <div>
                       <h5>{overviewTitle}</h5>
+                      {overviewDistanceSummary ? <p>{overviewDistanceSummary}</p> : null}
                     </div>
                   </div>
                   {editingIndex != null ? (
@@ -1147,31 +1212,56 @@ export function VirtualCaddyPanel({
                   ) : null}
                 </div>
                 <div className="prototype-block virtual-caddy-distance-block">
-                  <div className="virtual-caddy-overview-card">
-                    <div className="virtual-caddy-overview-hero">
-                      <span className="virtual-caddy-overview-kicker">{isFirstShot ? 'Hole' : 'Distance left'}</span>
-                      <strong>{isFirstShot ? hole : `${distanceToHoleMeters}m`}</strong>
-                    </div>
-                    <div className="virtual-caddy-overview-details">
-                      {displayHoleIndex != null ? (
-                        <div className="virtual-caddy-overview-detail">
-                          <span>Index</span>
-                          <strong>{displayHoleIndex}</strong>
+                  <div className={isFirstShot ? 'virtual-caddy-overview-card virtual-caddy-overview-card-hole' : 'virtual-caddy-overview-card'}>
+                    {isFirstShot ? (
+                      <>
+                        <div className="virtual-caddy-overview-detail virtual-caddy-overview-detail-primary">
+                          <span>Hole</span>
+                          <strong>{hole}</strong>
                         </div>
-                      ) : null}
-                      {displayHolePar != null ? (
-                        <div className="virtual-caddy-overview-detail">
-                          <span>Par</span>
-                          <strong>{displayHolePar}</strong>
+                        <div className="virtual-caddy-overview-row">
+                          {displayHoleIndex != null ? (
+                            <div className="virtual-caddy-overview-detail">
+                              <span>Index</span>
+                              <strong>{displayHoleIndex}</strong>
+                            </div>
+                          ) : null}
+                          {displayHolePar != null ? (
+                            <div className="virtual-caddy-overview-detail">
+                              <span>Par</span>
+                              <strong>{displayHolePar}</strong>
+                            </div>
+                          ) : null}
+                          {defaultDistanceMeters != null ? (
+                            <div className="virtual-caddy-overview-detail">
+                              <span>Length</span>
+                              <strong>{defaultDistanceMeters}m</strong>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
-                      {isFirstShot && defaultDistanceMeters != null ? (
-                        <div className="virtual-caddy-overview-detail">
-                          <span>Start distance</span>
-                          <strong>{defaultDistanceMeters}m</strong>
+                      </>
+                    ) : (
+                      <>
+                        <div className="virtual-caddy-overview-hero">
+                          <span className="virtual-caddy-overview-kicker">Distance left</span>
+                          <strong>{`${distanceToHoleMeters}m`}</strong>
                         </div>
-                      ) : null}
-                    </div>
+                        <div className="virtual-caddy-overview-details">
+                          {displayHoleIndex != null ? (
+                            <div className="virtual-caddy-overview-detail">
+                              <span>Index</span>
+                              <strong>{displayHoleIndex}</strong>
+                            </div>
+                          ) : null}
+                          {displayHolePar != null ? (
+                            <div className="virtual-caddy-overview-detail">
+                              <span>Par</span>
+                              <strong>{displayHolePar}</strong>
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="virtual-caddy-card-footer">
@@ -1198,6 +1288,17 @@ export function VirtualCaddyPanel({
                   ) : null}
                 </div>
                 <div className="prototype-block virtual-caddy-distance-block">
+                  <div className="virtual-caddy-overview-hero virtual-caddy-distance-hero">
+                    <span className="virtual-caddy-overview-kicker">{shotDistanceBannerLabel}</span>
+                    <div className="virtual-caddy-distance-hero-actions">
+                      <strong>{shotDistanceBannerValue}</strong>
+                      {canResetShotDistanceBanner ? (
+                        <button type="button" className="setup-toggle" onClick={resetShotDistanceBanner}>
+                          Reset
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
                   {isPutting ? (
                     <div className="distance-header">
                       <span>On green</span>
@@ -1226,17 +1327,6 @@ export function VirtualCaddyPanel({
                         </div>
                       </div>
                     ) : null}
-                    {distanceMode !== 'point' ? (
-                      <div className="distance-header">
-                        <span>Actual distance left</span>
-                        <div className="distance-header-actions">
-                          <strong>{distanceToHoleMeters}m</strong>
-                          <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
-                            Reset
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
                     {isStandardShot ? (
                       <div className="virtual-caddy-inline-toggle">
                         <span className="quick-select-label">Shot target</span>
@@ -1261,15 +1351,6 @@ export function VirtualCaddyPanel({
                     {distanceMode === 'point' ? (
                       <>
                         <div className="prototype-block">
-                          <div className="distance-header">
-                            <span>Distance to green</span>
-                            <div className="distance-header-actions">
-                              <strong>{distanceToHoleMeters}m</strong>
-                              <button type="button" className="setup-toggle" onClick={() => setHoleDistance(seededDistanceMeters)}>
-                                Reset
-                              </button>
-                            </div>
-                          </div>
                           <div className="virtual-caddy-slider-stack">
                             <div className="virtual-caddy-slider-only-row">
                               <input
@@ -1299,15 +1380,6 @@ export function VirtualCaddyPanel({
                           </div>
                         </div>
                         <div className="prototype-block">
-                          <div className="distance-header">
-                            <span>Distance to target</span>
-                            <div className="distance-header-actions">
-                              <strong>{distanceToMiddleMeters}m</strong>
-                              <button type="button" className="setup-toggle" onClick={() => setShotDistance(distanceToHoleMeters)}>
-                                Reset
-                              </button>
-                            </div>
-                          </div>
                           <div className="virtual-caddy-slider-stack">
                             <div className="virtual-caddy-slider-only-row">
                               <input
@@ -1505,7 +1577,7 @@ export function VirtualCaddyPanel({
                   <div className="virtual-caddy-step-title">
                     <span className="virtual-caddy-step-number">{shotNumber}</span>
                     <div>
-                      <h5>Action to take</h5>
+                      <h5>Execute</h5>
                     </div>
                   </div>
                   {editingIndex != null ? (
@@ -1514,10 +1586,33 @@ export function VirtualCaddyPanel({
                     </button>
                   ) : null}
                 </div>
+                <div className="virtual-caddy-overview-hero virtual-caddy-distance-hero">
+                  <span className="virtual-caddy-overview-kicker">{shotDistanceBannerLabel}</span>
+                  <strong>{shotDistanceBannerValue}</strong>
+                </div>
+                {!isPutting &&
+                (!isChipping || isWedgeMatrixChip) &&
+                recommendation.effectiveDistanceMeters !== distanceToMiddleMeters ? (
+                  <div className="virtual-caddy-distance-summary">
+                    <div className="virtual-caddy-distance-summary-label">
+                      <span>Effective distance</span>
+                      <button
+                        type="button"
+                        className="virtual-caddy-inline-toggle-btn"
+                        onClick={() => setShowRecommendationWhy((prev) => !prev)}
+                        aria-expanded={showRecommendationWhy}
+                      >
+                        {showRecommendationWhy ? 'Hide why' : 'Why'}
+                      </button>
+                    </div>
+                    <strong>{recommendation.effectiveDistanceMeters}m</strong>
+                  </div>
+                ) : null}
                 <div className="virtual-caddy-recommendation">
                   <div className="virtual-caddy-recommendation-copy">
                     <div className={isChipping ? 'virtual-caddy-club-row virtual-caddy-club-row-chip' : 'virtual-caddy-club-row'}>
                       <strong>
+                        <span className="virtual-caddy-club-prefix">Club:</span>
                         {recommendation.club}
                         {!isPutting && (!isChipping || isWedgeMatrixChip) ? <span className="virtual-caddy-carry-inline">({recommendation.carryMeters}m carry)</span> : null}
                         {canOverrideClub ? (
@@ -1539,17 +1634,33 @@ export function VirtualCaddyPanel({
                           </button>
                         ) : null}
                       </strong>
+                      {recommendation.source === 'wedgeMatrix' && recommendation.swingClock ? (
+                        <div className="virtual-caddy-distance-summary virtual-caddy-wedge-matrix-summary">
+                          <div className="virtual-caddy-distance-summary-label">
+                            <span>Suggestion:</span>
+                          </div>
+                          <span className="virtual-caddy-wedge-matrix-summary-note">
+                            Swing: {recommendation.swingClock}
+                          </span>
+                          {recommendation.wedgeMatrixSetup ? <span className="virtual-caddy-wedge-matrix-summary-note">{recommendation.wedgeMatrixSetup}</span> : null}
+                          <div className="virtual-caddy-wedge-matrix-summary-source">
+                            <strong className="virtual-caddy-wedge-matrix-summary-value">
+                              {recommendation.wedgeMatrixName ?? 'Wedge matrix'}
+                              <span className="virtual-caddy-wedge-matrix-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="4" y="5" width="16" height="14" rx="2" />
+                                  <path d="M9.5 5v14" />
+                                  <path d="M14.5 5v14" />
+                                  <path d="M4 10h16" />
+                                  <path d="M4 14h16" />
+                                </svg>
+                              </span>
+                            </strong>
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="virtual-caddy-club-meta">
                         {isPutting ? <span>Finish out</span> : null}
-                        {recommendation.source === 'wedgeMatrix' && recommendation.swingClock ? (
-                          <>
-                            <span>
-                              {recommendation.swingClock}
-                              {recommendation.wedgeMatrixName ? ` · ${recommendation.wedgeMatrixName}` : ''}
-                            </span>
-                            {recommendation.wedgeMatrixSetup ? <span>{recommendation.wedgeMatrixSetup}</span> : null}
-                          </>
-                        ) : null}
                         {canOverrideClub && selectedClub && selectedClub !== baseRecommendation?.recommendedClub ? (
                           <button
                             type="button"
@@ -1592,28 +1703,6 @@ export function VirtualCaddyPanel({
                     ) : null}
                     {!isPutting && (!isChipping || isWedgeMatrixChip) ? (
                       <>
-                        <div className="virtual-caddy-metrics">
-                          <div className="virtual-caddy-metric">
-                            <span>{distanceMode === 'point' ? 'Distance to target' : 'Distance to green'}</span>
-                            <strong>{distanceToMiddleMeters}m</strong>
-                          </div>
-                          {recommendation.effectiveDistanceMeters !== distanceToMiddleMeters ? (
-                            <div className="virtual-caddy-metric">
-                              <div className="virtual-caddy-metric-topline">
-                                <span>Effective</span>
-                                <button
-                                  type="button"
-                                  className="virtual-caddy-inline-toggle-btn"
-                                  onClick={() => setShowRecommendationWhy((prev) => !prev)}
-                                  aria-expanded={showRecommendationWhy}
-                                >
-                                  {showRecommendationWhy ? 'Hide why' : 'Why'}
-                                </button>
-                              </div>
-                              <strong>{recommendation.effectiveDistanceMeters}m</strong>
-                            </div>
-                          ) : null}
-                        </div>
                         {showRecommendationWhy ? (
                           <div className="prototype-block virtual-caddy-notes">
                             <span className="quick-select-label">Why</span>
@@ -1780,15 +1869,15 @@ export function VirtualCaddyPanel({
                         </div>
                       ) : null
                     ) : null}
-                    <div className="virtual-caddy-card-footer">
-                      <button type="button" className="setup-toggle" onClick={() => setFlowStep('setup')}>
-                        Back
-                      </button>
-                      <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot} onClick={saveShot}>
-                        Execute
-                      </button>
-                    </div>
                   </div>
+                </div>
+                <div className="virtual-caddy-card-footer">
+                  <button type="button" className="setup-toggle" onClick={() => setFlowStep('setup')}>
+                    Back
+                  </button>
+                  <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot} onClick={saveShot}>
+                    Save result
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -1798,9 +1887,21 @@ export function VirtualCaddyPanel({
           </>
         ) : (
           <div className="prototype-block virtual-caddy-complete">
-            <span className="quick-select-label">Trail complete</span>
-            <strong>Hole flow captured.</strong>
-            <p className="hint">Use Edit on any prior action to replay the sequence from that point.</p>
+            <span className="quick-select-label">Hole summary</span>
+            <div className="virtual-caddy-complete-summary">
+              <div className="virtual-caddy-complete-stat">
+                <span>Par</span>
+                <strong>{completedHoleSummary.par ?? '-'}</strong>
+              </div>
+              <div className="virtual-caddy-complete-stat">
+                <span>Score</span>
+                <strong className={`virtual-caddy-score-mark virtual-caddy-score-mark-${completedHoleScoreStyle.tone}`}>{completedHoleSummary.score}</strong>
+              </div>
+              <div className="virtual-caddy-complete-stat">
+                <span>Putts</span>
+                <strong>{completedHoleSummary.putts}</strong>
+              </div>
+            </div>
           </div>
         )}
 

@@ -25,7 +25,7 @@ const advanceToAction = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 const executeCurrentShot = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(screen.getByRole('button', { name: 'Execute' }));
+  await user.click(screen.getByRole('button', { name: 'Save result' }));
 };
 
 describe('VirtualCaddyPanel', () => {
@@ -773,7 +773,7 @@ describe('VirtualCaddyPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('button', { name: 'Fairway hit' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Execute' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save result' })).toBeTruthy();
   });
 
   it('disables save during edit until a change is made and supports cancel', async () => {
@@ -790,11 +790,11 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.getByRole('button', { name: 'Execute' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Save result' }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByRole('button', { name: 'Cancel edit' })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Left' }));
-    expect(screen.getByRole('button', { name: 'Execute' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Save result' }).hasAttribute('disabled')).toBe(false);
 
     await user.click(screen.getByRole('button', { name: 'Cancel edit' }));
 
