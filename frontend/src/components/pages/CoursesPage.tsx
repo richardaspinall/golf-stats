@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import { SavePill } from '../SavePill';
 import { HOLE_INDEX_OPTIONS, HOLES } from '../../lib/constants';
 
 const PAR_OPTIONS = [3, 4, 5, 6];
+const COURSE_DISTANCE_PRESETS = [90, 110, 130, 150, 170, 190];
 import type { Course } from '../../types';
 
 type CoursesPageProps = {
@@ -105,8 +107,33 @@ function CourseListPanel({ state, actions }: CourseListPanelProps) {
 }
 
 function CourseEditorPanel({ state, actions }: CourseEditorPanelProps) {
+  const [editingDistanceHole, setEditingDistanceHole] = useState<number | null>(null);
   const { courseEditor, courseSaveState, courseHoleIndexCounts, isMapSetupOpen, mapSetupHole } = state;
   const { setCourses, setCourseSaveState, saveCurrentCourse, setMapSetupHole, setIsMapSetupOpen } = actions;
+
+  const setHoleDistanceMeters = (hole: number, nextValue: number | null) => {
+    if (!courseEditor) {
+      return;
+    }
+
+    setCourses((prev) =>
+      prev.map((entry) =>
+        entry.id === courseEditor.id
+          ? {
+              ...entry,
+              markers: {
+                ...entry.markers,
+                [hole]: {
+                  ...(entry.markers?.[hole] || {}),
+                  distanceMeters: nextValue,
+                },
+              },
+            }
+          : entry,
+      ),
+    );
+    setCourseSaveState('unsaved');
+  };
 
   return (
     <section className="card" aria-label="course editor">
@@ -140,126 +167,144 @@ function CourseEditorPanel({ state, actions }: CourseEditorPanelProps) {
               const holeMarkers = courseEditor.markers?.[hole];
               const indexValue = holeMarkers?.holeIndex ?? hole;
               const isDuplicate = (courseHoleIndexCounts[indexValue] || 0) > 1;
+              const distanceMeters = holeMarkers?.distanceMeters ?? null;
               return (
-                <div key={hole} className="course-setup-row">
-                  <strong>Hole {hole}</strong>
-                  <label className="course-index-field">
-                    Index
-                    <select
-                      value={indexValue}
-                      onChange={(event) => {
-                        const nextValue = Math.min(18, Math.max(1, Math.floor(Number(event.target.value))));
-                        setCourses((prev) =>
-                          prev.map((entry) =>
-                            entry.id === courseEditor.id
-                              ? {
-                                  ...entry,
-                                  markers: {
-                                    ...entry.markers,
-                                    [hole]: {
-                                      ...(entry.markers?.[hole] || {}),
-                                      holeIndex: nextValue,
+                <div key={hole} className="course-setup-card">
+                  <div className="course-setup-row">
+                    <strong>Hole {hole}</strong>
+                    <label className="course-index-field">
+                      Index
+                      <select
+                        value={indexValue}
+                        onChange={(event) => {
+                          const nextValue = Math.min(18, Math.max(1, Math.floor(Number(event.target.value))));
+                          setCourses((prev) =>
+                            prev.map((entry) =>
+                              entry.id === courseEditor.id
+                                ? {
+                                    ...entry,
+                                    markers: {
+                                      ...entry.markers,
+                                      [hole]: {
+                                        ...(entry.markers?.[hole] || {}),
+                                        holeIndex: nextValue,
+                                      },
                                     },
-                                  },
-                                }
-                              : entry,
-                          ),
-                        );
-                        setCourseSaveState('unsaved');
+                                  }
+                                : entry,
+                            ),
+                          );
+                          setCourseSaveState('unsaved');
+                        }}
+                      >
+                        {HOLE_INDEX_OPTIONS.map((indexOption) => (
+                          <option key={indexOption} value={indexOption}>
+                            {indexOption}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="course-index-field">
+                      Par
+                      <select
+                        value={holeMarkers?.par ?? 4}
+                        onChange={(event) => {
+                          const nextValue = Math.min(6, Math.max(3, Math.floor(Number(event.target.value))));
+                          setCourses((prev) =>
+                            prev.map((entry) =>
+                              entry.id === courseEditor.id
+                                ? {
+                                    ...entry,
+                                    markers: {
+                                      ...entry.markers,
+                                      [hole]: {
+                                        ...(entry.markers?.[hole] || {}),
+                                        par: nextValue,
+                                      },
+                                    },
+                                  }
+                                : entry,
+                            ),
+                          );
+                          setCourseSaveState('unsaved');
+                        }}
+                      >
+                        {PAR_OPTIONS.map((parOption) => (
+                          <option key={parOption} value={parOption}>
+                            {parOption}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="course-distance-summary">
+                      <span className="quick-select-label">Distance</span>
+                      <strong>{distanceMeters ? `${distanceMeters}m` : 'Not set'}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="setup-toggle"
+                      onClick={() => setEditingDistanceHole((prev) => (prev === hole ? null : hole))}
+                    >
+                      {editingDistanceHole === hole ? 'Hide distance' : 'Edit distance'}
+                    </button>
+                    <span className={isDuplicate ? 'course-index-warning' : 'course-index-ok'}>
+                      {isDuplicate ? 'Duplicate index' : 'OK'}
+                    </span>
+                    <span className="course-marker-status">{holeMarkers?.teePosition ? 'Tee ✓' : 'Tee —'}</span>
+                    <span className="course-marker-status">{holeMarkers?.greenPosition ? 'Green ✓' : 'Green —'}</span>
+                    <button
+                      type="button"
+                      className={isMapSetupOpen && mapSetupHole === hole ? 'active' : ''}
+                      onClick={() => {
+                        setMapSetupHole(hole);
+                        setIsMapSetupOpen(true);
                       }}
                     >
-                      {HOLE_INDEX_OPTIONS.map((indexOption) => (
-                        <option key={indexOption} value={indexOption}>
-                          {indexOption}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="course-index-field">
-                    Par
-                    <select
-                      value={holeMarkers?.par ?? 4}
-                      onChange={(event) => {
-                        const nextValue = Math.min(6, Math.max(3, Math.floor(Number(event.target.value))));
-                        setCourses((prev) =>
-                          prev.map((entry) =>
-                            entry.id === courseEditor.id
-                              ? {
-                                  ...entry,
-                                  markers: {
-                                    ...entry.markers,
-                                    [hole]: {
-                                      ...(entry.markers?.[hole] || {}),
-                                      par: nextValue,
-                                    },
-                                  },
-                                }
-                              : entry,
-                          ),
-                        );
-                        setCourseSaveState('unsaved');
-                      }}
-                    >
-                      {PAR_OPTIONS.map((parOption) => (
-                        <option key={parOption} value={parOption}>
-                          {parOption}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="course-index-field">
-                    Distance (m)
-                    <input
-                      type="number"
-                      min={1}
-                      max={999}
-                      step={1}
-                      value={holeMarkers?.distanceMeters ?? ''}
-                      onChange={(event) => {
-                        const rawValue = event.target.value;
-                        const nextValue =
-                          rawValue === ''
-                            ? null
-                            : Math.min(999, Math.max(1, Math.floor(Number(rawValue))));
-                        setCourses((prev) =>
-                          prev.map((entry) =>
-                            entry.id === courseEditor.id
-                              ? {
-                                  ...entry,
-                                  markers: {
-                                    ...entry.markers,
-                                    [hole]: {
-                                      ...(entry.markers?.[hole] || {}),
-                                      distanceMeters: nextValue,
-                                    },
-                                  },
-                                }
-                              : entry,
-                          ),
-                        );
-                        setCourseSaveState('unsaved');
-                      }}
-                      placeholder="e.g. 142"
-                    />
-                  </label>
-                  <span className={isDuplicate ? 'course-index-warning' : 'course-index-ok'}>
-                    {isDuplicate ? 'Duplicate index' : 'OK'}
-                  </span>
-                  <span className="course-marker-status">
-                    {holeMarkers?.distanceMeters ? `Distance ${holeMarkers.distanceMeters}m` : 'Distance —'}
-                  </span>
-                  <span className="course-marker-status">{holeMarkers?.teePosition ? 'Tee ✓' : 'Tee —'}</span>
-                  <span className="course-marker-status">{holeMarkers?.greenPosition ? 'Green ✓' : 'Green —'}</span>
-                  <button
-                    type="button"
-                    className={isMapSetupOpen && mapSetupHole === hole ? 'active' : ''}
-                    onClick={() => {
-                      setMapSetupHole(hole);
-                      setIsMapSetupOpen(true);
-                    }}
-                  >
-                    {isMapSetupOpen && mapSetupHole === hole ? 'Editing map' : 'Set map'}
-                  </button>
+                      {isMapSetupOpen && mapSetupHole === hole ? 'Editing map' : 'Set map'}
+                    </button>
+                  </div>
+                  {editingDistanceHole === hole ? (
+                    <div className="prototype-block course-distance-editor">
+                      <div className="preset-row" role="group" aria-label={`Hole ${hole} distance presets`}>
+                        {COURSE_DISTANCE_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            className={distanceMeters === preset ? 'choice-chip active' : 'choice-chip'}
+                            onClick={() => setHoleDistanceMeters(hole, preset)}
+                          >
+                            {preset}m
+                          </button>
+                        ))}
+                      </div>
+                      <div className="distance-header">
+                        <span>Distance</span>
+                        <div className="distance-value-actions">
+                          <button type="button" onClick={() => setHoleDistanceMeters(hole, Math.max(1, (distanceMeters ?? 120) - 1))} aria-label={`Decrease hole ${hole} distance`}>
+                            -
+                          </button>
+                          <strong>{distanceMeters ? `${distanceMeters}m` : 'Not set'}</strong>
+                          <button type="button" onClick={() => setHoleDistanceMeters(hole, Math.min(999, (distanceMeters ?? 120) + 1))} aria-label={`Increase hole ${hole} distance`}>
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min={50}
+                        max={300}
+                        step={1}
+                        value={Math.max(50, Math.min(300, distanceMeters ?? 120))}
+                        aria-label={`Hole ${hole} distance`}
+                        onChange={(event) => setHoleDistanceMeters(hole, Number(event.target.value))}
+                      />
+                      <div className="manual-save-row">
+                        <button type="button" className="setup-toggle" onClick={() => setHoleDistanceMeters(hole, null)}>
+                          Clear distance
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

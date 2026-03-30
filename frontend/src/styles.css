@@ -1608,6 +1608,13 @@ button:disabled {
   gap: 8px;
 }
 
+.course-setup-card {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid #d4decc;
+  padding: 6px 0 12px;
+}
+
 .course-management-grid {
   display: grid;
   gap: 12px;
@@ -1668,11 +1675,10 @@ button:disabled {
 
 .course-setup-row {
   display: grid;
-  grid-template-columns: 70px 1fr 1fr auto auto auto auto auto;
+  grid-template-columns: 70px auto auto minmax(120px, 1fr) auto auto auto auto;
   align-items: center;
   gap: 10px;
-  border-bottom: 1px solid #d4decc;
-  padding: 6px 0;
+  padding: 0;
 }
 
 
@@ -1682,6 +1688,17 @@ button:disabled {
   gap: 8px;
   font-size: 0.9rem;
   color: #49614e;
+}
+
+.course-distance-summary {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.course-distance-summary strong {
+  font-size: 1rem;
+  color: #1d2a1f;
 }
 
 .course-index-field select,
@@ -1705,6 +1722,10 @@ button:disabled {
   font-size: 0.8rem;
   font-weight: 600;
   color: #35543f;
+}
+
+.course-distance-editor {
+  margin-left: 80px;
 }
 
 .course-index-ok {
@@ -2609,6 +2630,10 @@ button:disabled {
 
   .course-index-field {
     justify-content: flex-start;
+  }
+
+  .course-distance-editor {
+    margin-left: 0;
   }
 
   .average-row {
