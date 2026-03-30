@@ -19,11 +19,7 @@ export function HolePicker({ holes, selectedHole, roundName, selectedHoleMeta, o
   const nextHole = selectedIndex >= 0 && selectedIndex < holes.length - 1 ? holes[selectedIndex + 1] : null;
   const visibleStartIndex = Math.max(0, Math.min(selectedIndex - 1, holes.length - 3));
   const visibleHoles = holes.slice(visibleStartIndex, visibleStartIndex + 3);
-  const holeMetaItems = [
-    selectedHoleMeta?.holeIndex != null ? `Index ${selectedHoleMeta.holeIndex}` : null,
-    selectedHoleMeta?.par != null ? `Par ${selectedHoleMeta.par}` : null,
-    selectedHoleMeta?.distanceMeters != null ? `${selectedHoleMeta.distanceMeters}m` : null,
-  ].filter(Boolean);
+  const holeMetaItems: string[] = [];
 
   return (
     <section className="card hole-picker" aria-label="hole picker">

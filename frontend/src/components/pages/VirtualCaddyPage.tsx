@@ -80,23 +80,17 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
           </button>
         </div>
 
-        {!isFocusMode ? (
-          <div className="virtual-caddy-overview-grid">
-            <div className="prototype-block">
-              <span className="quick-select-label">Hole status</span>
-              <div className="virtual-caddy-overview-values">
-                <span>Score: {holeStats.score}</span>
-              </div>
-            </div>
-            <div className="prototype-block">
-              <span className="quick-select-label">Distance to middle</span>
-              <div className="virtual-caddy-overview-distance">
-                <strong>{teeToGreenMeters != null ? `${teeToGreenMeters}m` : 'Not available'}</strong>
-                <p>{teeToGreenMeters != null ? 'Pulled from saved hole markers.' : 'Add tee and green markers on the course map to prefill this.'}</p>
-              </div>
+        <div className={isFocusMode ? 'virtual-caddy-overview-grid virtual-caddy-overview-grid-focus' : 'virtual-caddy-overview-grid'}>
+          <div className="prototype-block">
+            <span className="quick-select-label">Hole status</span>
+            <div className="virtual-caddy-overview-values">
+              {displayHoleIndex != null ? <span>Index: {displayHoleIndex}</span> : null}
+              {teeToGreenMeters != null ? <span>Distance: {teeToGreenMeters}m</span> : null}
+              {displayHolePar != null ? <span>Par: {displayHolePar}</span> : null}
+              <span>Score: {holeStats.score}</span>
             </div>
           </div>
-        ) : null}
+        </div>
 
         <VirtualCaddyPanel
           hole={selectedHole}
