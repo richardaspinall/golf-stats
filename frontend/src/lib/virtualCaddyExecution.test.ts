@@ -57,4 +57,27 @@ describe('applyVirtualCaddyExecution', () => {
 
     expect(updated.inside100Over3).toBe(4);
   });
+
+  it('only uses the first shot for the hole fairway result', () => {
+    const holeStats = buildInitialByHole()[5];
+
+    const updated = applyVirtualCaddyTrailToHole(holeStats, [
+      { hole: 5, scoreDelta: 1, oopResult: 'none', shotCategory: 'none', inside100Over3: 0, distanceStartMeters: 380, outcomeSelection: 'fairwayLeft' },
+      { hole: 5, scoreDelta: 1, oopResult: 'none', shotCategory: 'none', inside100Over3: 0, distanceStartMeters: 170, outcomeSelection: 'fairwayHit' },
+    ]);
+
+    expect(updated.fairwaySelection).toBe('fairwayLeft');
+  });
+
+  it('only uses the first shot at the green for the hole GIR result', () => {
+    const holeStats = buildInitialByHole()[6];
+
+    const updated = applyVirtualCaddyTrailToHole(holeStats, [
+      { hole: 6, scoreDelta: 1, oopResult: 'none', shotCategory: 'none', inside100Over3: 0, distanceStartMeters: 175, outcomeSelection: 'fairwayHit' },
+      { hole: 6, scoreDelta: 1, oopResult: 'none', shotCategory: 'wedge', inside100Over3: 0, distanceStartMeters: 82, outcomeSelection: 'girRight' },
+      { hole: 6, scoreDelta: 1, oopResult: 'none', shotCategory: 'chip', inside100Over3: 0, distanceStartMeters: 12, outcomeSelection: 'girHit' },
+    ]);
+
+    expect(updated.girSelection).toBe('girRight');
+  });
 });

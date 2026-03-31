@@ -194,9 +194,10 @@ describe('VirtualCaddyPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByText('(83m carry)')).toBeTruthy();
-    expect(screen.getByText('9:00 · Stock wedges')).toBeTruthy();
+    expect(screen.getByText('Swing: 9:00')).toBeTruthy();
+    expect(screen.getByText('Stock wedges')).toBeTruthy();
     expect(screen.getByText('Stance: Medium | Grip: Mid | Ball position: Middle')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Override club' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Override club' })).toBeTruthy();
   });
 
   it('adds an executed shot to the trail and seeds the next shot', async () => {
@@ -474,13 +475,31 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
     await executeCurrentShot(user);
     await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
-    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putting penalty selection' })).getByRole('button', { name: '+1' }));
+    await user.click(screen.getByRole('button', { name: 'Add penalty' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy penalty selection' })).getByRole('button', { name: '+1' }));
     await executeCurrentShot(user);
 
     const lastCall = onReplaceHoleStats.mock.calls.at(-1)?.[0];
     expect(lastCall?.score).toBe(4);
     expect(lastCall?.totalPutts).toBe(2);
     expect(screen.getByText('Putter: 2 putts + 1 penalty stroke')).toBeTruthy();
+  });
+
+  it('adds penalty strokes to non-putting results and keeps the action row on the bottom right', async () => {
+    const user = userEvent.setup();
+    const onReplaceHoleStats = vi.fn();
+
+    render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={onReplaceHoleStats} />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Add penalty' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy penalty selection' })).getByRole('button', { name: '+1' }));
+    await executeCurrentShot(user);
+
+    const lastCall = onReplaceHoleStats.mock.calls.at(-1)?.[0];
+    expect(lastCall?.score).toBe(2);
+    expect(screen.getByText('Started at 150m with 150m carry. Green hit + 1 penalty stroke.')).toBeTruthy();
   });
 
   it('keeps putting detailed stats collapsed until opened', async () => {
@@ -536,6 +555,52 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByRole('heading', { name: 'Distance left' })).toBeTruthy();
     await advanceToAction(user);
     expect(screen.getByText('Chip shot')).toBeTruthy();
+  });
+
+  it('lets you open lie details during chipping setup', async () => {
+    const user = userEvent.setup();
+
+    render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Left' }));
+    await executeCurrentShot(user);
+
+    expect(screen.getByRole('button', { name: 'Add detail' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Add detail' }));
+
+    expect(screen.getByText('Surface')).toBeTruthy();
+    expect(screen.getByText('Lie quality')).toBeTruthy();
+  });
+
+  it('allows club override during chipping', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <VirtualCaddyPanel
+        hole={3}
+        holeStats={emptyHoleStats()}
+        displayHolePar={3}
+        defaultDistanceMeters={150}
+        carryByClub={{ PW: 100, '50w': 80, '56w': 60, '60w': 40 }}
+        onReplaceHoleStats={vi.fn()}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Left' }));
+    await executeCurrentShot(user);
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('button', { name: 'Override club' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Override club' }));
+    await user.click(screen.getByRole('button', { name: '56w' }));
+
+    expect(screen.getByText('Club:')).toBeTruthy();
+    expect(screen.getByText('56w')).toBeTruthy();
+    expect(screen.getByText('Recommended: 60w')).toBeTruthy();
   });
 
   it('uses the wedge matrix when a chip shot is the next action', async () => {
