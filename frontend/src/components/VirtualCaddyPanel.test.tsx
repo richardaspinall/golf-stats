@@ -428,6 +428,19 @@ describe('VirtualCaddyPanel', () => {
     expect(lastCall?.totalPutts).toBe(2);
   });
 
+  it('shows a hole in one summary when a tee shot is holed', async () => {
+    const user = userEvent.setup();
+
+    render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Holed' }));
+    await executeCurrentShot(user);
+
+    expect(screen.getByText('Hole in one')).toBeTruthy();
+    expect(screen.getByText('Started at 150m with 150m carry. Hole in one.')).toBeTruthy();
+  });
+
   it('records putting detailed stats into the hole totals', async () => {
     const user = userEvent.setup();
     const onReplaceHoleStats = vi.fn();
@@ -449,6 +462,25 @@ describe('VirtualCaddyPanel', () => {
     expect(lastCall?.totalPutts).toBe(2);
     expect(lastCall?.puttMissLong).toBe(1);
     expect(lastCall?.puttMissWithin2m).toBe(2);
+  });
+
+  it('adds putting penalty strokes to the score without changing total putts', async () => {
+    const user = userEvent.setup();
+    const onReplaceHoleStats = vi.fn();
+
+    render(<VirtualCaddyPanel hole={3} holeStats={emptyHoleStats()} displayHolePar={3} defaultDistanceMeters={150} onReplaceHoleStats={onReplaceHoleStats} />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await executeCurrentShot(user);
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putting penalty selection' })).getByRole('button', { name: '+1' }));
+    await executeCurrentShot(user);
+
+    const lastCall = onReplaceHoleStats.mock.calls.at(-1)?.[0];
+    expect(lastCall?.score).toBe(4);
+    expect(lastCall?.totalPutts).toBe(2);
+    expect(screen.getByText('Putter: 2 putts + 1 penalty stroke')).toBeTruthy();
   });
 
   it('keeps putting detailed stats collapsed until opened', async () => {

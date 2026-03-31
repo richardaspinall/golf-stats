@@ -1590,6 +1590,133 @@ button:disabled {
   font-weight: 600;
 }
 
+.virtual-caddy-complete {
+  position: relative;
+  overflow: hidden;
+}
+
+.virtual-caddy-complete-header {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.virtual-caddy-complete-header p {
+  margin: 0;
+  max-width: 24rem;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: #436252;
+}
+
+.prototype-block.virtual-caddy-complete-celebration {
+  border-color: rgba(176, 207, 182, 0.95);
+  background:
+    radial-gradient(circle at top right, rgba(242, 231, 150, 0.42), transparent 34%),
+    radial-gradient(circle at 18% 22%, rgba(170, 228, 184, 0.26), transparent 26%),
+    linear-gradient(145deg, rgba(248, 252, 244, 0.98), rgba(235, 247, 236, 0.96));
+  box-shadow: 0 18px 44px rgba(66, 108, 80, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.virtual-caddy-complete-celebration .quick-select-label {
+  color: #214734;
+}
+
+.prototype-block.virtual-caddy-complete-hole-in-one {
+  border-color: rgba(191, 205, 170, 0.92);
+  background:
+    radial-gradient(circle at 84% 18%, rgba(241, 221, 118, 0.26), transparent 24%),
+    radial-gradient(circle at 12% 100%, rgba(197, 228, 186, 0.34), transparent 30%),
+    linear-gradient(135deg, rgba(250, 252, 244, 0.98), rgba(239, 247, 232, 0.96));
+  box-shadow: 0 16px 36px rgba(73, 108, 73, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+.virtual-caddy-complete-hole-in-one .quick-select-label {
+  color: #274631;
+}
+
+.virtual-caddy-complete-burst {
+  position: absolute;
+  inset: -20% -8% auto auto;
+  width: 220px;
+  height: 220px;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.virtual-caddy-complete-orbit,
+.virtual-caddy-complete-glow,
+.virtual-caddy-complete-star {
+  position: absolute;
+}
+
+.virtual-caddy-complete-orbit {
+  border-radius: 999px;
+  border: 1px solid rgba(199, 174, 96, 0.44);
+  animation: virtual-caddy-orbit-pulse 2.8s ease-in-out infinite;
+}
+
+.virtual-caddy-complete-orbit-one {
+  inset: 18px;
+}
+
+.virtual-caddy-complete-orbit-two {
+  inset: 42px;
+  animation-delay: 0.6s;
+}
+
+.virtual-caddy-complete-glow {
+  border-radius: 999px;
+  filter: blur(0);
+  animation: virtual-caddy-glow-drift 5s ease-in-out infinite;
+}
+
+.virtual-caddy-complete-glow-one {
+  top: 28px;
+  right: 24px;
+  width: 110px;
+  height: 110px;
+  background: radial-gradient(circle, rgba(241, 219, 121, 0.34), rgba(241, 219, 121, 0));
+}
+
+.virtual-caddy-complete-glow-two {
+  top: 74px;
+  right: 88px;
+  width: 74px;
+  height: 74px;
+  background: radial-gradient(circle, rgba(149, 210, 160, 0.3), rgba(149, 210, 160, 0));
+  animation-delay: 0.9s;
+}
+
+.virtual-caddy-complete-star {
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(180deg, rgba(255, 251, 219, 0.94), rgba(236, 205, 94, 0.8));
+  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
+  animation: virtual-caddy-star-flicker 2.2s ease-in-out infinite;
+}
+
+.virtual-caddy-complete-star-one {
+  top: 48px;
+  right: 48px;
+}
+
+.virtual-caddy-complete-star-two {
+  top: 84px;
+  right: 140px;
+  width: 10px;
+  height: 10px;
+  animation-delay: 0.7s;
+}
+
+.virtual-caddy-complete-star-three {
+  top: 136px;
+  right: 78px;
+  width: 12px;
+  height: 12px;
+  animation-delay: 1.15s;
+}
+
 .virtual-caddy-complete-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1675,6 +1802,50 @@ button:disabled {
   inset: 4px;
   border: 1.5px solid #8fa294;
   border-radius: 6px;
+}
+
+@keyframes virtual-caddy-orbit-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.98);
+  }
+
+  50% {
+    opacity: 0.88;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes virtual-caddy-glow-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.78;
+  }
+
+  50% {
+    transform: translate3d(-8px, 10px, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes virtual-caddy-star-flicker {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  70% {
+    opacity: 0.82;
+    transform: scale(0.9);
+  }
 }
 
 .virtual-caddy-advanced {
@@ -2162,6 +2333,10 @@ button:disabled {
 
 .distance-header strong {
   font-size: 1.2rem;
+}
+
+.virtual-caddy-recommendation .prototype-block .distance-header strong {
+  color: #2f4b39;
 }
 
 .distance-value-actions {
