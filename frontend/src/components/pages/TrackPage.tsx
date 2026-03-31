@@ -14,7 +14,7 @@ import {
   SHOT_SETUP_OPTIONS,
   SWING_CLOCK_OPTIONS,
 } from '../../lib/constants';
-import type { Course, HoleStats, RoundListItem } from '../../types';
+import type { Course, HoleStats, RoundListItem, StatsByHole } from '../../types';
 
 const LEFT_OFFLINE_OPTIONS = [-5, -10, -15];
 const RIGHT_OFFLINE_OPTIONS = [5, 10, 15];
@@ -29,6 +29,7 @@ type TrackPageProps = {
     activeRound?: RoundListItem;
     activeCourse?: Course;
     holeStats: HoleStats;
+    statsByHole: StatsByHole;
     selectedRoundId: string;
     saveState: string;
     isTrackMapOpen: boolean;
@@ -96,6 +97,7 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
     activeRound,
     activeCourse,
     holeStats,
+    statsByHole,
     selectedRoundId,
     saveState,
     isTrackMapOpen,
@@ -227,6 +229,7 @@ export function TrackPage({ round, distance, actions, map, helpers }: TrackPageP
         holes={HOLES}
         selectedHole={selectedHole}
         roundName={activeRound?.name}
+        holeScores={Object.fromEntries(HOLES.map((hole) => [hole, Number(statsByHole[hole]?.score || 0)]))}
         selectedHoleMeta={{
           holeIndex: displayHoleIndex,
           par: displayHolePar,

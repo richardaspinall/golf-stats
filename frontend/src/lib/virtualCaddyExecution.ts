@@ -84,7 +84,7 @@ export const applyVirtualCaddyTrailToHole = (baseHoleStats: HoleStats, execution
 
   let inside100Shots = 0;
 
-  executions.forEach((execution) => {
+  executions.forEach((execution, index) => {
     nextHoleStats.score = Math.max(0, Number(nextHoleStats.score || 0) + Math.max(0, Math.floor(execution.scoreDelta || 0)));
     if (typeof execution.puttCount === 'number' && execution.puttCount > 0) {
       nextHoleStats.totalPutts = Number(nextHoleStats.totalPutts || 0) + execution.puttCount;
@@ -111,10 +111,10 @@ export const applyVirtualCaddyTrailToHole = (baseHoleStats: HoleStats, execution
     if (typeof execution.distanceStartMeters === 'number' && execution.distanceStartMeters <= 100) {
       inside100Shots += Math.max(0, Math.floor(execution.scoreDelta || 0));
     }
-    if (execution.outcomeSelection?.startsWith('fairway')) {
+    if (index === 0 && execution.outcomeSelection?.startsWith('fairway')) {
       nextHoleStats.fairwaySelection = execution.outcomeSelection;
     }
-    if (execution.outcomeSelection?.startsWith('gir')) {
+    if (!nextHoleStats.girSelection && execution.outcomeSelection?.startsWith('gir')) {
       nextHoleStats.girSelection = execution.outcomeSelection;
     }
   });

@@ -585,9 +585,43 @@ button:disabled {
 
 .hole-grid-sheet-btn {
   min-height: 42px;
-  padding: 0;
+  padding: 8px 6px;
   border-radius: 12px;
   font-weight: 700;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+}
+
+.hole-grid-sheet-hole {
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.hole-grid-sheet-score {
+  min-width: 28px;
+  min-height: 20px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(150, 184, 157, 0.72);
+  background: rgba(230, 243, 233, 0.94);
+  color: #215434;
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+
+.hole-grid-sheet-score-empty {
+  border-color: rgba(203, 213, 201, 0.9);
+  background: rgba(243, 246, 242, 0.94);
+  color: #7b8a80;
+}
+
+.hole-grid-sheet-btn-scored {
+  border-color: #b9dcbf;
+  background: linear-gradient(180deg, #f3fbf5 0%, #e4f3e8 100%);
+  color: #1f6a38;
+  box-shadow: 0 8px 18px rgba(45, 125, 70, 0.12);
 }
 
 .hole-grid-sheet-btn.active {
@@ -595,6 +629,10 @@ button:disabled {
   color: #1f6a38;
   border-color: #b9dcbf;
   box-shadow: 0 8px 18px rgba(45, 125, 70, 0.16);
+}
+
+.hole-grid-sheet-btn.active .hole-grid-sheet-score {
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .stat-list,
@@ -1236,6 +1274,14 @@ button:disabled {
   margin-bottom: 10px;
 }
 
+.virtual-caddy-inline-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
 .virtual-caddy-distance-pill {
   justify-content: flex-start;
   min-height: 44px;
@@ -1305,6 +1351,50 @@ button:disabled {
   color: rgba(235, 246, 237, 0.72);
 }
 
+.virtual-caddy-club-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.virtual-caddy-club-row strong {
+  display: grid;
+  justify-items: start;
+  align-items: start;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.virtual-caddy-club-heading {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.virtual-caddy-club-subline {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  color: rgba(235, 246, 237, 0.7);
+  text-align: left;
+}
+
+.virtual-caddy-club-recommendation {
+  width: 100%;
+  margin-top: -2px;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  color: rgba(235, 246, 237, 0.7);
+  text-align: left;
+}
+
 .virtual-caddy-carry-inline {
   font-size: 0.95rem;
   line-height: 1.1;
@@ -1317,6 +1407,12 @@ button:disabled {
   display: grid;
   justify-items: end;
   gap: 6px;
+}
+
+.virtual-caddy-club-actions {
+  display: grid;
+  justify-items: end;
+  align-self: start;
 }
 
 .virtual-caddy-club-row span {
@@ -1445,6 +1541,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   color: #f4fcf5;
   font-size: 0.82rem;
   line-height: 1.1;
@@ -1467,10 +1564,9 @@ button:disabled {
 
 .virtual-caddy-wedge-matrix-summary-source {
   margin-top: 2px;
-  display: inline-flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: 8px;
+  display: grid;
+  width: 100%;
+  justify-self: stretch;
   width: 100%;
   font-size: 0.78rem;
 }
@@ -2067,6 +2163,35 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.virtual-caddy-result-actions {
+  margin-top: 6px;
+  display: grid;
+  gap: 10px;
+}
+
+.virtual-caddy-result-actions .quick-select-row[role='group'] {
+  justify-content: flex-end;
+}
+
+.virtual-caddy-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.virtual-caddy-result-grid .choice-chip {
+  width: 100%;
+  min-height: 46px;
+  justify-content: center;
+  text-align: center;
+  padding: 0 10px;
+}
+
+.virtual-caddy-result-menu {
+  --menu-size: min(250px, 76vw);
+  margin: 4px auto 0;
 }
 
 .distance-tracker {
@@ -2824,6 +2949,24 @@ button:disabled {
 
 .setup-toggle:hover {
   border-color: #c2d2be;
+}
+
+.setup-toggle.active {
+  border-color: #adc8b5;
+  background: linear-gradient(180deg, rgba(236, 246, 239, 0.98) 0%, rgba(222, 238, 227, 0.98) 100%);
+  color: #245238;
+}
+
+.virtual-caddy-result-toggle {
+  border-color: rgba(152, 181, 160, 0.9);
+}
+
+.virtual-caddy-result-toggle:hover {
+  border-color: rgba(132, 166, 141, 0.95);
+}
+
+.virtual-caddy-result-toggle.active {
+  border-color: rgba(110, 152, 122, 0.95);
 }
 
 .wedge-matrix-header {

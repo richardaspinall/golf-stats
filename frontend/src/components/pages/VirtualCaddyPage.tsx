@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { HolePicker } from '../HolePicker';
 import { VirtualCaddyPanel } from '../VirtualCaddyPanel';
 import { HOLES } from '../../lib/constants';
-import type { Course, HoleStats, RoundListItem, WedgeEntry, WedgeMatrix } from '../../types';
+import type { Course, HoleStats, RoundListItem, StatsByHole, WedgeEntry, WedgeMatrix } from '../../types';
 
 type VirtualCaddyPageProps = {
   round: {
@@ -13,6 +13,7 @@ type VirtualCaddyPageProps = {
     activeRound?: RoundListItem;
     activeCourse?: Course;
     holeStats: HoleStats;
+    statsByHole: StatsByHole;
     saveState: string;
     teeToGreenMeters: number | null;
     clubCarryByClub: Record<string, number>;
@@ -39,6 +40,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
     activeRound,
     activeCourse,
     holeStats,
+    statsByHole,
     saveState,
     teeToGreenMeters,
     clubCarryByClub,
@@ -76,6 +78,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
         holes={HOLES}
         selectedHole={selectedHole}
         roundName={activeRound?.name}
+        holeScores={Object.fromEntries(HOLES.map((hole) => [hole, Number(statsByHole[hole]?.score || 0)]))}
         selectedHoleMeta={{
           holeIndex: displayHoleIndex,
           par: displayHolePar,

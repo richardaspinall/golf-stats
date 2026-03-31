@@ -4,6 +4,7 @@ type HolePickerProps = {
   holes: number[];
   selectedHole: number;
   roundName?: string;
+  holeScores?: Record<number, number>;
   selectedHoleMeta?: {
     holeIndex?: number | null;
     par?: number | null;
@@ -12,7 +13,7 @@ type HolePickerProps = {
   onSelect: (hole: number) => void;
 };
 
-export function HolePicker({ holes, selectedHole, roundName, selectedHoleMeta, onSelect }: HolePickerProps) {
+export function HolePicker({ holes, selectedHole, roundName, holeScores, selectedHoleMeta, onSelect }: HolePickerProps) {
   const [showAllHoles, setShowAllHoles] = useState(false);
   const selectedIndex = holes.indexOf(selectedHole);
   const previousHole = selectedIndex > 0 ? holes[selectedIndex - 1] : null;
@@ -100,19 +101,33 @@ export function HolePicker({ holes, selectedHole, roundName, selectedHoleMeta, o
       </div>
       {showAllHoles ? (
         <div id="all-hole-grid" className="hole-grid-sheet" role="group" aria-label="All holes">
-          {holes.map((hole) => (
+          {holes.map((hole) => {
+            const scoreValue = Number(holeScores?.[hole] || 0);
+            const hasScore = scoreValue > 0;
+
+            return (
             <button
               key={hole}
               type="button"
-              className={hole === selectedHole ? 'hole-grid-sheet-btn active' : 'hole-grid-sheet-btn'}
+              className={
+                hole === selectedHole
+                  ? `hole-grid-sheet-btn ${hasScore ? 'hole-grid-sheet-btn-scored' : ''} active`
+                  : hasScore
+                    ? 'hole-grid-sheet-btn hole-grid-sheet-btn-scored'
+                    : 'hole-grid-sheet-btn'
+              }
               onClick={() => {
                 onSelect(hole);
                 setShowAllHoles(false);
               }}
             >
-              {hole}
+              <span className="hole-grid-sheet-hole">{hole}</span>
+              <span className={hasScore ? 'hole-grid-sheet-score' : 'hole-grid-sheet-score hole-grid-sheet-score-empty'}>
+                {hasScore ? scoreValue : '—'}
+              </span>
             </button>
-          ))}
+            );
+          })}
         </div>
       ) : null}
     </section>
