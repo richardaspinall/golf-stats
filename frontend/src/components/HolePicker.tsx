@@ -104,18 +104,18 @@ export function HolePicker({ holes, selectedHole, roundName, holeScores, selecte
           {holes.map((hole) => {
             const scoreValue = Number(holeScores?.[hole] || 0);
             const hasScore = scoreValue > 0;
+            const isSelected = hole === selectedHole;
+            const buttonClassName = isSelected
+              ? 'hole-grid-sheet-btn hole-grid-sheet-btn-current active'
+              : hasScore
+                ? 'hole-grid-sheet-btn hole-grid-sheet-btn-scored'
+                : 'hole-grid-sheet-btn';
 
             return (
             <button
               key={hole}
               type="button"
-              className={
-                hole === selectedHole
-                  ? `hole-grid-sheet-btn ${hasScore ? 'hole-grid-sheet-btn-scored' : ''} active`
-                  : hasScore
-                    ? 'hole-grid-sheet-btn hole-grid-sheet-btn-scored'
-                    : 'hole-grid-sheet-btn'
-              }
+              className={buttonClassName}
               onClick={() => {
                 onSelect(hole);
                 setShowAllHoles(false);

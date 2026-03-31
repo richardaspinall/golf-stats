@@ -624,11 +624,16 @@ button:disabled {
   box-shadow: 0 8px 18px rgba(45, 125, 70, 0.12);
 }
 
+.hole-grid-sheet-btn-current {
+  border-color: #d3c18b;
+  background: linear-gradient(180deg, #fff8e8 0%, #f6ebc9 100%);
+  color: #6e5115;
+  box-shadow: 0 8px 18px rgba(167, 128, 36, 0.16);
+}
+
 .hole-grid-sheet-btn.active {
-  background: linear-gradient(180deg, #eef8f0 0%, #dff1e5 100%);
-  color: #1f6a38;
-  border-color: #b9dcbf;
-  box-shadow: 0 8px 18px rgba(45, 125, 70, 0.16);
+  outline: 2px solid rgba(209, 171, 82, 0.36);
+  outline-offset: 1px;
 }
 
 .hole-grid-sheet-btn.active .hole-grid-sheet-score {
