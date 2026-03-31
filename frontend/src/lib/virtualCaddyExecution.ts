@@ -18,6 +18,7 @@ export type VirtualCaddyOutcomeSelection =
   | 'fairwayShort'
   | 'fairwayLong'
   | 'girHit'
+  | 'girHoled'
   | 'girLeft'
   | 'girRight'
   | 'girShort'
@@ -29,6 +30,7 @@ export type VirtualCaddyOutcomeSelection =
 export type VirtualCaddyExecutedShot = VirtualCaddyExecution & {
   outcomeSelection: VirtualCaddyOutcomeSelection | null;
   puttCount?: number | null;
+  penaltyStrokes?: number;
 };
 
 type TrailExecution = VirtualCaddyExecutedShot & {

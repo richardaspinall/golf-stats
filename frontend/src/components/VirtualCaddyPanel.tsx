@@ -81,6 +81,7 @@ const FAIRWAY_OUTCOME_OPTIONS: Array<{ key: VirtualCaddyOutcomeSelection; label:
 
 const GIR_OUTCOME_OPTIONS: Array<{ key: VirtualCaddyOutcomeSelection; label: string }> = [
   { key: 'girHit', label: 'Green hit' },
+  { key: 'girHoled', label: 'Holed' },
   { key: 'girLeft', label: 'Left' },
   { key: 'girRight', label: 'Right' },
   { key: 'girShort', label: 'Short' },
@@ -93,6 +94,7 @@ const CHIP_OUTCOME_OPTIONS: Array<{ key: VirtualCaddyOutcomeSelection; label: st
 ];
 
 const PUTT_COUNT_OPTIONS = [1, 2, 3] as const;
+const PENALTY_STROKE_OPTIONS = [0, 1, 2] as const;
 const PUTTING_DETAIL_OPTIONS = [
   { key: 'puttMissLong', label: 'Miss long' },
   { key: 'puttMissShort', label: 'Miss short' },
@@ -139,6 +141,7 @@ type PlannerShot = VirtualCaddyExecutedShot & {
   club: string;
   carryMeters: number;
   puttCount?: number | null;
+  penaltyStrokes?: number;
   puttMissLong?: number;
   puttMissShort?: number;
   puttMissWithin2m?: number;
@@ -163,10 +166,12 @@ type PersistedPlannerDraft = {
   hazards: VirtualCaddyHazardSide[];
   selectedClub: string | null;
   showClubOverride: boolean;
+  resultModeOverride: 'fairway' | 'gir' | null;
   oopResult: 'none' | 'look' | 'noLook';
   outcomeSelection: VirtualCaddyOutcomeSelection | null;
   firstPuttDistanceMeters: number | null;
   puttCount: number | null;
+  penaltyStrokes: number;
   puttMissLong: number;
   puttMissShort: number;
   puttMissWithin2m: number;
@@ -230,9 +235,19 @@ const buildShotDraftFromShot = (
     carryByClub,
     wedgeMatrices: wedgeMatrixSources,
   }).recommendedClub,
+  resultModeOverride:
+    shot.outcomeSelection === 'girHit' ||
+    shot.outcomeSelection === 'girHoled' ||
+    shot.outcomeSelection === 'girLeft' ||
+    shot.outcomeSelection === 'girRight' ||
+    shot.outcomeSelection === 'girShort' ||
+    shot.outcomeSelection === 'girLong'
+      ? 'gir'
+      : null,
   oopResult: shot.oopResult,
   outcomeSelection: shot.outcomeSelection,
   puttCount: shot.puttCount ?? null,
+  penaltyStrokes: shot.penaltyStrokes ?? 0,
   firstPuttDistanceMeters: shot.firstPuttDistanceMeters ?? null,
   puttMissLong: shot.puttMissLong ?? 0,
   puttMissShort: shot.puttMissShort ?? 0,
@@ -289,8 +304,9 @@ const getActualDistanceFromStart = (distanceStartMeters: number, remainingDistan
   Math.max(0, distanceStartMeters - remainingDistanceMeters);
 const WEDGE_CLUBS = new Set(['PW', '50w', '56w', '60w']);
 const isOopSurface = (surface: NonNullable<VirtualCaddyInputs['surface']>) => surface !== 'tee' && surface !== 'fairway';
-const isGreenHitOutcome = (outcomeSelection: VirtualCaddyOutcomeSelection | null) => outcomeSelection === 'girHit' || outcomeSelection === 'chipOnGreen';
-const clampDistanceMeters = (distanceMeters: number) => Math.min(600, Math.max(1, distanceMeters));
+const isGreenHitOutcome = (outcomeSelection: VirtualCaddyOutcomeSelection | null) =>
+  outcomeSelection === 'girHit' || outcomeSelection === 'girHoled' || outcomeSelection === 'chipOnGreen';
+const clampDistanceMeters = (distanceMeters: number) => Math.min(600, Math.max(0, distanceMeters));
 
 const formatOutcomeLabel = (outcomeSelection: VirtualCaddyOutcomeSelection | null) => {
   if (!outcomeSelection) {
@@ -304,6 +320,7 @@ const formatOutcomeLabel = (outcomeSelection: VirtualCaddyOutcomeSelection | nul
     fairwayShort: 'Fairway short',
     fairwayLong: 'Fairway long',
     girHit: 'Green hit',
+    girHoled: 'Holed',
     girLeft: 'Green left',
     girRight: 'Green right',
     girShort: 'Green short',
@@ -321,6 +338,10 @@ const formatTrailResultLabel = (shot: PlannerShot) => {
     return `${shot.puttCount} ${shot.puttCount === 1 ? 'putt' : 'putts'}`;
   }
 
+  if (shot.actionType === 'tee' && shot.outcomeSelection === 'girHoled') {
+    return 'Hole in one';
+  }
+
   return formatOutcomeLabel(shot.outcomeSelection);
 };
 
@@ -328,7 +349,8 @@ const formatTrailSummary = (shot: PlannerShot) => {
   if (shot.actionType === 'putting') {
     const firstPuttDistanceSuffix =
       typeof shot.firstPuttDistanceMeters === 'number' && shot.firstPuttDistanceMeters > 0 ? ` from ${shot.firstPuttDistanceMeters}m` : '';
-    return `${shot.club}: ${formatTrailResultLabel(shot)}${firstPuttDistanceSuffix}`;
+    const penaltySuffix = shot.penaltyStrokes ? ` + ${shot.penaltyStrokes} penalty stroke${shot.penaltyStrokes === 1 ? '' : 's'}` : '';
+    return `${shot.club}: ${formatTrailResultLabel(shot)}${firstPuttDistanceSuffix}${penaltySuffix}`;
   }
 
   return `Started at ${shot.distanceStartMeters}m with ${shot.carryMeters}m carry. ${formatTrailResultLabel(shot)}.`;
@@ -337,7 +359,7 @@ const formatTrailSummary = (shot: PlannerShot) => {
 const summarizeCompletedHole = (trail: PlannerShot[], displayHolePar: number | null) => {
   const score = trail.reduce((sum, shot) => {
     if (shot.actionType === 'putting') {
-      return sum + (shot.puttCount ?? 1);
+      return sum + (shot.puttCount ?? 1) + (shot.penaltyStrokes ?? 0);
     }
     return sum + 1;
   }, 0);
@@ -438,15 +460,18 @@ export function VirtualCaddyPanel({
   const [selectedClub, setSelectedClub] = useState<string | null>(null);
   const [showClubOverride, setShowClubOverride] = useState(false);
   const [showAllOverrideClubs, setShowAllOverrideClubs] = useState(false);
+  const [resultModeOverride, setResultModeOverride] = useState<'fairway' | 'gir' | null>(null);
   const [oopResult, setOopResult] = useState<'none' | 'look' | 'noLook'>('none');
   const [outcomeSelection, setOutcomeSelection] = useState<VirtualCaddyOutcomeSelection | null>(null);
   const [puttCount, setPuttCount] = useState<number | null>(null);
+  const [penaltyStrokes, setPenaltyStrokes] = useState(0);
   const [firstPuttDistanceMeters, setFirstPuttDistanceMeters] = useState<number | null>(null);
   const [puttMissLong, setPuttMissLong] = useState(0);
   const [puttMissShort, setPuttMissShort] = useState(0);
   const [puttMissWithin2m, setPuttMissWithin2m] = useState(0);
   const [showRecommendationWhy, setShowRecommendationWhy] = useState(false);
   const [showPuttingDetails, setShowPuttingDetails] = useState(false);
+  const [awaitingHoleAdvance, setAwaitingHoleAdvance] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingSnapshot, setEditingSnapshot] = useState<PlannerSnapshot | null>(null);
   const [editingOriginalShot, setEditingOriginalShot] = useState<PlannerShot | null>(null);
@@ -479,15 +504,18 @@ export function VirtualCaddyPanel({
     setSelectedClub(null);
     setShowClubOverride(false);
     setShowAllOverrideClubs(false);
+    setResultModeOverride(null);
     setOopResult('none');
     setOutcomeSelection(null);
     setPuttCount(null);
+    setPenaltyStrokes(0);
     setFirstPuttDistanceMeters(null);
     setPuttMissLong(0);
     setPuttMissShort(0);
     setPuttMissWithin2m(0);
     setShowRecommendationWhy(false);
     setShowPuttingDetails(false);
+    setAwaitingHoleAdvance(false);
     setShowAdvanced(false);
   };
 
@@ -511,10 +539,12 @@ export function VirtualCaddyPanel({
     hazards,
     selectedClub,
     showClubOverride,
+    resultModeOverride,
     oopResult,
     outcomeSelection,
     firstPuttDistanceMeters,
     puttCount,
+    penaltyStrokes,
     puttMissLong,
     puttMissShort,
     puttMissWithin2m,
@@ -569,10 +599,12 @@ export function VirtualCaddyPanel({
     setSelectedClub(snapshot.draft.selectedClub);
     setShowClubOverride(snapshot.draft.showClubOverride);
     setShowAllOverrideClubs(false);
+    setResultModeOverride(snapshot.draft.resultModeOverride ?? null);
     setOopResult(snapshot.draft.oopResult);
     setOutcomeSelection(snapshot.draft.outcomeSelection);
     setFirstPuttDistanceMeters(snapshot.draft.firstPuttDistanceMeters);
     setPuttCount(snapshot.draft.puttCount);
+    setPenaltyStrokes(snapshot.draft.penaltyStrokes ?? 0);
     setPuttMissLong(snapshot.draft.puttMissLong);
     setPuttMissShort(snapshot.draft.puttMissShort);
     setPuttMissWithin2m(snapshot.draft.puttMissWithin2m);
@@ -594,7 +626,17 @@ export function VirtualCaddyPanel({
       setBaseHoleStats(stripVirtualCaddyState(persistedBaseHoleStats));
       setTrail(persistedTrail);
       setNextShotId(Number(persistedDraft.nextShotId || persistedTrail.length + 1));
-      setFlowStep((persistedDraft.flowStep as VirtualCaddyFlowStep) || 'overview');
+      {
+        const persistedFlowStep = (persistedDraft.flowStep as VirtualCaddyFlowStep) || 'overview';
+        const persistedActionType = (persistedDraft.actionType as PlannerActionType) || 'tee';
+        const normalizedFlowStep =
+          persistedActionType === 'putting' && persistedFlowStep === 'setup'
+            ? 'action'
+            : persistedTrail.length > 0 && persistedFlowStep === 'overview'
+              ? 'setup'
+              : persistedFlowStep;
+        setFlowStep(normalizedFlowStep);
+      }
       setActionType((persistedDraft.actionType as PlannerActionType) || 'tee');
       setSeededDistanceMeters(Number(persistedDraft.seededDistanceMeters || defaultDistanceMeters || 150));
       setDistanceToHoleMeters(Number(persistedDraft.distanceToHoleMeters || persistedDraft.seededDistanceMeters || defaultDistanceMeters || 150));
@@ -611,13 +653,20 @@ export function VirtualCaddyPanel({
       setSelectedClub(typeof persistedDraft.selectedClub === 'string' ? persistedDraft.selectedClub : null);
       setShowClubOverride(Boolean(persistedDraft.showClubOverride));
       setShowAllOverrideClubs(false);
+      setResultModeOverride(
+        persistedDraft.resultModeOverride === 'gir' || persistedDraft.resultModeOverride === 'fairway'
+          ? persistedDraft.resultModeOverride
+          : null,
+      );
       setOopResult((persistedDraft.oopResult as 'none' | 'look' | 'noLook') || 'none');
       setOutcomeSelection((persistedDraft.outcomeSelection as VirtualCaddyOutcomeSelection | null) ?? null);
       setFirstPuttDistanceMeters(typeof persistedDraft.firstPuttDistanceMeters === 'number' ? persistedDraft.firstPuttDistanceMeters : null);
       setPuttCount(typeof persistedDraft.puttCount === 'number' ? persistedDraft.puttCount : null);
+      setPenaltyStrokes(Math.max(0, Math.floor(Number(persistedDraft.penaltyStrokes || 0))));
       setPuttMissLong(Number(persistedDraft.puttMissLong || 0));
       setPuttMissShort(Number(persistedDraft.puttMissShort || 0));
       setPuttMissWithin2m(Number(persistedDraft.puttMissWithin2m || 0));
+      setAwaitingHoleAdvance(false);
       setShowRecommendationWhy(Boolean(persistedDraft.showRecommendationWhy));
       setShowPuttingDetails(
         typeof persistedDraft.showPuttingDetails === 'boolean'
@@ -671,6 +720,7 @@ export function VirtualCaddyPanel({
     outcomeSelection,
     firstPuttDistanceMeters,
     puttCount,
+    penaltyStrokes,
     puttMissLong,
     puttMissShort,
     puttMissWithin2m,
@@ -702,11 +752,16 @@ export function VirtualCaddyPanel({
 
   const shotNumber = trail.length + 1;
   const isFirstShot = trail.length === 0;
+  const showOverviewStep = isFirstShot;
   const isTeeShot = actionType === 'tee';
   const isPutting = actionType === 'putting';
   const isChipping = actionType === 'chipping';
   const isStandardShot = actionType === 'tee' || actionType === 'shot';
   const shotLabel = getShotLabel(shotNumber, actionType);
+  const displayShotLabel =
+    !isPutting && ((distanceMode === 'point' && distanceToMiddleMeters === 0) || (distanceMode === 'hole' && distanceToHoleMeters === 0))
+      ? 'Putting'
+      : shotLabel;
   const recommendationDistanceMeters = distanceMode === 'point' ? distanceToMiddleMeters : distanceToHoleMeters;
   const carryBook = useMemo(() => getCarryBook(carryByClub), [carryByClub]);
   const wedgeMatrixSources = useMemo(
@@ -835,13 +890,17 @@ export function VirtualCaddyPanel({
     windDirection !== 'none' ||
     windStrength !== 'calm' ||
     hazards.length > 0;
-  const outcomeMode = distanceMode === 'point' ? 'fairway' : getOutcomeMode(distanceToHoleMeters, displayHolePar, longestCarry);
+  const defaultOutcomeMode = distanceMode === 'point' ? (distanceToMiddleMeters === 0 ? 'gir' : 'fairway') : getOutcomeMode(distanceToHoleMeters, displayHolePar, longestCarry);
+  const outcomeMode = resultModeOverride ?? defaultOutcomeMode;
   const outcomeOptions = isPutting
     ? []
     : isChipping
       ? CHIP_OUTCOME_OPTIONS
       : getOutcomeOptions(outcomeMode);
-  const isHoleComplete = trail.length > 0 && trail[trail.length - 1].outcomeSelection === 'puttHoled';
+  const canOverrideOutcomeMode = isStandardShot && defaultOutcomeMode === 'fairway';
+  const isHoleComplete =
+    trail.length > 0 &&
+    (trail[trail.length - 1].outcomeSelection === 'puttHoled' || trail[trail.length - 1].outcomeSelection === 'girHoled');
   const previousShot = trail[trail.length - 1];
   const currentDraft = buildPersistedDraft();
   const isEditDirty = editingBaselineDraft
@@ -851,18 +910,38 @@ export function VirtualCaddyPanel({
   const overviewTitle = isFirstShot ? 'Hole status' : 'Distance left';
   const completedHoleSummary = summarizeCompletedHole(trail, displayHolePar);
   const completedHoleScoreStyle = getScoreSummaryStyle(completedHoleSummary.par, completedHoleSummary.score);
+  const finalShot = trail[trail.length - 1] ?? null;
+  const isDirectHoledFinish = finalShot?.outcomeSelection === 'girHoled';
+  const isHoleInOneFinish = isDirectHoledFinish && trail.length === 1 && finalShot?.actionType === 'tee';
+  const showHoledCelebration = isDirectHoledFinish && !isHoleInOneFinish;
+  const completionCardClassName = isHoleInOneFinish
+    ? 'prototype-block virtual-caddy-complete virtual-caddy-complete-hole-in-one'
+    : showHoledCelebration
+      ? 'prototype-block virtual-caddy-complete virtual-caddy-complete-celebration'
+      : 'prototype-block virtual-caddy-complete';
+  const completionTitle = isHoleInOneFinish ? 'Hole in one' : isDirectHoledFinish ? 'Holed out' : 'Hole summary';
+  const completionDetail = isHoleInOneFinish
+    ? `${finalShot?.club ?? 'Shot'} never left the cup.`
+    : isDirectHoledFinish && finalShot
+      ? `Holed from ${finalShot.distanceStartMeters}m with ${finalShot.club}.`
+      : null;
+  const showOnGreenBanner = isPutting && distanceToHoleMeters === 0;
   const overviewDistanceSummary = isFirstShot
     ? defaultDistanceMeters != null
       ? `Length ${defaultDistanceMeters}m`
       : null
     : `Distance left ${distanceToHoleMeters}m`;
   const shotDistanceBannerLabel = isPutting
-    ? 'Distance left'
+    ? showOnGreenBanner
+      ? 'On the green'
+      : 'Distance left'
     : distanceMode === 'point'
       ? 'Distance to target'
       : 'Distance to green';
   const shotDistanceBannerValue = isPutting
-    ? `${distanceToHoleMeters}m`
+    ? showOnGreenBanner
+      ? null
+      : `${distanceToHoleMeters}m`
     : distanceMode === 'point'
       ? `${distanceToMiddleMeters}m`
       : `${distanceToHoleMeters}m`;
@@ -880,6 +959,28 @@ export function VirtualCaddyPanel({
   const toggleHazard = (hazard: VirtualCaddyHazardSide) => {
     setHazards((prev) => (prev.includes(hazard) ? prev.filter((item) => item !== hazard) : [...prev, hazard]));
   };
+  const setOutcomeModeOverrideValue = (nextMode: 'fairway' | 'gir') => {
+    setResultModeOverride(nextMode === defaultOutcomeMode ? null : nextMode);
+    setOutcomeSelection((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      if (nextMode === 'gir' && prev.startsWith('fairway')) {
+        return null;
+      }
+      if (nextMode === 'fairway' && prev.startsWith('gir')) {
+        return null;
+      }
+      return prev;
+    });
+  };
+
+  useEffect(() => {
+    if (!(isStandardShot && defaultOutcomeMode === 'fairway')) {
+      setResultModeOverride(null);
+    }
+  }, [defaultOutcomeMode, isStandardShot]);
   const setHoleDistance = (nextDistanceMeters: number) => {
     const clampedDistance = clampDistanceMeters(nextDistanceMeters);
     setDistanceToHoleMeters(clampedDistance);
@@ -912,6 +1013,18 @@ export function VirtualCaddyPanel({
       const nextValue = prev == null ? 4 : Math.max(4, prev + 1);
       setOutcomeSelection('puttHoled');
       return nextValue;
+    });
+  };
+  const incrementPenaltyStrokes = () => {
+    setPenaltyStrokes((prev) => Math.max(3, prev + 1));
+  };
+  const decrementPenaltyStrokes = () => {
+    setPenaltyStrokes((prev) => {
+      if (prev <= 3) {
+        return Math.max(0, prev - 1);
+      }
+
+      return prev - 1;
     });
   };
   const decrementPuttCount = () => {
@@ -981,7 +1094,7 @@ export function VirtualCaddyPanel({
     }
 
     let remainingDistanceMeters =
-      outcomeSelection === 'girHit' || outcomeSelection === 'puttHoled'
+      outcomeSelection === 'girHit' || outcomeSelection === 'girHoled' || outcomeSelection === 'puttHoled'
         ? 0
         : distanceMode === 'point'
           ? Math.max(0, distanceToHoleMeters - distanceToMiddleMeters)
@@ -1000,7 +1113,10 @@ export function VirtualCaddyPanel({
         nextActionType = 'chipping';
       }
     } else if (outcomeMode === 'gir') {
-      if (outcomeSelection === 'girHit') {
+      if (outcomeSelection === 'girHoled') {
+        remainingDistanceMeters = 0;
+        nextActionType = null;
+      } else if (outcomeSelection === 'girHit') {
         remainingDistanceMeters = 0;
         nextActionType = 'putting';
       } else {
@@ -1059,11 +1175,12 @@ export function VirtualCaddyPanel({
       carryMeters: recommendation.carryMeters,
       firstPuttDistanceMeters,
       puttCount,
+      penaltyStrokes,
       puttMissLong,
       puttMissShort,
       puttMissWithin2m,
       clubActualEntryId,
-      scoreDelta: actionType === 'putting' ? Math.max(1, puttCount ?? 1) : 1,
+      scoreDelta: actionType === 'putting' ? Math.max(1, puttCount ?? 1) + penaltyStrokes : 1,
       oopResult: deriveOopResult(actionType, surface, oopResult),
       shotCategory: deriveShotCategory(actionType, surface, distanceToMiddleMeters, recommendation.club),
       inside100Over3: 0,
@@ -1091,10 +1208,12 @@ export function VirtualCaddyPanel({
           hazards: [],
           selectedClub: null,
           showClubOverride: false,
+          resultModeOverride: null,
           oopResult: 'none',
           outcomeSelection: null,
           firstPuttDistanceMeters: nextActionType === 'putting' ? 10 : null,
           puttCount: null,
+          penaltyStrokes: 0,
           puttMissLong: 0,
           puttMissShort: 0,
           puttMissWithin2m: 0,
@@ -1104,13 +1223,14 @@ export function VirtualCaddyPanel({
         })
       : buildPersistedDraft({
           nextShotId: nextShotId + 1,
+          resultModeOverride: null,
         });
     const nextHoleStats = buildNextHoleStats(baseHoleStats, nextTrail, nextDraft, { clearManualTrackScore: true });
     lastSyncedHoleStatsRef.current = JSON.stringify(nextHoleStats);
     replaceHoleStatsRef.current(nextHoleStats);
     setTrail(nextTrail);
     setNextShotId((prev) => prev + 1);
-    setFlowStep(nextActionType === 'putting' ? 'setup' : nextActionType ? 'overview' : 'action');
+    setFlowStep(nextActionType === 'putting' ? 'action' : nextActionType ? 'setup' : 'action');
     if (nextActionType) {
       setActionType(nextActionType);
       resetDraft(remainingDistanceMeters, nextSurface);
@@ -1120,7 +1240,11 @@ export function VirtualCaddyPanel({
       didPersist = await saveHoleStatsRef.current(nextHoleStats);
     }
     if (didPersist && !nextActionType) {
-      onHoleComplete?.();
+      if (outcomeSelection === 'girHoled') {
+        setAwaitingHoleAdvance(true);
+      } else {
+        onHoleComplete?.();
+      }
     }
     setEditingIndex(null);
     setEditingSnapshot(null);
@@ -1148,7 +1272,7 @@ export function VirtualCaddyPanel({
       draft: currentDraft,
     });
     setTrail(trail.slice(0, index));
-    setFlowStep('setup');
+    setFlowStep(shot.actionType === 'putting' ? 'action' : 'setup');
     setActionType(shot.actionType);
     setDistanceToHoleMeters(shot.distanceStartMeters);
     setDistanceToMiddleMeters(shot.plannedDistanceMeters);
@@ -1165,10 +1289,12 @@ export function VirtualCaddyPanel({
     setSelectedClub(shot.actionType === 'putting' || shot.actionType === 'chipping' ? null : shot.club);
     setShowClubOverride(false);
     setShowAllOverrideClubs(false);
+    setResultModeOverride(shot.outcomeSelection && shot.outcomeSelection.startsWith('gir') ? 'gir' : null);
     setOopResult(shot.oopResult);
     setOutcomeSelection(shot.outcomeSelection);
     setFirstPuttDistanceMeters(shot.firstPuttDistanceMeters ?? null);
     setPuttCount(shot.puttCount ?? null);
+    setPenaltyStrokes(shot.penaltyStrokes ?? 0);
     setPuttMissLong(shot.puttMissLong ?? 0);
     setPuttMissShort(shot.puttMissShort ?? 0);
     setPuttMissWithin2m(shot.puttMissWithin2m ?? 0);
@@ -1195,7 +1321,7 @@ export function VirtualCaddyPanel({
       <div className="virtual-caddy-panel active-panel">
         {!isHoleComplete ? (
           <>
-            {flowStep === 'overview' ? (
+            {showOverviewStep && flowStep === 'overview' ? (
               <div className="virtual-caddy-step">
                 <div className="virtual-caddy-step-header">
                   <div className="virtual-caddy-step-title">
@@ -1278,7 +1404,7 @@ export function VirtualCaddyPanel({
                   <div className="virtual-caddy-step-title">
                     <span className="virtual-caddy-step-number">{shotNumber}</span>
                     <div>
-                      <h5>{shotLabel}</h5>
+                      <h5>{displayShotLabel}</h5>
                     </div>
                   </div>
                   {editingIndex != null ? (
@@ -1288,23 +1414,20 @@ export function VirtualCaddyPanel({
                   ) : null}
                 </div>
                 <div className="prototype-block virtual-caddy-distance-block">
-                  <div className="virtual-caddy-overview-hero virtual-caddy-distance-hero">
-                    <span className="virtual-caddy-overview-kicker">{shotDistanceBannerLabel}</span>
-                    <div className="virtual-caddy-distance-hero-actions">
-                      <strong>{shotDistanceBannerValue}</strong>
-                      {canResetShotDistanceBanner ? (
-                        <button type="button" className="setup-toggle" onClick={resetShotDistanceBanner}>
-                          Reset
-                        </button>
-                      ) : null}
+                  {!isPutting ? (
+                    <div className="virtual-caddy-overview-hero virtual-caddy-distance-hero">
+                      <span className="virtual-caddy-overview-kicker">{shotDistanceBannerLabel}</span>
+                      <div className="virtual-caddy-distance-hero-actions">
+                        <strong>{shotDistanceBannerValue}</strong>
+                        {canResetShotDistanceBanner ? (
+                          <button type="button" className="setup-toggle" onClick={resetShotDistanceBanner}>
+                            Reset
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                  {isPutting ? (
-                    <div className="distance-header">
-                      <span>On green</span>
-                      <strong>Putting</strong>
-                    </div>
-                  ) : (
+                  ) : null}
+                  {isPutting ? null : (
                     <>
                     {showOopOptions ? (
                       <div className="prototype-block">
@@ -1351,11 +1474,15 @@ export function VirtualCaddyPanel({
                     {distanceMode === 'point' ? (
                       <>
                         <div className="prototype-block">
+                          <div className="distance-header">
+                            <span>Distance to green</span>
+                            <strong>{distanceToHoleMeters}m</strong>
+                          </div>
                           <div className="virtual-caddy-slider-stack">
                             <div className="virtual-caddy-slider-only-row">
                               <input
                                 type="range"
-                                min={1}
+                                min={0}
                                 max={distanceSliderMax}
                                 step={1}
                                 value={Math.min(distanceToHoleMeters, distanceSliderMax)}
@@ -1380,11 +1507,15 @@ export function VirtualCaddyPanel({
                           </div>
                         </div>
                         <div className="prototype-block">
+                          <div className="distance-header">
+                            <span>Distance to target</span>
+                            <strong>{distanceToMiddleMeters}m</strong>
+                          </div>
                           <div className="virtual-caddy-slider-stack">
                             <div className="virtual-caddy-slider-only-row">
                               <input
                                 type="range"
-                                min={1}
+                                min={0}
                                 max={distanceSliderMax}
                                 step={1}
                                 value={Math.min(distanceToMiddleMeters, distanceSliderMax)}
@@ -1415,7 +1546,7 @@ export function VirtualCaddyPanel({
                           <div className="virtual-caddy-slider-only-row">
                             <input
                               type="range"
-                              min={1}
+                              min={0}
                               max={distanceSliderMax}
                               step={1}
                               value={Math.min(distanceToHoleMeters, distanceSliderMax)}
@@ -1561,9 +1692,11 @@ export function VirtualCaddyPanel({
                   )}
                 </div>
                 <div className="virtual-caddy-card-footer">
-                  <button type="button" className="setup-toggle" onClick={() => setFlowStep('overview')}>
-                    Back
-                  </button>
+                  {showOverviewStep ? (
+                    <button type="button" className="setup-toggle" onClick={() => setFlowStep('overview')}>
+                      Back
+                    </button>
+                  ) : null}
                   <button type="button" className="save-btn virtual-caddy-save-btn" onClick={() => setFlowStep('action')}>
                     Next
                   </button>
@@ -1587,8 +1720,8 @@ export function VirtualCaddyPanel({
                   ) : null}
                 </div>
                 <div className="virtual-caddy-overview-hero virtual-caddy-distance-hero">
-                  <span className="virtual-caddy-overview-kicker">{shotDistanceBannerLabel}</span>
-                  <strong>{shotDistanceBannerValue}</strong>
+                  {shotDistanceBannerValue != null ? <span className="virtual-caddy-overview-kicker">{shotDistanceBannerLabel}</span> : null}
+                  <strong>{shotDistanceBannerValue ?? shotDistanceBannerLabel}</strong>
                 </div>
                 {!isPutting &&
                 (!isChipping || isWedgeMatrixChip) &&
@@ -1716,7 +1849,7 @@ export function VirtualCaddyPanel({
                     {isPutting ? (
                       <div className="prototype-block">
                         <div className="distance-header">
-                          <span>1st putt distance</span>
+                          <span className="quick-select-label">1st putt distance</span>
                           <strong>{firstPuttDistanceMeters ?? 10}m</strong>
                         </div>
                         <div className="virtual-caddy-slider-stack">
@@ -1762,6 +1895,14 @@ export function VirtualCaddyPanel({
                           >
                             {showPuttingDetails ? 'Hide detail' : 'Add detail'}
                           </button>
+                        ) : canOverrideOutcomeMode ? (
+                          <button
+                            type="button"
+                            className="setup-toggle"
+                            onClick={() => setOutcomeModeOverrideValue(outcomeMode === 'fairway' ? 'gir' : 'fairway')}
+                          >
+                            {outcomeMode === 'fairway' ? 'Switch to green' : 'Switch to fairway'}
+                          </button>
                         ) : null}
                       </div>
                       <div className="quick-select-row" role={isPutting ? 'group' : undefined} aria-label={isPutting ? 'Virtual caddy putts selection' : undefined}>
@@ -1803,7 +1944,9 @@ export function VirtualCaddyPanel({
                                   ]
                                 : []),
                             ])
-                          : outcomeOptions.map((option) => (
+                          : outcomeOptions
+                              .filter((option) => option.key !== 'girHoled')
+                              .map((option) => (
                               <button
                                 key={option.key}
                                 type="button"
@@ -1814,7 +1957,61 @@ export function VirtualCaddyPanel({
                               </button>
                             ))}
                       </div>
+                      {!isPutting && outcomeMode === 'gir' ? (
+                        <div className="quick-select-row">
+                          <button
+                            type="button"
+                            className={outcomeSelection === 'girHoled' ? 'choice-chip active' : 'choice-chip'}
+                            onClick={() => setOutcomeSelection('girHoled')}
+                          >
+                            Holed
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
+                    {isPutting ? (
+                      <div className="prototype-block virtual-caddy-inline-result">
+                        <div className="virtual-caddy-inline-result-header">
+                          <span className="quick-select-label">Penalty</span>
+                        </div>
+                        <div className="quick-select-row" role="group" aria-label="Virtual caddy putting penalty selection">
+                          {PENALTY_STROKE_OPTIONS.map((value) => (
+                            <button
+                              key={value}
+                              type="button"
+                              className={penaltyStrokes === value ? 'choice-chip active' : 'choice-chip'}
+                              onClick={() => setPenaltyStrokes(value)}
+                            >
+                              {value === 0 ? 'None' : `+${value}`}
+                            </button>
+                          )).concat([
+                            <button
+                              key="penalty-plus"
+                              type="button"
+                              className={penaltyStrokes >= 3 ? 'choice-chip active' : 'choice-chip'}
+                              onClick={incrementPenaltyStrokes}
+                              aria-expanded={penaltyStrokes >= 3}
+                              aria-label="Add more than 2 penalty strokes"
+                            >
+                              +
+                            </button>,
+                            ...(penaltyStrokes >= 3
+                              ? [
+                                  <button
+                                    key="penalty-inline-value"
+                                    type="button"
+                                    className="counter-inline-value"
+                                    onClick={decrementPenaltyStrokes}
+                                    aria-label="Decrease custom penalty strokes"
+                                  >
+                                    +{penaltyStrokes}
+                                  </button>,
+                                ]
+                              : []),
+                          ])}
+                        </div>
+                      </div>
+                    ) : null}
                     {isPutting ? (
                       showPuttingDetails ? (
                         <div className="prototype-block">
@@ -1872,9 +2069,11 @@ export function VirtualCaddyPanel({
                   </div>
                 </div>
                 <div className="virtual-caddy-card-footer">
-                  <button type="button" className="setup-toggle" onClick={() => setFlowStep('setup')}>
-                    Back
-                  </button>
+                  {!isPutting ? (
+                    <button type="button" className="setup-toggle" onClick={() => setFlowStep('setup')}>
+                      Back
+                    </button>
+                  ) : null}
                   <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot} onClick={saveShot}>
                     Save result
                   </button>
@@ -1886,8 +2085,22 @@ export function VirtualCaddyPanel({
 
           </>
         ) : (
-          <div className="prototype-block virtual-caddy-complete">
-            <span className="quick-select-label">Hole summary</span>
+          <div className={completionCardClassName}>
+            {showHoledCelebration ? (
+              <div className="virtual-caddy-complete-burst" aria-hidden="true">
+                <span className="virtual-caddy-complete-orbit virtual-caddy-complete-orbit-one" />
+                <span className="virtual-caddy-complete-orbit virtual-caddy-complete-orbit-two" />
+                <span className="virtual-caddy-complete-glow virtual-caddy-complete-glow-one" />
+                <span className="virtual-caddy-complete-glow virtual-caddy-complete-glow-two" />
+                <span className="virtual-caddy-complete-star virtual-caddy-complete-star-one" />
+                <span className="virtual-caddy-complete-star virtual-caddy-complete-star-two" />
+                <span className="virtual-caddy-complete-star virtual-caddy-complete-star-three" />
+              </div>
+            ) : null}
+            <div className="virtual-caddy-complete-header">
+              <span className="quick-select-label">{completionTitle}</span>
+              {completionDetail ? <p>{completionDetail}</p> : null}
+            </div>
             <div className="virtual-caddy-complete-summary">
               <div className="virtual-caddy-complete-stat">
                 <span>Par</span>
@@ -1902,6 +2115,20 @@ export function VirtualCaddyPanel({
                 <strong>{completedHoleSummary.putts}</strong>
               </div>
             </div>
+            {awaitingHoleAdvance ? (
+              <div className="virtual-caddy-card-footer">
+                <button
+                  type="button"
+                  className="save-btn virtual-caddy-save-btn"
+                  onClick={() => {
+                    setAwaitingHoleAdvance(false);
+                    onHoleComplete?.();
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
 
