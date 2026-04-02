@@ -7,6 +7,7 @@ import type {
 import type { VirtualCaddyExecutedShot, VirtualCaddyOutcomeSelection } from '../../lib/virtualCaddyExecution';
 
 export type VirtualCaddyPanelProps = {
+  roundId?: string | null;
   hole: number;
   holeStats: HoleStats;
   displayHoleIndex?: number | null;
@@ -19,6 +20,11 @@ export type VirtualCaddyPanelProps = {
   onReplaceHoleStats: (nextHoleStats: HoleStats) => void;
   onSaveHoleStats?: (nextHoleStats: HoleStats) => Promise<boolean>;
   onSaveClubActual?: (shot: { club: string; actualMeters: number }) => Promise<number | null>;
+  onSyncClubActuals?: (payload: {
+    roundId: string;
+    hole: number;
+    shots: Array<{ shotId: number; club: string; actualMeters: number }>;
+  }) => Promise<Array<{ shotId: number; entryId: number }>>;
   onDeleteClubActualEntry?: (entryId: number) => Promise<void>;
   onHoleComplete?: (
     nextHoleStats: HoleStats,

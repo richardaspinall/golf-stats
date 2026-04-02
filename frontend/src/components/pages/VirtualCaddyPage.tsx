@@ -26,6 +26,11 @@ type VirtualCaddyPageProps = {
     replaceHoleStats: (hole: number, nextHoleStats: HoleStats) => void;
     saveHoleStats: (hole: number, nextHoleStats: HoleStats, options?: { persistToServer?: boolean }) => Promise<boolean>;
     saveClubActual: (shot: { club: string; actualMeters: number }) => Promise<number | null>;
+    syncVirtualCaddyClubActuals?: (payload: {
+      roundId: string;
+      hole: number;
+      shots: Array<{ shotId: number; club: string; actualMeters: number }>;
+    }) => Promise<Array<{ shotId: number; entryId: number }>>;
     deleteClubActualEntry: (entryId: number) => Promise<void>;
     onToggleFocusMode: () => void;
   };
@@ -47,7 +52,16 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
     wedgeMatrices,
     wedgeEntriesByMatrix,
   } = round;
-  const { setSelectedHole, saveCurrentRound, replaceHoleStats, saveHoleStats, saveClubActual, deleteClubActualEntry, onToggleFocusMode } = actions;
+  const {
+    setSelectedHole,
+    saveCurrentRound,
+    replaceHoleStats,
+    saveHoleStats,
+    saveClubActual,
+    syncVirtualCaddyClubActuals,
+    deleteClubActualEntry,
+    onToggleFocusMode,
+  } = actions;
   const { isFocusMode } = round;
   const handleReplaceHoleStats = useCallback((nextHoleStats: HoleStats) => replaceHoleStats(selectedHole, nextHoleStats), [replaceHoleStats, selectedHole]);
   const handleSaveHoleStats = useCallback((nextHoleStats: HoleStats) => saveHoleStats(selectedHole, nextHoleStats), [saveHoleStats, selectedHole]);
@@ -107,6 +121,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
         </div>
 
         <VirtualCaddyPanel
+          roundId={activeRound?.id ?? null}
           hole={selectedHole}
           holeStats={holeStats}
           displayHoleIndex={displayHoleIndex}
@@ -119,6 +134,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
           onReplaceHoleStats={handleReplaceHoleStats}
           onSaveHoleStats={handleSaveHoleStats}
           onSaveClubActual={saveClubActual}
+          onSyncClubActuals={syncVirtualCaddyClubActuals}
           onDeleteClubActualEntry={deleteClubActualEntry}
           onHoleComplete={handleHoleComplete}
         />
