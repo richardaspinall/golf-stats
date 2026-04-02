@@ -24,7 +24,7 @@ type VirtualCaddyPageProps = {
     setSelectedHole: (hole: number) => void;
     saveCurrentRound: () => Promise<boolean>;
     replaceHoleStats: (hole: number, nextHoleStats: HoleStats) => void;
-    saveHoleStats: (hole: number, nextHoleStats: HoleStats) => Promise<boolean>;
+    saveHoleStats: (hole: number, nextHoleStats: HoleStats, options?: { persistToServer?: boolean }) => Promise<boolean>;
     saveClubActual: (shot: { club: string; actualMeters: number }) => Promise<number | null>;
     deleteClubActualEntry: (entryId: number) => Promise<void>;
     onToggleFocusMode: () => void;
@@ -51,11 +51,23 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
   const { isFocusMode } = round;
   const handleReplaceHoleStats = useCallback((nextHoleStats: HoleStats) => replaceHoleStats(selectedHole, nextHoleStats), [replaceHoleStats, selectedHole]);
   const handleSaveHoleStats = useCallback((nextHoleStats: HoleStats) => saveHoleStats(selectedHole, nextHoleStats), [saveHoleStats, selectedHole]);
-  const handleHoleComplete = useCallback(() => {
+  const handleHoleComplete = useCallback(async (nextHoleStats: HoleStats, options?: { persistToServer?: boolean; advanceHole?: boolean }) => {
+    if (options?.persistToServer !== false) {
+      const didSave = await saveHoleStats(selectedHole, nextHoleStats, { persistToServer: true });
+      if (!didSave) {
+        return false;
+      }
+    }
+
+    if (options?.advanceHole === false) {
+      return true;
+    }
+
     const selectedHoleIndex = HOLES.indexOf(selectedHole);
     const nextHole = HOLES[selectedHoleIndex + 1] ?? HOLES[0];
     setSelectedHole(nextHole);
-  }, [selectedHole, setSelectedHole]);
+    return true;
+  }, [saveHoleStats, selectedHole, setSelectedHole]);
 
   const handleSelectHole = async (hole: number) => {
     if (hole === selectedHole || saveState === 'saving' || saveState === 'loading') {
