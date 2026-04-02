@@ -1,11 +1,5 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 
-import type { WedgeMatrixSource } from '../../../lib/wedgeMatrix';
-import {
-  getCarryBook,
-  getLongestClubCarry,
-  getVirtualCaddyRecommendation,
-} from '../../../lib/virtualCaddy';
 import type { VirtualCaddyOutcomeSelection } from '../../../lib/virtualCaddyExecution';
 import { createInitialVirtualCaddyState, virtualCaddyReducer } from '../state/reducer';
 import {
@@ -29,7 +23,9 @@ import {
 import { buildComparableDraft, deriveOopResult, deriveShotCategory, getActualDistanceFromStart, getShotLabel, getSurfaceFromOutcome, shouldTrackClubActual } from '../domain/planner';
 import { CHIPPING_MAX_DISTANCE_METERS } from '../constants';
 import { buildHydratedState, buildNextHoleStats, buildPersistedDraftFromState } from '../adapters/persistence';
-import type { PlannerActionType, PlannerShot, VirtualCaddyPanelProps, VirtualCaddyState } from '../types';
+import type { PersistedPlannerDraft, PlannerShot, VirtualCaddyPanelProps, VirtualCaddyState } from '../types';
+import { useVirtualCaddyRecommendation } from './useVirtualCaddyRecommendation';
+import { buildEditSnapshot, resolveShotTransition } from '../domain/shotLifecycle';
 
 export function useVirtualCaddyController({
   hole,
@@ -72,124 +68,13 @@ export function useVirtualCaddyController({
   const isChipping = getIsChipping(state);
   const isStandardShot = getIsStandardShot(state);
   const displayShotLabel = getDisplayShotLabel(state);
-  const recommendationDistanceMeters = state.distanceMode === 'point' ? state.distanceToMiddleMeters : state.distanceToHoleMeters;
-  const carryBook = useMemo(() => getCarryBook(carryByClub), [carryByClub]);
-  const wedgeMatrixSources = useMemo<WedgeMatrixSource[]>(
-    () =>
-      wedgeMatrices.map((matrix) => ({
-        matrix,
-        entries: wedgeEntriesByMatrix[matrix.id] ?? [],
-      })),
-    [wedgeEntriesByMatrix, wedgeMatrices],
-  );
-  const longestCarry = useMemo(() => getLongestClubCarry(carryByClub), [carryByClub]);
-
-  const baseRecommendation = useMemo(() => {
-    if (isPutting) {
-      return null;
-    }
-    return getVirtualCaddyRecommendation({
-      distanceToMiddleMeters: recommendationDistanceMeters,
-      surface: state.surface,
-      lieQuality: state.lieQuality,
-      slope: state.slope,
-      bunkerLie: state.bunkerLie,
-      temperature: state.temperature,
-      windDirection: state.windDirection,
-      windStrength: state.windStrength,
-      hazards: state.hazards,
+  const { baseRecommendation, recommendation, displayedCarryBook, visibleOverrideClubs, longestCarry, wedgeMatrixSources, isWedgeMatrixChip } =
+    useVirtualCaddyRecommendation({
+      state,
       carryByClub,
-      wedgeMatrices: wedgeMatrixSources,
+      wedgeMatrices,
+      wedgeEntriesByMatrix,
     });
-  }, [
-    carryByClub,
-    isPutting,
-    recommendationDistanceMeters,
-    state.bunkerLie,
-    state.hazards,
-    state.lieQuality,
-    state.slope,
-    state.surface,
-    state.temperature,
-    state.windDirection,
-    state.windStrength,
-    wedgeMatrixSources,
-  ]);
-
-  const isWedgeMatrixChip = Boolean(isChipping && baseRecommendation?.wedgeMatrixRecommendation);
-  const clubChoice = useMemo(() => {
-    if (isPutting) {
-      return { club: 'Putter', carry: 0 };
-    }
-
-    if (state.selectedClub) {
-      const selectedMatch = carryBook.find((entry) => entry.club === state.selectedClub);
-      if (selectedMatch) {
-        return selectedMatch;
-      }
-    }
-
-    if (isChipping) {
-      if (baseRecommendation?.wedgeMatrixRecommendation) {
-        return {
-          club: baseRecommendation.wedgeMatrixRecommendation.club,
-          carry: baseRecommendation.wedgeMatrixRecommendation.distanceMeters,
-        };
-      }
-
-      return { club: 'Chip shot', carry: Math.max(0, state.distanceToMiddleMeters) };
-    }
-
-    if (!baseRecommendation) {
-      return { club: 'Club', carry: 0 };
-    }
-
-    if (baseRecommendation.wedgeMatrixRecommendation) {
-      return {
-        club: baseRecommendation.wedgeMatrixRecommendation.club,
-        carry: baseRecommendation.wedgeMatrixRecommendation.distanceMeters,
-      };
-    }
-
-    const matched = carryBook.find((entry) => entry.club === baseRecommendation.recommendedClub);
-    return matched ?? carryBook[carryBook.length - 1] ?? { club: baseRecommendation.recommendedClub, carry: 0 };
-  }, [baseRecommendation, carryBook, isChipping, isPutting, state.distanceToMiddleMeters, state.selectedClub]);
-
-  const recommendation = {
-    club: clubChoice.club,
-    carryMeters: clubChoice.carry,
-    effectiveDistanceMeters: baseRecommendation?.details.effectiveDistanceMeters ?? 0,
-    reasons: baseRecommendation?.reasons ?? [],
-    source: baseRecommendation?.source ?? 'carryBook',
-    swingClock: baseRecommendation?.wedgeMatrixRecommendation?.swingClock ?? null,
-    wedgeMatrixName: baseRecommendation?.wedgeMatrixName ?? null,
-    wedgeMatrixSetup: baseRecommendation?.wedgeMatrixSetup ?? null,
-    summary: isPutting
-      ? 'On the green. Finish the hole with the putter.'
-      : isChipping
-        ? isWedgeMatrixChip && baseRecommendation?.wedgeMatrixRecommendation
-          ? `${clubChoice.club} ${baseRecommendation.wedgeMatrixRecommendation.swingClock} from the wedge matrix for ${baseRecommendation.details.effectiveDistanceMeters}m effective.`
-          : 'Missed the green. Play the chip and then move to putting.'
-        : baseRecommendation?.wedgeMatrixRecommendation
-          ? `${clubChoice.club} ${baseRecommendation.wedgeMatrixRecommendation.swingClock} from the wedge matrix for ${baseRecommendation.details.effectiveDistanceMeters}m effective.`
-          : `${clubChoice.club} selected for ${baseRecommendation?.details.effectiveDistanceMeters ?? recommendationDistanceMeters}m effective.`,
-  };
-  const displayedCarryBook = useMemo(() => carryBook.slice().reverse(), [carryBook]);
-  const overrideRecommendedClub = baseRecommendation?.recommendedClub ?? recommendation.club;
-  const visibleOverrideClubs = useMemo(() => {
-    if (state.showAllOverrideClubs) {
-      return displayedCarryBook;
-    }
-
-    const recommendedIndex = displayedCarryBook.findIndex((entry) => entry.club === overrideRecommendedClub);
-    if (recommendedIndex === -1) {
-      return displayedCarryBook.slice(0, 7);
-    }
-
-    const startIndex = Math.max(0, recommendedIndex - 3);
-    const endIndex = Math.min(displayedCarryBook.length, recommendedIndex + 4);
-    return displayedCarryBook.slice(startIndex, endIndex);
-  }, [displayedCarryBook, overrideRecommendedClub, state.showAllOverrideClubs]);
 
   const defaultOutcomeMode = getDefaultOutcomeMode(state, displayHolePar, longestCarry);
   const outcomeMode = state.resultModeOverride ?? defaultOutcomeMode;
@@ -247,22 +132,13 @@ export function useVirtualCaddyController({
   }, [holeStats, state]);
 
   const startEdit = (index: number) => {
-    const shot = state.trail[index];
-    const showAdvancedValue =
-      (shot.actionType !== 'putting' && shot.surface !== 'fairway') ||
-      shot.lieQuality !== 'good' ||
-      shot.slope !== 'flat' ||
-      (shot.surface === 'bunker' && shot.bunkerLie !== 'clean') ||
-      shot.temperature !== 'normal' ||
-      shot.windDirection !== 'none' ||
-      shot.windStrength !== 'calm' ||
-      shot.hazards.length > 0;
+    const { shot, showAdvanced } = buildEditSnapshot(state.trail, index);
     dispatch({
       type: 'startEdit',
       payload: {
         index,
         shot,
-        showAdvanced: showAdvancedValue,
+        showAdvanced,
         snapshot: {
           baseHoleStats: state.baseHoleStats,
           trail: state.trail,
@@ -289,37 +165,7 @@ export function useVirtualCaddyController({
       }
     }
 
-    let remainingDistanceMeters =
-      state.outcomeSelection === 'girHit' || state.outcomeSelection === 'girHoled' || state.outcomeSelection === 'puttHoled'
-        ? 0
-        : state.distanceMode === 'point'
-          ? Math.max(0, state.distanceToHoleMeters - state.distanceToMiddleMeters)
-          : Math.max(0, state.distanceToHoleMeters - Math.max(0, recommendation.carryMeters));
-    let nextActionType: PlannerActionType | null = 'shot';
-
-    if (state.actionType === 'putting') {
-      remainingDistanceMeters = 0;
-      nextActionType = null;
-    } else if (state.actionType === 'chipping') {
-      if (state.outcomeSelection === 'chipOnGreen') {
-        remainingDistanceMeters = 0;
-        nextActionType = 'putting';
-      } else {
-        remainingDistanceMeters = 10;
-        nextActionType = 'chipping';
-      }
-    } else if (outcomeMode === 'gir') {
-      if (state.outcomeSelection === 'girHoled') {
-        remainingDistanceMeters = 0;
-        nextActionType = null;
-      } else if (state.outcomeSelection === 'girHit') {
-        remainingDistanceMeters = 0;
-        nextActionType = 'putting';
-      } else {
-        remainingDistanceMeters = 10;
-        nextActionType = 'chipping';
-      }
-    }
+    const { remainingDistanceMeters, nextActionType, nextSurface } = resolveShotTransition(state, outcomeMode, recommendation.carryMeters);
 
     if (state.editingSnapshot && state.editingIndex != null && onDeleteClubActualEntry) {
       const staleShots = state.editingSnapshot.trail.slice(state.editingIndex);
@@ -384,7 +230,6 @@ export function useVirtualCaddyController({
     };
 
     const nextTrail = [...state.trail, nextShot];
-    const nextSurface = nextActionType === 'putting' ? 'fairway' : getSurfaceFromOutcome(state.outcomeSelection);
     const nextStateDraft = nextActionType
       ? buildPersistedDraftFromState(state, {
           nextShotId: state.nextShotId + 1,
@@ -459,6 +304,19 @@ export function useVirtualCaddyController({
     });
   };
 
+  const setFlowStep = (flowStep: 'overview' | 'setup' | 'action') => dispatch({ type: 'setFlowStep', payload: flowStep });
+  const setHoleDistance = (distanceMeters: number) => dispatch({ type: 'setHoleDistance', payload: distanceMeters });
+  const setShotDistance = (distanceMeters: number) => dispatch({ type: 'setShotDistance', payload: distanceMeters });
+  const setDistanceMode = (distanceMode: 'hole' | 'point') => dispatch({ type: 'setDistanceMode', payload: distanceMode });
+  const updateDraft = (payload: Partial<PersistedPlannerDraft>) => dispatch({ type: 'patchDraft', payload });
+  const updateState = (payload: Partial<VirtualCaddyState>) => dispatch({ type: 'patch', payload });
+  const toggleHazard = (hazard: NonNullable<typeof state.hazards[number]>) => dispatch({ type: 'toggleHazard', payload: hazard });
+  const setOutcomeSelection = (outcomeSelection: VirtualCaddyOutcomeSelection | null) => dispatch({ type: 'setOutcomeSelection', payload: outcomeSelection });
+  const setPuttCount = (puttCount: number | null) => dispatch({ type: 'setPuttCount', payload: puttCount });
+  const setPuttDetail = (key: 'puttMissLong' | 'puttMissShort' | 'puttMissWithin2m', value: number) =>
+    dispatch({ type: 'setPuttDetail', payload: { key, value } });
+  const setPenaltyStrokes = (penaltyStrokes: number) => dispatch({ type: 'setPenaltyStrokes', payload: penaltyStrokes });
+
   return {
     state,
     recommendation,
@@ -488,11 +346,21 @@ export function useVirtualCaddyController({
       getTrailRecordedDistanceMeters(state.trail, shot, index, state.distanceToHoleMeters, isHoleComplete),
     getTrailSummary,
     actions: {
-      dispatch,
       saveShot,
       startEdit,
       cancelEdit,
       onHoleComplete,
+      setFlowStep,
+      setHoleDistance,
+      setShotDistance,
+      setDistanceMode,
+      updateDraft,
+      updateState,
+      toggleHazard,
+      setOutcomeSelection,
+      setPuttCount,
+      setPuttDetail,
+      setPenaltyStrokes,
     },
   };
 }

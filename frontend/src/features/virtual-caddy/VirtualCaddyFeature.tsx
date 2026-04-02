@@ -5,6 +5,7 @@ import { CompletionCard } from './components/CompletionCard';
 import { TrailList } from './components/TrailList';
 import { useVirtualCaddyController } from './hooks/useVirtualCaddyController';
 import { buildNextHoleStats, buildPersistedDraftFromState } from './adapters/persistence';
+import { getCompletionViewModel, getOverviewViewModel, getShotBannerViewModel } from './state/viewModel';
 import type { VirtualCaddyPanelProps } from './types';
 
 export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
@@ -37,24 +38,9 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
   } = useVirtualCaddyController(props);
 
   const useCompassResultLayout = !isPutting && !isChipping;
-  const overviewTitle = isFirstShot ? 'Hole details' : 'Distance left';
-  const overviewDistanceSummary = isFirstShot ? (defaultDistanceMeters != null ? `Length ${defaultDistanceMeters}m` : null) : `Distance left ${state.distanceToHoleMeters}m`;
-  const shotDistanceBannerLabel = isPutting
-    ? state.distanceToHoleMeters === 0
-      ? 'On the green'
-      : 'Distance left'
-    : state.distanceMode === 'point'
-      ? 'Distance to target'
-      : 'Distance to green';
-  const shotDistanceBannerValue = isPutting ? (state.distanceToHoleMeters === 0 ? null : `${state.distanceToHoleMeters}m`) : state.distanceMode === 'point' ? `${state.distanceToMiddleMeters}m` : `${state.distanceToHoleMeters}m`;
-  const canResetShotDistanceBanner = state.distanceMode === 'point' ? state.distanceToMiddleMeters !== state.distanceToHoleMeters : state.distanceToHoleMeters !== state.seededDistanceMeters;
-  const distanceSliderMax = Math.max(300, state.seededDistanceMeters, state.distanceToHoleMeters, state.distanceToMiddleMeters);
-  const completionTitle = isHoleInOneFinish ? 'Hole in one' : finalShot?.outcomeSelection === 'girHoled' ? 'Holed out' : 'Hole summary';
-  const completionDetail = isHoleInOneFinish
-    ? `${finalShot?.club ?? 'Shot'} never left the cup.`
-    : finalShot?.outcomeSelection === 'girHoled' && finalShot
-      ? `Holed from ${finalShot.distanceStartMeters}m with ${finalShot.club}.`
-      : null;
+  const { overviewTitle, overviewDistanceSummary } = getOverviewViewModel(state, defaultDistanceMeters);
+  const { shotDistanceBannerLabel, shotDistanceBannerValue, canResetShotDistanceBanner, distanceSliderMax } = getShotBannerViewModel(state);
+  const { completionTitle, completionDetail } = getCompletionViewModel(state, finalShot);
 
   return (
     <div className="track-distance-section virtual-caddy-section">
@@ -74,7 +60,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 defaultDistanceMeters={defaultDistanceMeters}
                 distanceToHoleMeters={state.distanceToHoleMeters}
                 onCancelEdit={actions.cancelEdit}
-                onNext={() => actions.dispatch({ type: 'setFlowStep', payload: 'setup' })}
+                onNext={() => actions.setFlowStep('setup')}
               />
             ) : null}
             {state.flowStep === 'setup' ? (
@@ -91,23 +77,23 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 canResetShotDistanceBanner={canResetShotDistanceBanner}
                 distanceSliderMax={distanceSliderMax}
                 onCancelEdit={actions.cancelEdit}
-                onBack={isFirstShot ? () => actions.dispatch({ type: 'setFlowStep', payload: 'overview' }) : null}
-                onNext={() => actions.dispatch({ type: 'setFlowStep', payload: 'action' })}
+                onBack={isFirstShot ? () => actions.setFlowStep('overview') : null}
+                onNext={() => actions.setFlowStep('action')}
                 onResetBanner={() => {
                   if (state.distanceMode === 'point') {
-                    actions.dispatch({ type: 'setShotDistance', payload: state.distanceToHoleMeters });
+                    actions.setShotDistance(state.distanceToHoleMeters);
                     return;
                   }
-                  actions.dispatch({ type: 'setHoleDistance', payload: state.seededDistanceMeters });
+                  actions.setHoleDistance(state.seededDistanceMeters);
                 }}
-                onToggleAdvanced={() => actions.dispatch({ type: 'patchDraft', payload: { showAdvanced: !state.showAdvanced } })}
-                onSetFlowStepAction={() => actions.dispatch({ type: 'setFlowStep', payload: 'action' })}
-                onSetOopResult={(value) => actions.dispatch({ type: 'patchDraft', payload: { oopResult: value } })}
-                onSetDistanceMode={(value) => actions.dispatch({ type: 'setDistanceMode', payload: value })}
-                onSetHoleDistance={(value) => actions.dispatch({ type: 'setHoleDistance', payload: value })}
-                onSetShotDistance={(value) => actions.dispatch({ type: 'setShotDistance', payload: value })}
-                onToggleHazard={(hazard) => actions.dispatch({ type: 'toggleHazard', payload: hazard })}
-                onPatch={(patch) => actions.dispatch({ type: 'patchDraft', payload: patch })}
+                onToggleAdvanced={() => actions.updateDraft({ showAdvanced: !state.showAdvanced })}
+                onSetFlowStepAction={() => actions.setFlowStep('action')}
+                onSetOopResult={(value) => actions.updateDraft({ oopResult: value })}
+                onSetDistanceMode={actions.setDistanceMode}
+                onSetHoleDistance={actions.setHoleDistance}
+                onSetShotDistance={actions.setShotDistance}
+                onToggleHazard={actions.toggleHazard}
+                onPatch={actions.updateDraft}
               />
             ) : null}
             {state.flowStep === 'action' ? (
@@ -131,30 +117,27 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 shotDistanceBannerLabel={shotDistanceBannerLabel}
                 shotDistanceBannerValue={shotDistanceBannerValue}
                 onCancelEdit={actions.cancelEdit}
-                onBack={!isPutting ? () => actions.dispatch({ type: 'setFlowStep', payload: 'setup' }) : null}
+                onBack={!isPutting ? () => actions.setFlowStep('setup') : null}
                 onSave={() => void actions.saveShot()}
-                onPatch={(patch) => actions.dispatch({ type: 'patch', payload: patch })}
-                onSelectClub={(club) => actions.dispatch({ type: 'patch', payload: { selectedClub: club, showClubOverride: false, showAllOverrideClubs: false } })}
+                onPatch={actions.updateState}
+                onSelectClub={(club) => actions.updateState({ selectedClub: club, showClubOverride: false, showAllOverrideClubs: false })}
                 onToggleOutcomeMode={() =>
-                  actions.dispatch({
-                    type: 'patchDraft',
-                    payload: {
-                      resultModeOverride: outcomeMode === 'fairway' ? 'gir' : 'fairway',
-                      outcomeSelection:
-                        outcomeMode === 'fairway'
-                          ? state.outcomeSelection?.startsWith('fairway')
-                            ? null
-                            : state.outcomeSelection
-                          : state.outcomeSelection?.startsWith('gir')
-                            ? null
-                            : state.outcomeSelection,
-                    },
+                  actions.updateDraft({
+                    resultModeOverride: outcomeMode === 'fairway' ? 'gir' : 'fairway',
+                    outcomeSelection:
+                      outcomeMode === 'fairway'
+                        ? state.outcomeSelection?.startsWith('fairway')
+                          ? null
+                          : state.outcomeSelection
+                        : state.outcomeSelection?.startsWith('gir')
+                          ? null
+                          : state.outcomeSelection,
                   })
                 }
-                onSetPuttCount={(count) => actions.dispatch({ type: 'setPuttCount', payload: count })}
-                onSetPuttDetail={(key, value) => actions.dispatch({ type: 'setPuttDetail', payload: { key, value } })}
-                onSetOutcomeSelection={(value) => actions.dispatch({ type: 'setOutcomeSelection', payload: value as never })}
-                onSetPenaltyStrokes={(value) => actions.dispatch({ type: 'setPenaltyStrokes', payload: value })}
+                onSetPuttCount={actions.setPuttCount}
+                onSetPuttDetail={actions.setPuttDetail}
+                onSetOutcomeSelection={(value) => actions.setOutcomeSelection(value as never)}
+                onSetPenaltyStrokes={actions.setPenaltyStrokes}
               />
             ) : null}
             {hasCustomContext ? <p className="virtual-caddy-state-note">Recommendation adjusted for current conditions.</p> : null}
@@ -171,7 +154,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
             tone={completedHoleSummary.style.tone}
             awaitingHoleAdvance={state.awaitingHoleAdvance}
             onNext={() => {
-              actions.dispatch({ type: 'patch', payload: { awaitingHoleAdvance: false } });
+              actions.updateState({ awaitingHoleAdvance: false });
               void props.onHoleComplete?.(buildNextHoleStats(props.holeStats, state.baseHoleStats, state.trail, buildPersistedDraftFromState(state)), {
                 persistToServer: false,
                 advanceHole: true,
