@@ -734,13 +734,18 @@ export default function App() {
     }));
   };
 
-  const saveHoleStats = async (hole, nextHoleStats) => {
+  const saveHoleStats = async (hole, nextHoleStats, options = {}) => {
     const nextStatsByHole = {
       ...statsByHole,
       [hole]: nextHoleStats,
     };
     setStatsByHole(nextStatsByHole);
-    return persistRoundStats(nextStatsByHole);
+
+    if (options.persistToServer) {
+      return persistRoundStats(nextStatsByHole);
+    }
+
+    return true;
   };
 
   const toggleSetupSelection = (setupKey) => {
