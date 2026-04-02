@@ -207,6 +207,50 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('Putter: 2 putts')).toBeTruthy();
   });
 
+  it('adjusts the previous shot distance from the putting step before hole completion', async () => {
+    const user = userEvent.setup();
+    const onSaveClubActual = vi.fn()
+      .mockResolvedValueOnce(101)
+      .mockResolvedValueOnce(202);
+
+    render(
+      <VirtualCaddyPanel
+        hole={4}
+        holeStats={emptyHoleStats()}
+        displayHolePar={4}
+        defaultDistanceMeters={420}
+        onReplaceHoleStats={vi.fn()}
+        onSaveClubActual={onSaveClubActual}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '160' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    const previousShotCard = screen.getByText('Previous shot vs flag').closest('.prototype-block');
+    expect(previousShotCard).toBeTruthy();
+    await user.click(within(previousShotCard as HTMLElement).getByRole('button', { name: 'Adjust' }));
+    expect(screen.getByLabelText('Virtual caddy previous shot distance adjustment')).toBeTruthy();
+    await user.click(within(previousShotCard as HTMLElement).getByRole('button', { name: '+5m' }));
+    expect(screen.getByText('Recorded previous shot')).toBeTruthy();
+    expect(screen.getByText('165m')).toBeTruthy();
+    expect(screen.getByText('5i · 165m')).toBeTruthy();
+
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(onSaveClubActual.mock.calls).toEqual([
+      [{ club: 'Driver', actualMeters: 260 }],
+      [{ club: '5i', actualMeters: 165 }],
+    ]);
+  });
+
   it('rehydrates a completed hole without replacing zero distances with the full hole length', async () => {
     const user = userEvent.setup();
     const savedHoleStates: HoleStats[] = [];

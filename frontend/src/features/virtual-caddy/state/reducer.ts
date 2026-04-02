@@ -32,6 +32,7 @@ const createDefaultDraft = (distanceMeters: number, surface: NonNullable<Virtual
   oopResult: 'none',
   outcomeSelection: null,
   firstPuttDistanceMeters: null,
+  previousShotDistanceAdjustmentMeters: 0,
   puttCount: null,
   penaltyStrokes: 0,
   puttMissLong: 0,
@@ -112,7 +113,11 @@ export function virtualCaddyReducer(state: VirtualCaddyState, action: VirtualCad
     case 'setBunkerLie':
       return { ...state, bunkerLie: action.payload };
     case 'setOutcomeSelection':
-      return { ...state, outcomeSelection: action.payload };
+      return {
+        ...state,
+        outcomeSelection: action.payload,
+        previousShotDistanceAdjustmentMeters: action.payload === 'girHit' || action.payload === 'chipOnGreen' ? state.previousShotDistanceAdjustmentMeters : 0,
+      };
     case 'setDistanceMode':
       if (action.payload === 'hole') {
         return { ...state, distanceMode: 'hole', distanceToMiddleMeters: state.distanceToHoleMeters };
@@ -188,6 +193,7 @@ export function virtualCaddyReducer(state: VirtualCaddyState, action: VirtualCad
         oopResult: action.payload.shot.oopResult,
         outcomeSelection: action.payload.shot.outcomeSelection,
         firstPuttDistanceMeters: action.payload.shot.firstPuttDistanceMeters ?? null,
+        previousShotDistanceAdjustmentMeters: action.payload.shot.previousShotDistanceAdjustmentMeters ?? 0,
         puttCount: action.payload.shot.puttCount ?? null,
         penaltyStrokes: action.payload.shot.penaltyStrokes ?? 0,
         puttMissLong: action.payload.shot.puttMissLong ?? 0,

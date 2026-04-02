@@ -77,6 +77,11 @@ export const getOutcomeMode = (distanceMeters: number, displayHolePar: number | 
 export const getActualDistanceFromStart = (distanceStartMeters: number, remainingDistanceMeters: number) =>
   Math.max(0, distanceStartMeters - remainingDistanceMeters);
 
+export const clampPreviousShotDistanceAdjustmentMeters = (distanceMeters: number) => Math.min(50, Math.max(-50, Math.round(distanceMeters)));
+
+export const getAdjustedMeasuredDistanceMeters = (measuredDistanceMeters: number, adjustmentMeters: number) =>
+  Math.max(0, Math.round(measuredDistanceMeters) + clampPreviousShotDistanceAdjustmentMeters(adjustmentMeters));
+
 export const isOopSurface = (surface: NonNullable<VirtualCaddyInputs['surface']>) => surface !== 'tee' && surface !== 'fairway';
 
 export const isGreenHitOutcome = (outcomeSelection: VirtualCaddyOutcomeSelection | null) =>
