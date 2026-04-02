@@ -19,6 +19,7 @@ export interface PersistedVirtualCaddyState {
   baseHoleStats: HoleStats;
   trail: Array<Record<string, unknown>>;
   draft: Record<string, unknown>;
+  clubActualEntryIds?: number[];
 }
 
 export interface HoleStats {

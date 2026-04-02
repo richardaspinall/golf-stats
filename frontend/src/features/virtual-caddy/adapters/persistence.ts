@@ -12,6 +12,11 @@ import type {
 
 export { sanitizePersistedState, stripVirtualCaddyState };
 
+const readNumber = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 export const buildPersistedDraftFromState = (state: VirtualCaddyState, overrides: Partial<PersistedPlannerDraft> = {}): PersistedPlannerDraft => ({
   nextShotId: state.nextShotId,
   flowStep: state.flowStep,
@@ -110,6 +115,9 @@ export const buildNextHoleStats = (
     baseHoleStats: stripVirtualCaddyState(nextBaseHoleStats),
     trail: nextTrail,
     draft: nextDraft,
+    clubActualEntryIds: nextTrail
+      .map((shot) => shot.clubActualEntryId)
+      .filter((entryId): entryId is number => typeof entryId === 'number' && entryId > 0),
   },
 });
 
@@ -129,12 +137,15 @@ export const buildHydratedState = (
     persistedState.baseHoleStats && typeof persistedState.baseHoleStats === 'object'
       ? (persistedState.baseHoleStats as HoleStats)
       : stripVirtualCaddyState(holeStats);
+  const fallbackDistanceMeters = readNumber(persistedDraft.seededDistanceMeters) ?? defaultDistanceMeters ?? 150;
+  const hydratedDistanceToHoleMeters = readNumber(persistedDraft.distanceToHoleMeters) ?? fallbackDistanceMeters;
+  const hydratedDistanceToMiddleMeters = readNumber(persistedDraft.distanceToMiddleMeters) ?? fallbackDistanceMeters;
 
-  const baseState = createInitialState(stripVirtualCaddyState(persistedBaseHoleStats), Number(persistedDraft.seededDistanceMeters || defaultDistanceMeters || 150), 'tee');
+  const baseState = createInitialState(stripVirtualCaddyState(persistedBaseHoleStats), fallbackDistanceMeters, 'tee');
   return {
     ...baseState,
     trail: persistedTrail,
-    nextShotId: Number(persistedDraft.nextShotId || persistedTrail.length + 1),
+    nextShotId: readNumber(persistedDraft.nextShotId) ?? persistedTrail.length + 1,
     flowStep:
       ((persistedDraft.actionType as string) || 'tee') === 'putting' && persistedDraft.flowStep === 'setup'
         ? 'action'
@@ -142,9 +153,9 @@ export const buildHydratedState = (
           ? 'setup'
           : ((persistedDraft.flowStep as VirtualCaddyState['flowStep']) || 'overview'),
     actionType: (persistedDraft.actionType as VirtualCaddyState['actionType']) || 'tee',
-    seededDistanceMeters: Number(persistedDraft.seededDistanceMeters || defaultDistanceMeters || 150),
-    distanceToHoleMeters: Number(persistedDraft.distanceToHoleMeters || persistedDraft.seededDistanceMeters || defaultDistanceMeters || 150),
-    distanceToMiddleMeters: Number(persistedDraft.distanceToMiddleMeters || defaultDistanceMeters || 150),
+    seededDistanceMeters: fallbackDistanceMeters,
+    distanceToHoleMeters: hydratedDistanceToHoleMeters,
+    distanceToMiddleMeters: hydratedDistanceToMiddleMeters,
     distanceMode: persistedDraft.distanceMode === 'point' ? 'point' : 'hole',
     surface: (persistedDraft.surface as VirtualCaddyState['surface']) || 'tee',
     lieQuality: (persistedDraft.lieQuality as VirtualCaddyState['lieQuality']) || 'good',
@@ -164,20 +175,20 @@ export const buildHydratedState = (
     outcomeSelection: (persistedDraft.outcomeSelection as VirtualCaddyState['outcomeSelection']) ?? null,
     firstPuttDistanceMeters: typeof persistedDraft.firstPuttDistanceMeters === 'number' ? persistedDraft.firstPuttDistanceMeters : null,
     puttCount: typeof persistedDraft.puttCount === 'number' ? persistedDraft.puttCount : null,
-    penaltyStrokes: Math.max(0, Math.floor(Number(persistedDraft.penaltyStrokes || 0))),
-    puttMissLong: Number(persistedDraft.puttMissLong || 0),
-    puttMissShort: Number(persistedDraft.puttMissShort || 0),
-    puttMissWithin2m: Number(persistedDraft.puttMissWithin2m || 0),
+    penaltyStrokes: Math.max(0, Math.floor(readNumber(persistedDraft.penaltyStrokes) ?? 0)),
+    puttMissLong: readNumber(persistedDraft.puttMissLong) ?? 0,
+    puttMissShort: readNumber(persistedDraft.puttMissShort) ?? 0,
+    puttMissWithin2m: readNumber(persistedDraft.puttMissWithin2m) ?? 0,
     showRecommendationWhy: Boolean(persistedDraft.showRecommendationWhy),
     showPuttingDetails:
       typeof persistedDraft.showPuttingDetails === 'boolean'
         ? persistedDraft.showPuttingDetails
-        : Number(persistedDraft.puttMissLong || 0) > 0 ||
-          Number(persistedDraft.puttMissShort || 0) > 0 ||
-          Number(persistedDraft.puttMissWithin2m || 0) > 0,
+        : (readNumber(persistedDraft.puttMissLong) ?? 0) > 0 ||
+          (readNumber(persistedDraft.puttMissShort) ?? 0) > 0 ||
+          (readNumber(persistedDraft.puttMissWithin2m) ?? 0) > 0,
     showAdvanced: Boolean(persistedDraft.showAdvanced),
     showAllOverrideClubs: false,
-    showPenaltyPicker: Math.max(0, Math.floor(Number(persistedDraft.penaltyStrokes || 0))) > 0,
+    showPenaltyPicker: Math.max(0, Math.floor(readNumber(persistedDraft.penaltyStrokes) ?? 0)) > 0,
     awaitingHoleAdvance: false,
     editingIndex: null,
     editingSnapshot: null,

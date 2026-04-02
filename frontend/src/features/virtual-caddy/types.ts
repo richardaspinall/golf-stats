@@ -92,6 +92,7 @@ export type PlannerSnapshot = {
   baseHoleStats: HoleStats;
   trail: PlannerShot[];
   draft: PersistedPlannerDraft;
+  persistedClubActualEntryIds: number[];
 };
 
 export type VirtualCaddyState = PersistedPlannerDraft & {

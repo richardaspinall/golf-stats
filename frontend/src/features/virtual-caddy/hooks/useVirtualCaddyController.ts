@@ -143,6 +143,9 @@ export function useVirtualCaddyController({
           baseHoleStats: state.baseHoleStats,
           trail: state.trail,
           draft: buildPersistedDraftFromState(state),
+          persistedClubActualEntryIds: Array.isArray(holeStats.virtualCaddyState?.clubActualEntryIds)
+            ? holeStats.virtualCaddyState.clubActualEntryIds.filter((entryId): entryId is number => typeof entryId === 'number' && entryId > 0)
+            : [],
         },
       },
     });
@@ -153,6 +156,11 @@ export function useVirtualCaddyController({
       return;
     }
     dispatch({ type: 'cancelEdit', payload: state.editingSnapshot });
+  };
+
+  const getCompletedShotActualDistanceMeters = (trail: PlannerShot[], shot: PlannerShot, index: number) => {
+    const followingShot = trail[index + 1];
+    return getActualDistanceFromStart(shot.distanceStartMeters, followingShot ? followingShot.distanceStartMeters : shot.remainingDistanceMeters);
   };
 
   const saveShot = async () => {
@@ -168,35 +176,20 @@ export function useVirtualCaddyController({
     const { remainingDistanceMeters, nextActionType, nextSurface } = resolveShotTransition(state, outcomeMode, recommendation.carryMeters);
 
     if (state.editingSnapshot && state.editingIndex != null && onDeleteClubActualEntry) {
-      const staleShots = state.editingSnapshot.trail.slice(state.editingIndex);
-      for (const staleShot of staleShots) {
-        if (typeof staleShot.clubActualEntryId === 'number' && staleShot.clubActualEntryId > 0) {
-          await onDeleteClubActualEntry(staleShot.clubActualEntryId);
-        }
+      const staleStartIndex = Math.max(0, state.editingIndex - 1);
+      const staleShotEntryIds = state.editingSnapshot.trail
+        .slice(staleStartIndex)
+        .map((staleShot) => staleShot.clubActualEntryId)
+        .filter((entryId): entryId is number => typeof entryId === 'number' && entryId > 0);
+      const persistedEntryIds = state.editingSnapshot.persistedClubActualEntryIds;
+      const staleEntryIds = Array.from(new Set([...persistedEntryIds, ...staleShotEntryIds]));
+
+      for (const entryId of staleEntryIds) {
+        await onDeleteClubActualEntry(entryId);
       }
     }
 
-    const actualDistanceMeters =
-      state.distanceMode === 'point' && state.actionType !== 'putting' && state.actionType !== 'chipping'
-        ? Math.max(0, Math.min(state.distanceToHoleMeters, state.distanceToMiddleMeters))
-        : getActualDistanceFromStart(state.distanceToHoleMeters, remainingDistanceMeters);
-    let clubActualEntryId: number | null = null;
-    if (
-      onSaveClubActual &&
-      shouldTrackClubActual({
-        actionType: state.actionType,
-        surface: state.surface,
-        club: recommendation.club,
-      } as Pick<PlannerShot, 'actionType' | 'surface' | 'club'>) &&
-      actualDistanceMeters > 0
-    ) {
-      clubActualEntryId = await onSaveClubActual({
-        club: recommendation.club,
-        actualMeters: actualDistanceMeters,
-      });
-    }
-
-    const nextShot: PlannerShot = {
+    const nextShotBase: PlannerShot = {
       id: state.nextShotId,
       hole,
       label: getShotLabel(shotNumber, state.actionType),
@@ -221,7 +214,7 @@ export function useVirtualCaddyController({
       puttMissLong: state.puttMissLong,
       puttMissShort: state.puttMissShort,
       puttMissWithin2m: state.puttMissWithin2m,
-      clubActualEntryId,
+      clubActualEntryId: null,
       scoreDelta: (state.actionType === 'putting' ? Math.max(1, state.puttCount ?? 1) : 1) + state.penaltyStrokes,
       oopResult: deriveOopResult(state.actionType, state.surface, state.oopResult),
       shotCategory: deriveShotCategory(state.actionType, state.surface, state.distanceToMiddleMeters, recommendation.club),
@@ -229,7 +222,30 @@ export function useVirtualCaddyController({
       outcomeSelection: state.outcomeSelection as VirtualCaddyOutcomeSelection,
     };
 
-    const nextTrail = [...state.trail, nextShot];
+    let nextTrail = [...state.trail, nextShotBase];
+    if (nextActionType == null && onSaveClubActual) {
+      nextTrail = await Promise.all(
+        nextTrail.map(async (shot, index) => {
+          if (!shouldTrackClubActual(shot)) {
+            return { ...shot, clubActualEntryId: null };
+          }
+
+          const actualDistanceMeters = getCompletedShotActualDistanceMeters(nextTrail, shot, index);
+          if (actualDistanceMeters <= 0) {
+            return { ...shot, clubActualEntryId: null };
+          }
+
+          const clubActualEntryId = await onSaveClubActual({
+            club: shot.club,
+            actualMeters: actualDistanceMeters,
+          });
+          return {
+            ...shot,
+            clubActualEntryId,
+          };
+        }),
+      );
+    }
     const nextStateDraft = nextActionType
       ? buildPersistedDraftFromState(state, {
           nextShotId: state.nextShotId + 1,
