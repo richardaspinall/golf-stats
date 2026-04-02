@@ -346,6 +346,56 @@ export const saveClubActualToApi = async (
   };
 };
 
+export const syncVirtualCaddyClubActualsInApi = async (
+  payload: {
+    roundId: string;
+    hole: number;
+    shots: Array<{ shotId: number; club: string; actualMeters: number }>;
+  },
+  token: string,
+): Promise<Array<{ id: number; shotId: number; club: string; actualMeters: number; createdAt: string }>> => {
+  const response = await requestApi(`${API_CLUB_ACTUALS_URL}/virtual-caddy-sync`, {
+    method: 'POST',
+    body: payload,
+    token,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Failed to sync virtual caddy shot actuals (${response.status})`, response.status, await getErrorDetails(response));
+  }
+
+  const data = await response.json();
+  if (!Array.isArray(data?.entries)) {
+    return [];
+  }
+
+  return data.entries
+    .map((entry: any) => ({
+      id: Number(entry?.id),
+      shotId: Number(entry?.shotId),
+      club: String(entry?.club || ''),
+      actualMeters: Number(entry?.actualMeters),
+      createdAt: String(entry?.createdAt || ''),
+    }))
+    .filter(
+      (entry) =>
+        Number.isFinite(entry.id) &&
+        entry.id > 0 &&
+        Number.isFinite(entry.shotId) &&
+        entry.shotId > 0 &&
+        entry.club &&
+        Number.isFinite(entry.actualMeters) &&
+        entry.actualMeters > 0 &&
+        entry.createdAt,
+    )
+    .map((entry) => ({
+      ...entry,
+      id: Math.floor(entry.id),
+      shotId: Math.floor(entry.shotId),
+      actualMeters: Math.floor(entry.actualMeters),
+    }));
+};
+
 export const loadClubActualAveragesFromApi = async (token: string): Promise<ClubAverage[]> => {
   const response = await requestApi(API_CLUB_ACTUALS_URL, { token });
   if (!response.ok) {

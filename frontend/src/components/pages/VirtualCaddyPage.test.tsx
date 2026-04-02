@@ -326,6 +326,152 @@ describe('VirtualCaddyPage', () => {
     ]);
   });
 
+  it('syncs distance entries by round and hole when editing a completed hole without stored entry ids', async () => {
+    const user = userEvent.setup();
+    const syncVirtualCaddyClubActuals = vi.fn()
+      .mockResolvedValueOnce([
+        { shotId: 1, entryId: 101 },
+        { shotId: 2, entryId: 202 },
+      ])
+      .mockResolvedValueOnce([
+        { shotId: 1, entryId: 301 },
+        { shotId: 2, entryId: 302 },
+      ]);
+    const saveHoleStates: Array<(typeof statsByHole)[number]> = [];
+
+    render(
+      <VirtualCaddyPage
+        round={{
+          selectedHole: 4,
+          displayHoleIndex: 4,
+          displayHolePar: 4,
+          activeRound: { id: 'r1', name: 'Morning Round' },
+          activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+          statsByHole,
+          holeStats: {
+            score: 0,
+            holeIndex: 4,
+            fairwaySelection: null,
+            girSelection: null,
+            teePosition: null,
+            greenPosition: null,
+          },
+          saveState: 'saved',
+          teeToGreenMeters: 420,
+          clubCarryByClub: { Driver: 200, 'Mini Driver': 190, '3 wood': 180, '5i': 160, '6i': 150 },
+          wedgeMatrices: [],
+          wedgeEntriesByMatrix: {},
+          isFocusMode: false,
+        }}
+        actions={{
+          setSelectedHole: vi.fn(),
+          saveCurrentRound: vi.fn(async () => true),
+          replaceHoleStats: vi.fn(),
+          saveHoleStats: vi.fn(async (hole, nextHoleStats) => {
+            saveHoleStates.push(nextHoleStats);
+            return true;
+          }),
+          saveClubActual: vi.fn(async () => null),
+          syncVirtualCaddyClubActuals,
+          deleteClubActualEntry: vi.fn(async () => {}),
+          onToggleFocusMode: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '98' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(syncVirtualCaddyClubActuals).toHaveBeenNthCalledWith(1, {
+      roundId: 'r1',
+      hole: 4,
+      shots: [
+        { shotId: 1, club: 'Driver', actualMeters: 322 },
+        { shotId: 2, club: 'PW', actualMeters: 98 },
+      ],
+    });
+
+    const savedHoleStats = saveHoleStates[saveHoleStates.length - 1];
+    const rehydratedHoleStats = {
+      ...savedHoleStats,
+      virtualCaddyState: savedHoleStats.virtualCaddyState
+        ? {
+            ...savedHoleStats.virtualCaddyState,
+            clubActualEntryIds: [],
+            trail: Array.isArray(savedHoleStats.virtualCaddyState.trail)
+              ? savedHoleStats.virtualCaddyState.trail.map((shot) => {
+                  if (!shot || typeof shot !== 'object') {
+                    return shot;
+                  }
+                  const { clubActualEntryId: _clubActualEntryId, ...rest } = shot as Record<string, unknown>;
+                  return rest;
+                })
+              : savedHoleStats.virtualCaddyState.trail,
+          }
+        : null,
+    };
+
+    cleanup();
+
+    render(
+      <VirtualCaddyPage
+        round={{
+          selectedHole: 4,
+          displayHoleIndex: 4,
+          displayHolePar: 4,
+          activeRound: { id: 'r1', name: 'Morning Round' },
+          activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+          statsByHole: { ...buildInitialByHole(), 4: rehydratedHoleStats },
+          holeStats: rehydratedHoleStats,
+          saveState: 'saved',
+          teeToGreenMeters: 420,
+          clubCarryByClub: { Driver: 200, 'Mini Driver': 190, '3 wood': 180, '5i': 160, '6i': 150 },
+          wedgeMatrices: [],
+          wedgeEntriesByMatrix: {},
+          isFocusMode: false,
+        }}
+        actions={{
+          setSelectedHole: vi.fn(),
+          saveCurrentRound: vi.fn(async () => true),
+          replaceHoleStats: vi.fn(),
+          saveHoleStats: vi.fn(async (hole, nextHoleStats) => {
+            saveHoleStates.push(nextHoleStats);
+            return true;
+          }),
+          saveClubActual: vi.fn(async () => null),
+          syncVirtualCaddyClubActuals,
+          deleteClubActualEntry: vi.fn(async () => {}),
+          onToggleFocusMode: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[1]);
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '100' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(syncVirtualCaddyClubActuals).toHaveBeenNthCalledWith(2, {
+      roundId: 'r1',
+      hole: 4,
+      shots: [
+        { shotId: 1, club: 'Driver', actualMeters: 320 },
+        { shotId: 2, club: 'PW', actualMeters: 100 },
+      ],
+    });
+  });
+
   it('moves to the next hole after holing out', async () => {
     const user = userEvent.setup();
     const setSelectedHole = vi.fn();

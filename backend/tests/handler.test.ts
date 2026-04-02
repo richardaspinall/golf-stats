@@ -90,6 +90,15 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
     }),
     listClubActualEntries: vi.fn().mockResolvedValue([]),
     deleteClubActualEntry: vi.fn().mockResolvedValue(false),
+    replaceVirtualCaddyClubActuals: vi.fn().mockResolvedValue([
+      {
+        id: 201,
+        shotId: 1,
+        club: 'Driver',
+        actualMeters: 260,
+        createdAt: 'now',
+      },
+    ]),
   }));
   vi.doMock('../src/db/users.js', () => ({
     getGoogleUserBySub: vi.fn().mockResolvedValue({
@@ -210,6 +219,31 @@ describe('handler', () => {
 
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(getBody())).toEqual({ ok: false, error: 'Unauthorized' });
+  });
+
+  it('syncs virtual caddy shot actuals', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/club-actuals/virtual-caddy-sync',
+      headers: {
+        authorization: `Bearer ${signToken({ subject: 'demo', userId: 'user-1' })}`,
+      },
+      body: {
+        roundId: 'round-1',
+        hole: 4,
+        shots: [{ shotId: 1, club: 'Driver', actualMeters: 260 }],
+      },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      entries: [{ id: 201, shotId: 1, club: 'Driver', actualMeters: 260, createdAt: 'now' }],
+    });
   });
 
   it('handles google auth login', async () => {

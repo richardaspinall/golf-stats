@@ -12,6 +12,7 @@ import {
   listClubActualAverages,
   listClubActualEntries,
   listClubCarry,
+  replaceVirtualCaddyClubActuals,
   saveClubCarry,
 } from './db/club.js';
 import { getGoogleUserBySub, getUserByCredentials, getUserById, linkGoogleAccount } from './db/users.js';
@@ -394,6 +395,22 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
 
     if (pathname === '/api/club-actuals/entries' && method === 'GET') {
       sendJson(res, 200, { entries: await listClubActualEntries(currentUserId) });
+      return;
+    }
+
+    if (pathname === '/api/club-actuals/virtual-caddy-sync' && method === 'POST') {
+      try {
+        const body = await parseBody(req as BodyAwareRequest);
+        const entries = await replaceVirtualCaddyClubActuals({
+          userId: currentUserId,
+          roundId: String((body as any)?.roundId || '').trim(),
+          hole: (body as any)?.hole,
+          shots: Array.isArray((body as any)?.shots) ? (body as any).shots : [],
+        });
+        sendJson(res, 200, { ok: true, entries });
+      } catch (error: any) {
+        sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
+      }
       return;
     }
 

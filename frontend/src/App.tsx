@@ -34,6 +34,7 @@ import {
   saveClubActualToApi,
   saveClubCarryToApi,
   saveRoundToApi,
+  syncVirtualCaddyClubActualsInApi,
 } from './lib/api';
 import type { UserProfile } from './types';
 import {
@@ -208,6 +209,11 @@ export default function App() {
   const hasLoadedClubCarryRef = useRef(false);
   const skipNextClubCarrySaveRef = useRef(false);
   const hasLoadedClubAveragesRef = useRef(false);
+  const statsByHoleRef = useRef(statsByHole);
+
+  useEffect(() => {
+    statsByHoleRef.current = statsByHole;
+  }, [statsByHole]);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleLinkButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -728,17 +734,20 @@ export default function App() {
   };
 
   const replaceHoleStats = (hole, nextHoleStats) => {
-    setStatsByHole((prev) => ({
-      ...prev,
+    const nextStatsByHole = {
+      ...statsByHoleRef.current,
       [hole]: nextHoleStats,
-    }));
+    };
+    statsByHoleRef.current = nextStatsByHole;
+    setStatsByHole(nextStatsByHole);
   };
 
   const saveHoleStats = async (hole, nextHoleStats, options = {}) => {
     const nextStatsByHole = {
-      ...statsByHole,
+      ...statsByHoleRef.current,
       [hole]: nextHoleStats,
     };
+    statsByHoleRef.current = nextStatsByHole;
     setStatsByHole(nextStatsByHole);
 
     if (options.persistToServer) {
@@ -951,6 +960,20 @@ export default function App() {
     setClubAveragesDirty(true);
     setClubActualEntriesDirty(true);
     return entry?.id ?? null;
+  };
+
+  const syncVirtualCaddyClubActuals = async ({ roundId, hole, shots }) => {
+    if (!authToken || !roundId) {
+      return [];
+    }
+
+    const entries = await syncVirtualCaddyClubActualsInApi({ roundId, hole, shots }, authToken);
+    setClubAveragesDirty(true);
+    setClubActualEntriesDirty(true);
+    return entries.map((entry) => ({
+      shotId: entry.shotId,
+      entryId: entry.id,
+    }));
   };
 
   const deleteVirtualCaddyClubActualEntry = async (entryId) => {
@@ -1749,6 +1772,7 @@ export default function App() {
                 replaceHoleStats,
                 saveHoleStats,
                 saveClubActual: saveVirtualCaddyClubActual,
+                syncVirtualCaddyClubActuals,
                 deleteClubActualEntry: deleteVirtualCaddyClubActualEntry,
                 onToggleFocusMode: () => setIsVirtualCaddyFocusMode((prev) => !prev),
               }}

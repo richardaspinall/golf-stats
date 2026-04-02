@@ -83,12 +83,18 @@ export const ensureSchema = async () => {
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS user_id TEXT;
         ALTER TABLE club_carry ADD COLUMN IF NOT EXISTS user_id TEXT;
         ALTER TABLE club_actual_distances ADD COLUMN IF NOT EXISTS user_id TEXT;
+        ALTER TABLE club_actual_distances ADD COLUMN IF NOT EXISTS source_kind TEXT;
+        ALTER TABLE club_actual_distances ADD COLUMN IF NOT EXISTS source_round_id TEXT;
+        ALTER TABLE club_actual_distances ADD COLUMN IF NOT EXISTS source_hole INTEGER;
+        ALTER TABLE club_actual_distances ADD COLUMN IF NOT EXISTS source_shot_id INTEGER;
         ALTER TABLE wedge_entries ADD COLUMN IF NOT EXISTS user_id TEXT;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS user_id TEXT;
         ALTER TABLE club_carry DROP CONSTRAINT IF EXISTS club_carry_pkey;
         CREATE UNIQUE INDEX IF NOT EXISTS club_carry_user_club_key ON club_carry(user_id, club);
         CREATE INDEX IF NOT EXISTS rounds_user_updated_idx ON rounds(user_id, updated_at DESC, created_at DESC);
         CREATE INDEX IF NOT EXISTS club_actual_distances_user_created_idx ON club_actual_distances(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS club_actual_distances_virtual_caddy_idx
+          ON club_actual_distances(user_id, source_kind, source_round_id, source_hole, source_shot_id);
         CREATE INDEX IF NOT EXISTS wedge_matrices_user_created_idx ON wedge_matrices(user_id, created_at DESC, id DESC);
         CREATE INDEX IF NOT EXISTS wedge_entries_user_matrix_created_idx ON wedge_entries(user_id, matrix_id, created_at DESC, id DESC);
         CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub_key ON users(google_sub) WHERE google_sub IS NOT NULL;

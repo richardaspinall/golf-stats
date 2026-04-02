@@ -3,6 +3,20 @@ import { isClubOption } from '../domain/guards.js';
 import type { ClubActualEntry, ClubAveragesByClub, ClubCarryByClub } from '../domain/types.js';
 import { getPool } from './pool.js';
 
+type VirtualCaddyClubActualShot = {
+  shotId: number;
+  club: string;
+  actualMeters: number;
+};
+
+export type VirtualCaddyClubActualSyncEntry = {
+  id: number;
+  shotId: number;
+  club: string;
+  actualMeters: number;
+  createdAt: string;
+};
+
 export const listClubCarry = async (userId: string) => {
   const db = getPool();
   const result = await db.query('SELECT club, carry_meters FROM club_carry WHERE user_id = $1 ORDER BY updated_at DESC, club ASC', [userId]);
@@ -169,4 +183,101 @@ export const deleteClubActualEntry = async (entryId: number, userId: string) => 
   const db = getPool();
   const result = await db.query('DELETE FROM club_actual_distances WHERE id = $1 AND user_id = $2 RETURNING id', [entryId, userId]);
   return result.rows.length > 0;
+};
+
+export const replaceVirtualCaddyClubActuals = async ({
+  userId,
+  roundId,
+  hole,
+  shots,
+}: {
+  userId: string;
+  roundId: string;
+  hole: unknown;
+  shots: Array<{ shotId: unknown; club: string; actualMeters: unknown }>;
+}): Promise<VirtualCaddyClubActualSyncEntry[]> => {
+  const sanitizedRoundId = String(roundId || '').trim();
+  const sanitizedHole = Math.floor(Number(hole));
+
+  if (!sanitizedRoundId) {
+    throw new Error('Invalid round id');
+  }
+  if (!Number.isFinite(sanitizedHole) || sanitizedHole < 1 || sanitizedHole > 18) {
+    throw new Error('Invalid hole');
+  }
+
+  const sanitizedShots = shots.reduce((acc: VirtualCaddyClubActualShot[], shot) => {
+    const shotId = Math.floor(Number(shot?.shotId));
+    if (!Number.isFinite(shotId) || shotId <= 0) {
+      throw new Error('Invalid shot id');
+    }
+    if (!isClubOption(shot.club)) {
+      throw new Error('Invalid club');
+    }
+
+    const actualMeters = sanitizeActualMeters(shot.actualMeters);
+    if (actualMeters === null) {
+      throw new Error('Invalid actual distance');
+    }
+
+    acc.push({
+      shotId,
+      club: shot.club,
+      actualMeters,
+    });
+    return acc;
+  }, []);
+
+  const db = getPool();
+  const now = new Date().toISOString();
+  await db.query('BEGIN');
+
+  try {
+    await db.query(
+      `
+        DELETE FROM club_actual_distances
+        WHERE user_id = $1
+          AND source_kind = 'virtualCaddy'
+          AND source_round_id = $2
+          AND source_hole = $3
+      `,
+      [userId, sanitizedRoundId, sanitizedHole],
+    );
+
+    const inserted: VirtualCaddyClubActualSyncEntry[] = [];
+    for (const shot of sanitizedShots) {
+      const result = await db.query(
+        `
+          INSERT INTO club_actual_distances (
+            user_id,
+            club,
+            actual_meters,
+            created_at,
+            source_kind,
+            source_round_id,
+            source_hole,
+            source_shot_id
+          )
+          VALUES ($1, $2, $3, $4::timestamptz, 'virtualCaddy', $5, $6, $7)
+          RETURNING id, club, actual_meters, created_at, source_shot_id
+        `,
+        [userId, shot.club, shot.actualMeters, now, sanitizedRoundId, sanitizedHole, shot.shotId],
+      );
+
+      const row = result.rows[0];
+      inserted.push({
+        id: Number(row.id),
+        shotId: Number(row.source_shot_id),
+        club: String(row.club),
+        actualMeters: Number(row.actual_meters),
+        createdAt: new Date(row.created_at).toISOString(),
+      });
+    }
+
+    await db.query('COMMIT');
+    return inserted;
+  } catch (error) {
+    await db.query('ROLLBACK');
+    throw error;
+  }
 };
