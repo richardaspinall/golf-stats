@@ -30,4 +30,16 @@ describe('virtual caddy reducer', () => {
     expect(moved.distanceToHoleMeters).toBe(180);
     expect(moved.distanceToMiddleMeters).toBeLessThanOrEqual(180);
   });
+
+  it('initializes and clears previous-shot distance adjustment outside on-green outcomes', () => {
+    const initial = createInitialVirtualCaddyState(emptyHoleStats(), 150, 'tee');
+
+    expect(initial.previousShotDistanceAdjustmentMeters).toBe(0);
+
+    const updated = virtualCaddyReducer(initial, { type: 'patchDraft', payload: { previousShotDistanceAdjustmentMeters: 6 } });
+    const cleared = virtualCaddyReducer(updated, { type: 'setOutcomeSelection', payload: 'fairwayHit' });
+
+    expect(updated.previousShotDistanceAdjustmentMeters).toBe(6);
+    expect(cleared.previousShotDistanceAdjustmentMeters).toBe(0);
+  });
 });

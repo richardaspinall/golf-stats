@@ -1,5 +1,5 @@
 import { PENALTY_STROKE_OPTIONS, PUTT_COUNT_OPTIONS, PUTTING_DETAIL_OPTIONS } from '../constants';
-import { getOutcomePositionClass } from '../domain/planner';
+import { clampPreviousShotDistanceAdjustmentMeters, getAdjustedMeasuredDistanceMeters, getOutcomePositionClass } from '../domain/planner';
 import type { PlannerShot, VirtualCaddyState } from '../types';
 
 type ExecuteStepProps = {
@@ -77,6 +77,14 @@ export function ExecuteStep({
     if (statKey === 'puttMissShort') return state.puttMissShort;
     return state.puttMissWithin2m;
   };
+  const previousShot = isPutting ? state.trail[state.trail.length - 1] ?? null : null;
+  const canAdjustPreviousShotDistance =
+    isPutting && previousShot != null && (previousShot.outcomeSelection === 'girHit' || previousShot.outcomeSelection === 'chipOnGreen');
+  const previousShotDistanceAdjustmentMeters = clampPreviousShotDistanceAdjustmentMeters(state.previousShotDistanceAdjustmentMeters);
+  const adjustedPreviousShotDistanceMeters =
+    previousShot && canAdjustPreviousShotDistance
+      ? getAdjustedMeasuredDistanceMeters(previousShot.plannedDistanceMeters, previousShotDistanceAdjustmentMeters)
+      : null;
 
   return (
     <div className="virtual-caddy-step">
@@ -187,23 +195,69 @@ export function ExecuteStep({
             </div>
           ) : null}
           {isPutting ? (
-            <div className="prototype-block">
-              <div className="distance-header">
-                <span className="quick-select-label">1st putt distance</span>
-                <strong>{state.firstPuttDistanceMeters ?? 10}m</strong>
-              </div>
-              <div className="virtual-caddy-slider-stack">
-                <div className="virtual-caddy-slider-only-row">
-                  <input type="range" min={1} max={60} step={1} value={state.firstPuttDistanceMeters ?? 10} aria-label="Virtual caddy first putt distance" onChange={(event) => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, Math.round(Number(event.target.value)))) })} />
+            <>
+              {canAdjustPreviousShotDistance && previousShot && adjustedPreviousShotDistanceMeters != null ? (
+                <div className="prototype-block">
+                  <div className="distance-header">
+                    <span className="quick-select-label">Previous shot vs flag</span>
+                    <strong>{previousShotDistanceAdjustmentMeters > 0 ? `+${previousShotDistanceAdjustmentMeters}` : previousShotDistanceAdjustmentMeters}m</strong>
+                  </div>
+                  <p className="hint">Measured to {previousShot.plannedDistanceMeters}m. Add for past pin, subtract for short.</p>
+                  <div className="virtual-caddy-slider-stack">
+                    <div className="virtual-caddy-slider-only-row">
+                      <input
+                        type="range"
+                        min={-30}
+                        max={30}
+                        step={1}
+                        value={previousShotDistanceAdjustmentMeters}
+                        aria-label="Virtual caddy previous shot distance adjustment"
+                        onChange={(event) => onPatch({ previousShotDistanceAdjustmentMeters: clampPreviousShotDistanceAdjustmentMeters(Number(event.target.value)) })}
+                      />
+                    </div>
+                    <div className="virtual-caddy-slider-row">
+                      {[-10, -5, -2, 2, 5, 10].map((delta) => (
+                        <button
+                          key={delta}
+                          type="button"
+                          className="choice-chip"
+                          onClick={() =>
+                            onPatch({
+                              previousShotDistanceAdjustmentMeters: clampPreviousShotDistanceAdjustmentMeters(previousShotDistanceAdjustmentMeters + delta),
+                            })
+                          }
+                        >
+                          {delta > 0 ? `+${delta}m` : `${delta}m`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="virtual-caddy-distance-summary">
+                    <div className="virtual-caddy-distance-summary-label">
+                      <span>Recorded previous shot</span>
+                    </div>
+                    <strong>{adjustedPreviousShotDistanceMeters}m</strong>
+                  </div>
                 </div>
-                <div className="virtual-caddy-slider-row">
-                  <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) - 5)) })}>-5m</button>
-                  <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) - 1)) })}>-1m</button>
-                  <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) + 1)) })}>+1m</button>
-                  <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) + 5)) })}>+5m</button>
+              ) : null}
+              <div className="prototype-block">
+                <div className="distance-header">
+                  <span className="quick-select-label">1st putt distance</span>
+                  <strong>{state.firstPuttDistanceMeters ?? 10}m</strong>
+                </div>
+                <div className="virtual-caddy-slider-stack">
+                  <div className="virtual-caddy-slider-only-row">
+                    <input type="range" min={1} max={60} step={1} value={state.firstPuttDistanceMeters ?? 10} aria-label="Virtual caddy first putt distance" onChange={(event) => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, Math.round(Number(event.target.value)))) })} />
+                  </div>
+                  <div className="virtual-caddy-slider-row">
+                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) - 5)) })}>-5m</button>
+                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) - 1)) })}>-1m</button>
+                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) + 1)) })}>+1m</button>
+                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) + 5)) })}>+5m</button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           ) : null}
           <div className="prototype-block virtual-caddy-inline-result">
             <div className="virtual-caddy-inline-result-header">

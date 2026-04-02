@@ -2,6 +2,7 @@ import { CHIP_OUTCOME_OPTIONS, FAIRWAY_OUTCOME_OPTIONS, GIR_OUTCOME_OPTIONS } fr
 import {
   formatTrailSummary,
   getActualDistanceFromStart,
+  getAdjustedMeasuredDistanceMeters,
   getOutcomeMode,
   getScoreSummaryStyle,
   getShotLabel,
@@ -93,6 +94,9 @@ export const getTrailRecordedDistanceMeters = (
 
   const nextShot = trail[index + 1];
   if (nextShot) {
+    if (nextShot.actionType === 'putting' && (shot.outcomeSelection === 'girHit' || shot.outcomeSelection === 'chipOnGreen')) {
+      return getAdjustedMeasuredDistanceMeters(shot.plannedDistanceMeters, nextShot.previousShotDistanceAdjustmentMeters ?? 0);
+    }
     return getActualDistanceFromStart(shot.distanceStartMeters, nextShot.distanceStartMeters);
   }
 

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   clampDistanceMeters,
+  clampPreviousShotDistanceAdjustmentMeters,
   deriveOopResult,
   deriveShotCategory,
   formatOutcomeLabel,
+  getAdjustedMeasuredDistanceMeters,
   getScoreSummaryStyle,
   getSurfaceFromOutcome,
   summarizeCompletedHole,
@@ -19,6 +21,12 @@ describe('virtual caddy planner helpers', () => {
   it('clamps shot distances into the supported range', () => {
     expect(clampDistanceMeters(-10)).toBe(0);
     expect(clampDistanceMeters(999)).toBe(600);
+    expect(clampPreviousShotDistanceAdjustmentMeters(99)).toBe(50);
+  });
+
+  it('adjusts measured shot distances around the target reference', () => {
+    expect(getAdjustedMeasuredDistanceMeters(160, 6)).toBe(166);
+    expect(getAdjustedMeasuredDistanceMeters(160, -8)).toBe(152);
   });
 
   it('derives OOP only for non-fairway non-putting shots', () => {
