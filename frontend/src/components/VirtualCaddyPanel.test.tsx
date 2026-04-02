@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { VirtualCaddyPanel } from './VirtualCaddyPanel';
 import { emptyHoleStats } from '../lib/rounds';
+import type { HoleStats } from '../types';
 
 afterEach(() => {
   cleanup();
@@ -82,7 +83,7 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
     await user.click(screen.getByRole('button', { name: 'Save result' }));
 
-    expect(onSaveClubActual).toHaveBeenCalledWith({ club: '6i', actualMeters: 150 });
+    expect(onSaveClubActual).not.toHaveBeenCalled();
   });
 
   it('shows bunker lie options and uses them in the recommendation', async () => {
@@ -154,6 +155,44 @@ describe('VirtualCaddyPanel', () => {
     expect(onReplaceHoleStats).toHaveBeenCalled();
   });
 
+  it('saves the reconciled club distances only when the hole is complete', async () => {
+    const user = userEvent.setup();
+    const onSaveClubActual = vi.fn()
+      .mockResolvedValueOnce(101)
+      .mockResolvedValueOnce(202)
+      .mockResolvedValueOnce(303);
+
+    render(
+      <VirtualCaddyPanel
+        hole={4}
+        holeStats={emptyHoleStats()}
+        displayHolePar={4}
+        defaultDistanceMeters={420}
+        onReplaceHoleStats={vi.fn()}
+        onSaveClubActual={onSaveClubActual}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    expect(onSaveClubActual).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '160' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    expect(onSaveClubActual).not.toHaveBeenCalled();
+
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(onSaveClubActual.mock.calls).toEqual([
+      [{ club: 'Driver', actualMeters: 260 }],
+      [{ club: '5i', actualMeters: 160 }],
+    ]);
+  });
+
   it('enters the putting flow after a green hit and tracks putts', async () => {
     const user = userEvent.setup();
 
@@ -166,6 +205,110 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Save result' }));
 
     expect(screen.getByText('Putter: 2 putts')).toBeTruthy();
+  });
+
+  it('rehydrates a completed hole without replacing zero distances with the full hole length', async () => {
+    const user = userEvent.setup();
+    const savedHoleStates: HoleStats[] = [];
+
+    render(
+      <VirtualCaddyPanel
+        hole={4}
+        holeStats={emptyHoleStats()}
+        displayHolePar={4}
+        defaultDistanceMeters={260}
+        onReplaceHoleStats={vi.fn()}
+        onSaveHoleStats={async (nextHoleStats) => {
+          savedHoleStates.push(nextHoleStats);
+          return true;
+        }}
+        onHoleComplete={() => true}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '86' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    const finalSavedHoleStats = savedHoleStates[savedHoleStates.length - 1];
+    expect(finalSavedHoleStats.virtualCaddyState?.trail).toHaveLength(3);
+
+    cleanup();
+
+    render(
+      <VirtualCaddyPanel
+        hole={4}
+        holeStats={finalSavedHoleStats}
+        displayHolePar={4}
+        defaultDistanceMeters={260}
+        onReplaceHoleStats={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Putter: 2 putts')).toBeTruthy();
+    expect(screen.queryByText('50w · 0m')).toBeNull();
+    expect(screen.queryByText('260m')).toBeNull();
+  });
+
+  it('deletes the previous affected club distances when editing a completed hole', async () => {
+    const user = userEvent.setup();
+    const onSaveClubActual = vi.fn()
+      .mockResolvedValueOnce(101)
+      .mockResolvedValueOnce(202)
+      .mockResolvedValueOnce(301)
+      .mockResolvedValueOnce(302);
+    const onDeleteClubActualEntry = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <VirtualCaddyPanel
+        hole={4}
+        holeStats={emptyHoleStats()}
+        displayHolePar={4}
+        defaultDistanceMeters={420}
+        onReplaceHoleStats={vi.fn()}
+        onSaveClubActual={onSaveClubActual}
+        onDeleteClubActualEntry={onDeleteClubActualEntry}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '160' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(onSaveClubActual.mock.calls).toEqual([
+      [{ club: 'Driver', actualMeters: 260 }],
+      [{ club: '5i', actualMeters: 160 }],
+    ]);
+
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[1]);
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '150' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(onDeleteClubActualEntry.mock.calls).toEqual([[101], [202]]);
+    expect(onSaveClubActual.mock.calls).toEqual([
+      [{ club: 'Driver', actualMeters: 260 }],
+      [{ club: '5i', actualMeters: 160 }],
+      [{ club: 'Driver', actualMeters: 270 }],
+      [{ club: '5i', actualMeters: 150 }],
+    ]);
   });
 
   it('allows editing a saved shot and cancelling back to the previous snapshot', async () => {
