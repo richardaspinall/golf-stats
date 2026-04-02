@@ -233,17 +233,18 @@ describe('VirtualCaddyPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Green hit' }));
     await user.click(screen.getByRole('button', { name: 'Save result' }));
 
-    expect(screen.getByLabelText('Virtual caddy previous shot distance adjustment')).toBeTruthy();
     const previousShotCard = screen.getByText('Previous shot vs flag').closest('.prototype-block');
     expect(previousShotCard).toBeTruthy();
+    await user.click(within(previousShotCard as HTMLElement).getByRole('button', { name: 'Adjust' }));
+    expect(screen.getByLabelText('Virtual caddy previous shot distance adjustment')).toBeTruthy();
     await user.click(within(previousShotCard as HTMLElement).getByRole('button', { name: '+5m' }));
     expect(screen.getByText('Recorded previous shot')).toBeTruthy();
     expect(screen.getByText('165m')).toBeTruthy();
+    expect(screen.getByText('5i · 165m')).toBeTruthy();
 
     await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
     await user.click(screen.getByRole('button', { name: 'Save result' }));
 
-    expect(screen.getByText('5i · 165m')).toBeTruthy();
     expect(onSaveClubActual.mock.calls).toEqual([
       [{ club: 'Driver', actualMeters: 260 }],
       [{ club: '5i', actualMeters: 165 }],

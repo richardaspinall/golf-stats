@@ -87,6 +87,8 @@ export const getTrailRecordedDistanceMeters = (
   index: number,
   currentDistanceToHoleMeters: number,
   isHoleComplete: boolean,
+  currentActionType?: VirtualCaddyState['actionType'],
+  currentPreviousShotDistanceAdjustmentMeters?: number,
 ) => {
   if (shot.actionType === 'putting' && typeof shot.firstPuttDistanceMeters === 'number' && shot.firstPuttDistanceMeters > 0) {
     return shot.firstPuttDistanceMeters;
@@ -101,6 +103,13 @@ export const getTrailRecordedDistanceMeters = (
   }
 
   if (!isHoleComplete) {
+    const isCurrentPreviousShotPreview =
+      currentActionType === 'putting' &&
+      index === trail.length - 1 &&
+      (shot.outcomeSelection === 'girHit' || shot.outcomeSelection === 'chipOnGreen');
+    if (isCurrentPreviousShotPreview) {
+      return getAdjustedMeasuredDistanceMeters(shot.plannedDistanceMeters, currentPreviousShotDistanceAdjustmentMeters ?? 0);
+    }
     return getActualDistanceFromStart(shot.distanceStartMeters, currentDistanceToHoleMeters);
   }
 

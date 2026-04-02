@@ -3617,6 +3617,27 @@ button:disabled {
   gap: 10px;
 }
 
+.virtual-caddy-adjust-blurb {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.virtual-caddy-adjust-blurb-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.virtual-caddy-adjust-blurb .hint {
+  margin: 0;
+}
+
+.virtual-caddy-putting-distance-block {
+  margin-top: 12px;
+}
+
 .virtual-caddy-slider-only-row {
   display: block;
 }

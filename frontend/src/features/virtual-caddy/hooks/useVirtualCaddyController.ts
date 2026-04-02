@@ -374,7 +374,15 @@ export function useVirtualCaddyController({
     showOopOptions,
     hasCustomContext,
     getTrailRecordedDistanceMeters: (shot: PlannerShot, index: number) =>
-      getTrailRecordedDistanceMeters(state.trail, shot, index, state.distanceToHoleMeters, isHoleComplete),
+      getTrailRecordedDistanceMeters(
+        state.trail,
+        shot,
+        index,
+        state.distanceToHoleMeters,
+        isHoleComplete,
+        state.actionType,
+        state.previousShotDistanceAdjustmentMeters,
+      ),
     getTrailSummary,
     actions: {
       saveShot,

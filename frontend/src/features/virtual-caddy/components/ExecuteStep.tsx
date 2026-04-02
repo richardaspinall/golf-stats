@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { PENALTY_STROKE_OPTIONS, PUTT_COUNT_OPTIONS, PUTTING_DETAIL_OPTIONS } from '../constants';
 import { clampPreviousShotDistanceAdjustmentMeters, getAdjustedMeasuredDistanceMeters, getOutcomePositionClass } from '../domain/planner';
 import type { PlannerShot, VirtualCaddyState } from '../types';
@@ -85,6 +87,7 @@ export function ExecuteStep({
     previousShot && canAdjustPreviousShotDistance
       ? getAdjustedMeasuredDistanceMeters(previousShot.plannedDistanceMeters, previousShotDistanceAdjustmentMeters)
       : null;
+  const [showPreviousShotAdjustment, setShowPreviousShotAdjustment] = useState(false);
 
   return (
     <div className="virtual-caddy-step">
@@ -198,49 +201,69 @@ export function ExecuteStep({
             <>
               {canAdjustPreviousShotDistance && previousShot && adjustedPreviousShotDistanceMeters != null ? (
                 <div className="prototype-block">
-                  <div className="distance-header">
-                    <span className="quick-select-label">Previous shot vs flag</span>
-                    <strong>{previousShotDistanceAdjustmentMeters > 0 ? `+${previousShotDistanceAdjustmentMeters}` : previousShotDistanceAdjustmentMeters}m</strong>
-                  </div>
-                  <p className="hint">Measured to {previousShot.plannedDistanceMeters}m. Add for past pin, subtract for short.</p>
-                  <div className="virtual-caddy-slider-stack">
-                    <div className="virtual-caddy-slider-only-row">
-                      <input
-                        type="range"
-                        min={-30}
-                        max={30}
-                        step={1}
-                        value={previousShotDistanceAdjustmentMeters}
-                        aria-label="Virtual caddy previous shot distance adjustment"
-                        onChange={(event) => onPatch({ previousShotDistanceAdjustmentMeters: clampPreviousShotDistanceAdjustmentMeters(Number(event.target.value)) })}
-                      />
+                  <div className="virtual-caddy-adjust-blurb">
+                    <div className="virtual-caddy-adjust-blurb-copy">
+                      <span className="quick-select-label">Previous shot vs flag</span>
+                      <p className="hint">
+                        Recorded {adjustedPreviousShotDistanceMeters}m from a {previousShot.plannedDistanceMeters}m flag measurement.
+                      </p>
                     </div>
-                    <div className="virtual-caddy-slider-row">
-                      {[-10, -5, -2, 2, 5, 10].map((delta) => (
-                        <button
-                          key={delta}
-                          type="button"
-                          className="choice-chip"
-                          onClick={() =>
-                            onPatch({
-                              previousShotDistanceAdjustmentMeters: clampPreviousShotDistanceAdjustmentMeters(previousShotDistanceAdjustmentMeters + delta),
-                            })
-                          }
-                        >
-                          {delta > 0 ? `+${delta}m` : `${delta}m`}
-                        </button>
-                      ))}
-                    </div>
+                    <button
+                      type="button"
+                      className="setup-toggle"
+                      onClick={() => setShowPreviousShotAdjustment((value) => !value)}
+                      aria-expanded={showPreviousShotAdjustment}
+                    >
+                      {showPreviousShotAdjustment ? 'Hide adjust' : 'Adjust'}
+                    </button>
                   </div>
-                  <div className="virtual-caddy-distance-summary">
-                    <div className="virtual-caddy-distance-summary-label">
-                      <span>Recorded previous shot</span>
-                    </div>
-                    <strong>{adjustedPreviousShotDistanceMeters}m</strong>
-                  </div>
+                  {showPreviousShotAdjustment ? (
+                    <>
+                      <div className="distance-header">
+                        <span className="quick-select-label">Adjustment</span>
+                        <strong>{previousShotDistanceAdjustmentMeters > 0 ? `+${previousShotDistanceAdjustmentMeters}` : previousShotDistanceAdjustmentMeters}m</strong>
+                      </div>
+                      <p className="hint">Add for past pin, subtract for short.</p>
+                      <div className="virtual-caddy-slider-stack">
+                        <div className="virtual-caddy-slider-only-row">
+                          <input
+                            type="range"
+                            min={-30}
+                            max={30}
+                            step={1}
+                            value={previousShotDistanceAdjustmentMeters}
+                            aria-label="Virtual caddy previous shot distance adjustment"
+                            onChange={(event) => onPatch({ previousShotDistanceAdjustmentMeters: clampPreviousShotDistanceAdjustmentMeters(Number(event.target.value)) })}
+                          />
+                        </div>
+                        <div className="virtual-caddy-slider-row">
+                          {[-10, -5, -2, 2, 5, 10].map((delta) => (
+                            <button
+                              key={delta}
+                              type="button"
+                              className="choice-chip"
+                              onClick={() =>
+                                onPatch({
+                                  previousShotDistanceAdjustmentMeters: clampPreviousShotDistanceAdjustmentMeters(previousShotDistanceAdjustmentMeters + delta),
+                                })
+                              }
+                            >
+                              {delta > 0 ? `+${delta}m` : `${delta}m`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="virtual-caddy-distance-summary">
+                        <div className="virtual-caddy-distance-summary-label">
+                          <span>Recorded previous shot</span>
+                        </div>
+                        <strong>{adjustedPreviousShotDistanceMeters}m</strong>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
-              <div className="prototype-block">
+              <div className="prototype-block virtual-caddy-putting-distance-block">
                 <div className="distance-header">
                   <span className="quick-select-label">1st putt distance</span>
                   <strong>{state.firstPuttDistanceMeters ?? 10}m</strong>
