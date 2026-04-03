@@ -119,6 +119,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 onCancelEdit={actions.cancelEdit}
                 onBack={!isPutting ? () => actions.setFlowStep('setup') : null}
                 onSave={() => void actions.saveShot()}
+                onOpenWedgeMatrix={props.onOpenWedgeMatrix}
                 onPatch={actions.updateState}
                 onSelectClub={(club) => actions.updateState({ selectedClub: club, showClubOverride: false, showAllOverrideClubs: false })}
                 onToggleOutcomeMode={() =>

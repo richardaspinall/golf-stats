@@ -115,6 +115,7 @@ export function useVirtualCaddyRecommendation({
       effectiveDistanceMeters: baseRecommendation?.details.effectiveDistanceMeters ?? 0,
       reasons: baseRecommendation?.reasons ?? [],
       source: baseRecommendation?.source ?? 'carryBook',
+      wedgeMatrixId: baseRecommendation?.wedgeMatrixId ?? null,
       swingClock: baseRecommendation?.wedgeMatrixRecommendation?.swingClock ?? null,
       wedgeMatrixName: baseRecommendation?.wedgeMatrixName ?? null,
       wedgeMatrixSetup: baseRecommendation?.wedgeMatrixSetup ?? null,
