@@ -21,6 +21,15 @@ export type LatLng = {
   lng: number;
 };
 
+export type HolePrepPlan = {
+  strategy: string;
+  danger: string;
+  aim: string;
+  plannedTeeClub: string;
+  plannedLayupClub: string;
+  commitmentCue: string;
+};
+
 export type HoleStats = {
   score: number;
   holeIndex: number;
@@ -29,6 +38,7 @@ export type HoleStats = {
   bunkerSelection: BunkerSelection | null;
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
+  prepPlan: HolePrepPlan;
   virtualCaddyState?: Record<string, unknown> | null;
 } & Record<CounterOption, number>;
 

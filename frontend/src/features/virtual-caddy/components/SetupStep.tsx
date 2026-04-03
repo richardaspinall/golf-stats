@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import {
   BUNKER_LIE_OPTIONS,
   HAZARD_OPTIONS,
@@ -21,6 +23,7 @@ type SetupStepProps = {
   shotDistanceBannerValue: string | null;
   canResetShotDistanceBanner: boolean;
   distanceSliderMax: number;
+  headerActions?: ReactNode;
   onCancelEdit: () => void;
   onBack: (() => void) | null;
   onNext: () => void;
@@ -47,6 +50,7 @@ export function SetupStep({
   shotDistanceBannerValue,
   canResetShotDistanceBanner,
   distanceSliderMax,
+  headerActions,
   onCancelEdit,
   onBack,
   onNext,
@@ -68,11 +72,14 @@ export function SetupStep({
             <h5>{displayShotLabel}</h5>
           </div>
         </div>
-        {editingIndex != null ? (
-          <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
-            ×
-          </button>
-        ) : null}
+        <div className="virtual-caddy-step-header-actions">
+          {headerActions}
+          {editingIndex != null ? (
+            <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
+              ×
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="prototype-block virtual-caddy-distance-block">
         {!isPutting ? (

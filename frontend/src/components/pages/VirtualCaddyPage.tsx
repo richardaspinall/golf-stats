@@ -66,7 +66,10 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
   } = actions;
   const { isFocusMode } = round;
   const handleReplaceHoleStats = useCallback((nextHoleStats: HoleStats) => replaceHoleStats(selectedHole, nextHoleStats), [replaceHoleStats, selectedHole]);
-  const handleSaveHoleStats = useCallback((nextHoleStats: HoleStats) => saveHoleStats(selectedHole, nextHoleStats), [saveHoleStats, selectedHole]);
+  const handleSaveHoleStats = useCallback(
+    (nextHoleStats: HoleStats, options?: { persistToServer?: boolean }) => saveHoleStats(selectedHole, nextHoleStats, options),
+    [saveHoleStats, selectedHole],
+  );
   const handleHoleComplete = useCallback(async (nextHoleStats: HoleStats, options?: { persistToServer?: boolean; advanceHole?: boolean }) => {
     if (options?.persistToServer !== false) {
       const didSave = await saveHoleStats(selectedHole, nextHoleStats, { persistToServer: true });
@@ -115,13 +118,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
         onSelect={handleSelectHole}
       />
 
-      <section className={isFocusMode ? 'card virtual-caddy-page virtual-caddy-page-focus' : 'card virtual-caddy-page'} aria-label="virtual caddy">
-        <div className="virtual-caddy-page-header">
-          <button type="button" className={isFocusMode ? 'save-btn virtual-caddy-focus-btn' : 'setup-toggle virtual-caddy-focus-btn'} onClick={onToggleFocusMode}>
-            {isFocusMode ? 'Exit focus' : 'Focus'}
-          </button>
-        </div>
-
+      <section className={isFocusMode ? 'virtual-caddy-page virtual-caddy-page-focus' : 'virtual-caddy-page'} aria-label="virtual caddy">
         <VirtualCaddyPanel
           roundId={activeRound?.id ?? null}
           hole={selectedHole}
@@ -140,6 +137,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
           onDeleteClubActualEntry={deleteClubActualEntry}
           onHoleComplete={handleHoleComplete}
           onOpenWedgeMatrix={onOpenWedgeMatrix}
+          onToggleFocusMode={onToggleFocusMode}
         />
       </section>
     </>

@@ -2,6 +2,7 @@ import type { HoleStats } from '../../../types';
 import type { WedgeMatrixSource } from '../../../lib/wedgeMatrix';
 import { getVirtualCaddyRecommendation } from '../../../lib/virtualCaddy';
 import { applyVirtualCaddyTrailToHole } from '../../../lib/virtualCaddyExecution';
+import { sanitizeHolePrepPlan } from '../../../lib/holePrep';
 import { sanitizePersistedState, stripVirtualCaddyState } from '../domain/planner';
 import type {
   PersistedPlannerDraft,
@@ -109,19 +110,27 @@ export const buildNextHoleStats = (
   nextTrail: PlannerShot[],
   nextDraft: PersistedPlannerDraft,
   options: { clearManualTrackScore?: boolean } = {},
-): HoleStats => ({
-  ...applyVirtualCaddyTrailToHole(nextBaseHoleStats, nextTrail),
-  manualScoreEnteredOnTrack: options.clearManualTrackScore ? false : Boolean(holeStats.manualScoreEnteredOnTrack),
-  virtualCaddyState: {
-    version: 1,
-    baseHoleStats: stripVirtualCaddyState(nextBaseHoleStats),
-    trail: nextTrail,
-    draft: nextDraft,
-    clubActualEntryIds: nextTrail
-      .map((shot) => shot.clubActualEntryId)
-      .filter((entryId): entryId is number => typeof entryId === 'number' && entryId > 0),
-  },
-});
+): HoleStats => {
+  const prepPlan = sanitizeHolePrepPlan(holeStats.prepPlan ?? nextBaseHoleStats.prepPlan);
+
+  return {
+    ...applyVirtualCaddyTrailToHole(nextBaseHoleStats, nextTrail),
+    prepPlan,
+    manualScoreEnteredOnTrack: options.clearManualTrackScore ? false : Boolean(holeStats.manualScoreEnteredOnTrack),
+    virtualCaddyState: {
+      version: 1,
+      baseHoleStats: {
+        ...stripVirtualCaddyState(nextBaseHoleStats),
+        prepPlan,
+      },
+      trail: nextTrail,
+      draft: nextDraft,
+      clubActualEntryIds: nextTrail
+        .map((shot) => shot.clubActualEntryId)
+        .filter((entryId): entryId is number => typeof entryId === 'number' && entryId > 0),
+    },
+  };
+};
 
 export const buildHydratedState = (
   holeStats: HoleStats,
@@ -143,7 +152,14 @@ export const buildHydratedState = (
   const hydratedDistanceToHoleMeters = readNumber(persistedDraft.distanceToHoleMeters) ?? fallbackDistanceMeters;
   const hydratedDistanceToMiddleMeters = readNumber(persistedDraft.distanceToMiddleMeters) ?? fallbackDistanceMeters;
 
-  const baseState = createInitialState(stripVirtualCaddyState(persistedBaseHoleStats), fallbackDistanceMeters, 'tee');
+  const baseState = createInitialState(
+    {
+      ...stripVirtualCaddyState(persistedBaseHoleStats),
+      prepPlan: sanitizeHolePrepPlan(holeStats.prepPlan ?? persistedBaseHoleStats.prepPlan),
+    },
+    fallbackDistanceMeters,
+    'tee',
+  );
   return {
     ...baseState,
     trail: persistedTrail,

@@ -18,7 +18,7 @@ export type VirtualCaddyPanelProps = {
   wedgeEntriesByMatrix?: Record<number, WedgeEntry[]>;
   isFocusMode?: boolean;
   onReplaceHoleStats: (nextHoleStats: HoleStats) => void;
-  onSaveHoleStats?: (nextHoleStats: HoleStats) => Promise<boolean>;
+  onSaveHoleStats?: (nextHoleStats: HoleStats, options?: { persistToServer?: boolean }) => Promise<boolean>;
   onSaveClubActual?: (shot: { club: string; actualMeters: number }) => Promise<number | null>;
   onSyncClubActuals?: (payload: {
     roundId: string;
@@ -27,6 +27,7 @@ export type VirtualCaddyPanelProps = {
   }) => Promise<Array<{ shotId: number; entryId: number }>>;
   onDeleteClubActualEntry?: (entryId: number) => Promise<void>;
   onOpenWedgeMatrix?: (matrixId: number | null) => void;
+  onToggleFocusMode?: () => void;
   onHoleComplete?: (
     nextHoleStats: HoleStats,
     options?: { persistToServer?: boolean; advanceHole?: boolean },

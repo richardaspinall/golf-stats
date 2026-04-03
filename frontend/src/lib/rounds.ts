@@ -8,6 +8,7 @@ import {
   VALID_FAIRWAY_KEYS,
   VALID_GIR_KEYS,
 } from './constants';
+import { emptyHolePrepPlan, sanitizeHolePrepPlan } from './holePrep';
 import { sanitizeLatLng } from './geometry';
 import type { CarryByClub, CourseMarkers, HoleStats, RoundSummaryTotals, StatsByHole, WedgeEntry, WedgeMatrix } from '../types';
 
@@ -37,6 +38,7 @@ export const emptyHoleStats = (): HoleStats =>
       girSelection: null,
       teePosition: null,
       greenPosition: null,
+      prepPlan: emptyHolePrepPlan(),
       manualScoreEnteredOnTrack: false,
       virtualCaddyState: null,
     } as HoleStats,
@@ -159,6 +161,7 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
 
     safe[hole].teePosition = sanitizeLatLng(rawStats.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(rawStats.greenPosition);
+    safe[hole].prepPlan = sanitizeHolePrepPlan(rawStats.prepPlan);
     safe[hole].manualScoreEnteredOnTrack = Boolean(rawStats.manualScoreEnteredOnTrack);
     safe[hole].virtualCaddyState =
       rawStats.virtualCaddyState && typeof rawStats.virtualCaddyState === 'object' ? (rawStats.virtualCaddyState as HoleStats['virtualCaddyState']) : null;

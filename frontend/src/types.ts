@@ -22,6 +22,15 @@ export interface PersistedVirtualCaddyState {
   clubActualEntryIds?: number[];
 }
 
+export interface HolePrepPlan {
+  strategy: string;
+  danger: string;
+  aim: string;
+  plannedTeeClub: string;
+  plannedLayupClub: string;
+  commitmentCue: string;
+}
+
 export interface HoleStats {
   score: number;
   holeIndex: number;
@@ -29,6 +38,7 @@ export interface HoleStats {
   girSelection: string | null;
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
+  prepPlan: HolePrepPlan;
   manualScoreEnteredOnTrack?: boolean;
   virtualCaddyState?: PersistedVirtualCaddyState | null;
   [key: string]: unknown;

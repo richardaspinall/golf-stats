@@ -1,4 +1,7 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+
 import { OverviewStep } from './components/OverviewStep';
+import { PrepStep } from './components/PrepStep';
 import { SetupStep } from './components/SetupStep';
 import { ExecuteStep } from './components/ExecuteStep';
 import { CompletionCard } from './components/CompletionCard';
@@ -7,9 +10,16 @@ import { useVirtualCaddyController } from './hooks/useVirtualCaddyController';
 import { buildNextHoleStats, buildPersistedDraftFromState } from './adapters/persistence';
 import { getCompletionViewModel, getOverviewViewModel, getShotBannerViewModel } from './state/viewModel';
 import type { VirtualCaddyPanelProps } from './types';
+import { hasHolePlayStarted, sanitizeHolePrepPlan } from '../../lib/holePrep';
+import type { HolePrepPlan } from '../../types';
 
 export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
-  const { hole, displayHoleIndex = null, displayHolePar, defaultDistanceMeters } = props;
+  const { hole, displayHoleIndex = null, displayHolePar, defaultDistanceMeters, isFocusMode = false } = props;
+  const [activeTab, setActiveTab] = useState<'play' | 'prep'>('play');
+  const [prepDraft, setPrepDraft] = useState<HolePrepPlan>(() => sanitizeHolePrepPlan(props.holeStats.prepPlan));
+  const [savedPrepPlan, setSavedPrepPlan] = useState<HolePrepPlan>(() => sanitizeHolePrepPlan(props.holeStats.prepPlan));
+  const [prepSaveState, setPrepSaveState] = useState('saved');
+  const lastLoadedHoleRef = useRef(hole);
   const {
     state,
     recommendation,
@@ -41,11 +51,91 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
   const { overviewTitle, overviewDistanceSummary } = getOverviewViewModel(state, defaultDistanceMeters);
   const { shotDistanceBannerLabel, shotDistanceBannerValue, canResetShotDistanceBanner, distanceSliderMax } = getShotBannerViewModel(state);
   const { completionTitle, completionDetail } = getCompletionViewModel(state, finalShot);
+  const prepLocked = hasHolePlayStarted(props.holeStats);
+  const persistedPrepPlan = useMemo(() => sanitizeHolePrepPlan(props.holeStats.prepPlan), [props.holeStats.prepPlan]);
+  const persistedPrepPlanKey = JSON.stringify(persistedPrepPlan);
+  const prepDraftKey = JSON.stringify(prepDraft);
+  const savedPrepPlanKey = JSON.stringify(savedPrepPlan);
+  const prepIsDirty = prepDraftKey !== savedPrepPlanKey;
+
+  useEffect(() => {
+    setActiveTab('play');
+  }, [hole]);
+
+  useEffect(() => {
+    if (lastLoadedHoleRef.current === hole) {
+      return;
+    }
+    lastLoadedHoleRef.current = hole;
+    setPrepDraft(persistedPrepPlan);
+    setSavedPrepPlan(persistedPrepPlan);
+    setPrepSaveState('saved');
+  }, [hole, persistedPrepPlanKey]);
+
+  const patchPrepPlan = (patch: Partial<HolePrepPlan>) => {
+    const nextPrepPlan = { ...prepDraft, ...patch };
+    const nextHoleStats = {
+      ...props.holeStats,
+      prepPlan: sanitizeHolePrepPlan(nextPrepPlan),
+    };
+
+    setPrepDraft(nextPrepPlan);
+    setPrepSaveState('unsaved');
+    props.onReplaceHoleStats(nextHoleStats);
+  };
+
+  const savePrepPlan = async () => {
+    const nextHoleStats = {
+      ...props.holeStats,
+      prepPlan: sanitizeHolePrepPlan(prepDraft),
+    };
+
+    setPrepSaveState('saving');
+    const didSave = props.onSaveHoleStats ? await props.onSaveHoleStats(nextHoleStats, { persistToServer: true }) : true;
+    if (didSave) {
+      setSavedPrepPlan(nextHoleStats.prepPlan);
+    }
+    setPrepSaveState(didSave ? 'saved' : 'error');
+  };
+
+  const headerActions = (
+    <div className="virtual-caddy-tab-row" role="tablist" aria-label="Virtual caddy hole tabs">
+      {!isFocusMode ? (
+        <>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'play'}
+            className={activeTab === 'play' ? 'tab-btn active' : 'tab-btn'}
+            onClick={() => setActiveTab('play')}
+          >
+            Play
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'prep'}
+            className={activeTab === 'prep' ? 'tab-btn active' : 'tab-btn'}
+            onClick={() => setActiveTab('prep')}
+          >
+            Prep
+          </button>
+        </>
+      ) : null}
+      {props.onToggleFocusMode ? (
+        <button type="button" className={isFocusMode ? 'tab-btn active virtual-caddy-focus-btn' : 'tab-btn virtual-caddy-focus-btn'} onClick={props.onToggleFocusMode}>
+          {isFocusMode ? 'Exit focus' : 'Focus'}
+        </button>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className="track-distance-section virtual-caddy-section">
       <div className="virtual-caddy-panel active-panel">
-        {!isHoleComplete ? (
+        {activeTab === 'prep' ? (
+          <PrepStep prepPlan={prepDraft} isLocked={prepLocked} saveState={prepSaveState} isDirty={prepIsDirty} headerActions={headerActions} onPatch={patchPrepPlan} onSave={() => void savePrepPlan()} />
+        ) : !isHoleComplete ? (
           <>
             {isFirstShot && state.flowStep === 'overview' ? (
               <OverviewStep
@@ -59,6 +149,8 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 displayHolePar={displayHolePar}
                 defaultDistanceMeters={defaultDistanceMeters}
                 distanceToHoleMeters={state.distanceToHoleMeters}
+                prepPlan={persistedPrepPlan}
+                headerActions={headerActions}
                 onCancelEdit={actions.cancelEdit}
                 onNext={() => actions.setFlowStep('setup')}
               />
@@ -76,6 +168,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 shotDistanceBannerValue={shotDistanceBannerValue}
                 canResetShotDistanceBanner={canResetShotDistanceBanner}
                 distanceSliderMax={distanceSliderMax}
+                headerActions={headerActions}
                 onCancelEdit={actions.cancelEdit}
                 onBack={isFirstShot ? () => actions.setFlowStep('overview') : null}
                 onNext={() => actions.setFlowStep('action')}
@@ -116,6 +209,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 canSaveShot={canSaveShot}
                 shotDistanceBannerLabel={shotDistanceBannerLabel}
                 shotDistanceBannerValue={shotDistanceBannerValue}
+                headerActions={headerActions}
                 onCancelEdit={actions.cancelEdit}
                 onBack={!isPutting ? () => actions.setFlowStep('setup') : null}
                 onSave={() => void actions.saveShot()}

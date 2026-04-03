@@ -1,3 +1,8 @@
+import type { ReactNode } from 'react';
+
+import { hasHolePrepPlanContent } from '../../../lib/holePrep';
+import type { HolePrepPlan } from '../../../types';
+
 type OverviewStepProps = {
   isFirstShot: boolean;
   shotNumber: number;
@@ -9,6 +14,8 @@ type OverviewStepProps = {
   displayHolePar: number | null;
   defaultDistanceMeters: number | null;
   distanceToHoleMeters: number;
+  prepPlan: HolePrepPlan;
+  headerActions?: ReactNode;
   onCancelEdit: () => void;
   onNext: () => void;
 };
@@ -24,9 +31,13 @@ export function OverviewStep({
   displayHolePar,
   defaultDistanceMeters,
   distanceToHoleMeters,
+  prepPlan,
+  headerActions,
   onCancelEdit,
   onNext,
 }: OverviewStepProps) {
+  const hasPrepPlan = hasHolePrepPlanContent(prepPlan);
+
   return (
     <div className="virtual-caddy-step">
       <div className="virtual-caddy-step-header">
@@ -37,11 +48,14 @@ export function OverviewStep({
             {!isFirstShot && overviewDistanceSummary ? <p>{overviewDistanceSummary}</p> : null}
           </div>
         </div>
-        {editingIndex != null ? (
-          <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
-            ×
-          </button>
-        ) : null}
+        <div className="virtual-caddy-step-header-actions">
+          {headerActions}
+          {editingIndex != null ? (
+            <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
+              ×
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="prototype-block virtual-caddy-distance-block">
         <div className={isFirstShot ? 'virtual-caddy-overview-card virtual-caddy-overview-card-hole' : 'virtual-caddy-overview-card'}>
@@ -96,6 +110,45 @@ export function OverviewStep({
           )}
         </div>
       </div>
+      {isFirstShot && hasPrepPlan ? (
+        <div className="prototype-block virtual-caddy-prep-summary-block">
+          <div className="virtual-caddy-overview-card">
+            <div className="virtual-caddy-overview-hero">
+              <span className="virtual-caddy-overview-kicker">Hole plan</span>
+            </div>
+            <div className="virtual-caddy-prep-summary">
+              <p>
+                <strong>Strategy:</strong> {prepPlan.strategy}
+              </p>
+              {prepPlan.danger ? (
+                <p>
+                  <strong>Danger:</strong> {prepPlan.danger}
+                </p>
+              ) : null}
+              {prepPlan.aim ? (
+                <p>
+                  <strong>Aim:</strong> {prepPlan.aim}
+                </p>
+              ) : null}
+              {prepPlan.plannedTeeClub ? (
+                <p>
+                  <strong>Tee club:</strong> {prepPlan.plannedTeeClub}
+                </p>
+              ) : null}
+              {prepPlan.plannedLayupClub ? (
+                <p>
+                  <strong>Layup club:</strong> {prepPlan.plannedLayupClub}
+                </p>
+              ) : null}
+              {prepPlan.commitmentCue ? (
+                <p>
+                  <strong>Commitment cue:</strong> {prepPlan.commitmentCue}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="virtual-caddy-card-footer">
         <button type="button" className="save-btn virtual-caddy-save-btn" onClick={onNext}>
           Next
