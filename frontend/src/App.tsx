@@ -757,6 +757,16 @@ export default function App() {
     return true;
   };
 
+  const openWedgeMatrixFromVirtualCaddy = (matrixId) => {
+    setPage('wedgeMatrix');
+    setWedgeMatrixMode('view');
+    setIsWedgeMatrixFormOpen(false);
+    setIsWedgeFormOpen(false);
+    setEditingWedgeEntryId(null);
+    setRecentEntriesMatrixId(null);
+    setActiveWedgeMatrixId(matrixId);
+  };
+
   const toggleSetupSelection = (setupKey) => {
     setSetupSelection((prev) => (prev === setupKey ? '' : setupKey));
   };
@@ -1775,6 +1785,7 @@ export default function App() {
                 syncVirtualCaddyClubActuals,
                 deleteClubActualEntry: deleteVirtualCaddyClubActualEntry,
                 onToggleFocusMode: () => setIsVirtualCaddyFocusMode((prev) => !prev),
+                onOpenWedgeMatrix: openWedgeMatrixFromVirtualCaddy,
               }}
             />
           ) : page === 'courses' ? (

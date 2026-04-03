@@ -33,6 +33,7 @@ type VirtualCaddyPageProps = {
     }) => Promise<Array<{ shotId: number; entryId: number }>>;
     deleteClubActualEntry: (entryId: number) => Promise<void>;
     onToggleFocusMode: () => void;
+    onOpenWedgeMatrix?: (matrixId: number | null) => void;
   };
   isFocusMode: boolean;
 };
@@ -61,6 +62,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
     syncVirtualCaddyClubActuals,
     deleteClubActualEntry,
     onToggleFocusMode,
+    onOpenWedgeMatrix,
   } = actions;
   const { isFocusMode } = round;
   const handleReplaceHoleStats = useCallback((nextHoleStats: HoleStats) => replaceHoleStats(selectedHole, nextHoleStats), [replaceHoleStats, selectedHole]);
@@ -137,6 +139,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
           onSyncClubActuals={syncVirtualCaddyClubActuals}
           onDeleteClubActualEntry={deleteClubActualEntry}
           onHoleComplete={handleHoleComplete}
+          onOpenWedgeMatrix={onOpenWedgeMatrix}
         />
       </section>
     </>

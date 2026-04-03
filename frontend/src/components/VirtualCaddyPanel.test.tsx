@@ -103,6 +103,7 @@ describe('VirtualCaddyPanel', () => {
 
   it('uses wedge matrix recommendations inside 100m', async () => {
     const user = userEvent.setup();
+    const onOpenWedgeMatrix = vi.fn();
 
     render(
       <VirtualCaddyPanel
@@ -130,6 +131,7 @@ describe('VirtualCaddyPanel', () => {
           ],
         }}
         onReplaceHoleStats={vi.fn()}
+        onOpenWedgeMatrix={onOpenWedgeMatrix}
       />,
     );
 
@@ -138,6 +140,9 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('(83m carry)')).toBeTruthy();
     expect(screen.getByText('Swing: 9:00')).toBeTruthy();
     expect(screen.getByText('Stock wedges')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Open matrix' }));
+
+    expect(onOpenWedgeMatrix).toHaveBeenCalledWith(1);
   });
 
   it('adds the saved shot to the trail and seeds the next shot setup', async () => {

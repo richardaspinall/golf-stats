@@ -17,6 +17,7 @@ type ExecuteStepProps = {
     effectiveDistanceMeters: number;
     reasons: string[];
     source: string;
+    wedgeMatrixId: number | null;
     swingClock: string | null;
     wedgeMatrixName: string | null;
     wedgeMatrixSetup: string | null;
@@ -35,6 +36,7 @@ type ExecuteStepProps = {
   onCancelEdit: () => void;
   onBack: (() => void) | null;
   onSave: () => void;
+  onOpenWedgeMatrix?: (matrixId: number | null) => void;
   onPatch: (patch: Partial<VirtualCaddyState>) => void;
   onSelectClub: (club: string | null) => void;
   onToggleOutcomeMode: () => void;
@@ -66,6 +68,7 @@ export function ExecuteStep({
   onCancelEdit,
   onBack,
   onSave,
+  onOpenWedgeMatrix,
   onPatch,
   onSelectClub,
   onToggleOutcomeMode,
@@ -161,6 +164,15 @@ export function ExecuteStep({
                       </svg>
                     </span>
                   </strong>
+                  {onOpenWedgeMatrix ? (
+                    <button
+                      type="button"
+                      className="virtual-caddy-inline-toggle-btn"
+                      onClick={() => onOpenWedgeMatrix(recommendation.wedgeMatrixId)}
+                    >
+                      Open matrix
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}

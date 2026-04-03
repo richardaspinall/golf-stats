@@ -26,6 +26,7 @@ export type VirtualCaddyPanelProps = {
     shots: Array<{ shotId: number; club: string; actualMeters: number }>;
   }) => Promise<Array<{ shotId: number; entryId: number }>>;
   onDeleteClubActualEntry?: (entryId: number) => Promise<void>;
+  onOpenWedgeMatrix?: (matrixId: number | null) => void;
   onHoleComplete?: (
     nextHoleStats: HoleStats,
     options?: { persistToServer?: boolean; advanceHole?: boolean },
