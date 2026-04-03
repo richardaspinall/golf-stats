@@ -66,7 +66,10 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
   } = actions;
   const { isFocusMode } = round;
   const handleReplaceHoleStats = useCallback((nextHoleStats: HoleStats) => replaceHoleStats(selectedHole, nextHoleStats), [replaceHoleStats, selectedHole]);
-  const handleSaveHoleStats = useCallback((nextHoleStats: HoleStats) => saveHoleStats(selectedHole, nextHoleStats), [saveHoleStats, selectedHole]);
+  const handleSaveHoleStats = useCallback(
+    (nextHoleStats: HoleStats, options?: { persistToServer?: boolean }) => saveHoleStats(selectedHole, nextHoleStats, options),
+    [saveHoleStats, selectedHole],
+  );
   const handleHoleComplete = useCallback(async (nextHoleStats: HoleStats, options?: { persistToServer?: boolean; advanceHole?: boolean }) => {
     if (options?.persistToServer !== false) {
       const didSave = await saveHoleStats(selectedHole, nextHoleStats, { persistToServer: true });

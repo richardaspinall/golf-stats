@@ -1,4 +1,5 @@
 import { COUNTER_OPTIONS, HOLES } from '../constants.js';
+import { emptyHolePrepPlan } from './prep.js';
 import type { CourseMarkersByHole, StatsByHole } from './types.js';
 
 export const emptyHoleStats = (): StatsByHole[number] =>
@@ -15,6 +16,7 @@ export const emptyHoleStats = (): StatsByHole[number] =>
       bunkerSelection: null,
       teePosition: null,
       greenPosition: null,
+      prepPlan: emptyHolePrepPlan(),
       virtualCaddyState: null,
     } as StatsByHole[number],
   );

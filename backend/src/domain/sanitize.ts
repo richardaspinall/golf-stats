@@ -2,6 +2,7 @@ import { COUNTER_OPTIONS, HOLES, normalizeClubLabel } from '../constants.js';
 import type { ClubCarryByClub, CourseMarkersByHole, LatLng, StatsByHole } from './types.js';
 import { buildInitialByHole, buildInitialCourseMarkers } from './initial.js';
 import { isBunkerSelection, isClubOption, isFairwaySelection, isGirSelection, isWedgeOption } from './guards.js';
+import { sanitizeHolePrepPlan } from './prep.js';
 
 export const sanitizeLatLng = (value: unknown): LatLng | null => {
   if (!value || typeof value !== 'object') {
@@ -48,6 +49,7 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
     safe[hole].bunkerSelection = isBunkerSelection(holeRaw.bunkerSelection) ? holeRaw.bunkerSelection : null;
     safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
+    safe[hole].prepPlan = sanitizeHolePrepPlan(holeRaw.prepPlan);
     safe[hole].virtualCaddyState =
       holeRaw.virtualCaddyState && typeof holeRaw.virtualCaddyState === 'object'
         ? (holeRaw.virtualCaddyState as Record<string, unknown>)
