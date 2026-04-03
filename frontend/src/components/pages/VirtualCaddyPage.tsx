@@ -118,13 +118,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
         onSelect={handleSelectHole}
       />
 
-      <section className={isFocusMode ? 'card virtual-caddy-page virtual-caddy-page-focus' : 'card virtual-caddy-page'} aria-label="virtual caddy">
-        <div className="virtual-caddy-page-header">
-          <button type="button" className={isFocusMode ? 'save-btn virtual-caddy-focus-btn' : 'setup-toggle virtual-caddy-focus-btn'} onClick={onToggleFocusMode}>
-            {isFocusMode ? 'Exit focus' : 'Focus'}
-          </button>
-        </div>
-
+      <section className={isFocusMode ? 'virtual-caddy-page virtual-caddy-page-focus' : 'virtual-caddy-page'} aria-label="virtual caddy">
         <VirtualCaddyPanel
           roundId={activeRound?.id ?? null}
           hole={selectedHole}
@@ -143,6 +137,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
           onDeleteClubActualEntry={deleteClubActualEntry}
           onHoleComplete={handleHoleComplete}
           onOpenWedgeMatrix={onOpenWedgeMatrix}
+          onToggleFocusMode={onToggleFocusMode}
         />
       </section>
     </>

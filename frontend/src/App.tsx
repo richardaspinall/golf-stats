@@ -172,6 +172,7 @@ export default function App() {
   const [clubCarrySaveState, setClubCarrySaveState] = useState('saved');
   const [isWedgeFormOpen, setIsWedgeFormOpen] = useState(false);
   const [activeWedgeMatrixId, setActiveWedgeMatrixId] = useState(null);
+  const [showWedgeMatrixBackToVirtualCaddy, setShowWedgeMatrixBackToVirtualCaddy] = useState(false);
   const [wedgeMatrixMode, setWedgeMatrixMode] = useState('view');
   const [isWedgeMatrixFormOpen, setIsWedgeMatrixFormOpen] = useState(false);
   const [editingWedgeMatrixId, setEditingWedgeMatrixId] = useState(null);
@@ -758,6 +759,7 @@ export default function App() {
   };
 
   const openWedgeMatrixFromVirtualCaddy = (matrixId) => {
+    setShowWedgeMatrixBackToVirtualCaddy(true);
     setPage('wedgeMatrix');
     setWedgeMatrixMode('view');
     setIsWedgeMatrixFormOpen(false);
@@ -765,6 +767,11 @@ export default function App() {
     setEditingWedgeEntryId(null);
     setRecentEntriesMatrixId(null);
     setActiveWedgeMatrixId(matrixId);
+  };
+
+  const closeWedgeMatrixBackToVirtualCaddy = () => {
+    setShowWedgeMatrixBackToVirtualCaddy(false);
+    setPage('virtualCaddy');
   };
 
   const toggleSetupSelection = (setupKey) => {
@@ -1687,7 +1694,15 @@ export default function App() {
           {!isVirtualCaddyShellHidden ? (
             <PageTabs
               activePage={page}
-              onChange={setPage}
+              onChange={(nextPage) => {
+                if (nextPage !== 'wedgeMatrix') {
+                  setShowWedgeMatrixBackToVirtualCaddy(false);
+                }
+                if (nextPage === 'wedgeMatrix' && page !== 'virtualCaddy') {
+                  setShowWedgeMatrixBackToVirtualCaddy(false);
+                }
+                setPage(nextPage);
+              }}
               tabs={[
                 { key: 'track', label: 'Track', icon: <DistanceTabIcon /> },
                 { key: 'virtualCaddy', label: 'Virtual caddy', icon: <VirtualCaddyTabIcon /> },
@@ -1897,6 +1912,7 @@ export default function App() {
                 isLoadingWedgeEntries,
                 wedgeEntriesError,
                 wedgeEntrySaveState,
+                showBackToVirtualCaddy: showWedgeMatrixBackToVirtualCaddy,
               }}
               actions={{
                 setWedgeMatrixMode,
@@ -1929,6 +1945,7 @@ export default function App() {
                 cancelWedgeEdit,
                 startWedgeEdit,
                 deleteWedgeEntry,
+                onBackToVirtualCaddy: closeWedgeMatrixBackToVirtualCaddy,
               }}
               helpers={{ buildWedgeMatrixRows, sortClubsByDefaultOrder, metersToPaces, pacesToMeters }}
             />

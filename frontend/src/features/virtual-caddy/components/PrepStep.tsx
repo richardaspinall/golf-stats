@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
 
 import { SavePill } from '../../../components/SavePill';
 import { HOLE_PREP_LIMITS } from '../../../lib/holePrep';
@@ -9,6 +9,7 @@ type PrepStepProps = {
   isLocked: boolean;
   saveState: string;
   isDirty: boolean;
+  headerActions?: ReactNode;
   onPatch: (patch: Partial<HolePrepPlan>) => void;
   onSave: () => void;
 };
@@ -47,7 +48,7 @@ function PrepField({ label, value, maxLength, disabled, placeholder, onChange, m
   );
 }
 
-export function PrepStep({ prepPlan, isLocked, saveState, isDirty, onPatch, onSave }: PrepStepProps) {
+export function PrepStep({ prepPlan, isLocked, saveState, isDirty, headerActions, onPatch, onSave }: PrepStepProps) {
   return (
     <div className="virtual-caddy-step">
       <div className="virtual-caddy-step-header">
@@ -57,6 +58,7 @@ export function PrepStep({ prepPlan, isLocked, saveState, isDirty, onPatch, onSa
             <p>{isLocked ? 'Prep is locked after play starts on this hole.' : 'Save the plan you want to see before playing this hole.'}</p>
           </div>
         </div>
+        <div className="virtual-caddy-step-header-actions">{headerActions}</div>
       </div>
       <div className="prototype-block virtual-caddy-prep-block">
         <div className="virtual-caddy-prep-intro">

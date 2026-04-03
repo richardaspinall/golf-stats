@@ -34,6 +34,7 @@ type WedgeMatrixPageProps = {
     isLoadingWedgeEntries: boolean;
     wedgeEntriesError: string;
     wedgeEntrySaveState: string;
+    showBackToVirtualCaddy: boolean;
   };
   actions: {
     setWedgeMatrixMode: (value: string) => void;
@@ -66,6 +67,7 @@ type WedgeMatrixPageProps = {
     cancelWedgeEdit: () => void;
     startWedgeEdit: (entry: WedgeEntry) => void;
     deleteWedgeEntry: (entryId: number, matrixId: number) => void;
+    onBackToVirtualCaddy?: () => void;
   };
   helpers: {
     buildWedgeMatrixRows: (entries: WedgeEntry[], clubs: string[], swingClocks: string[]) => WedgeMatrixRow[];
@@ -697,6 +699,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
     isLoadingWedgeEntries,
     wedgeEntriesError,
     wedgeEntrySaveState,
+    showBackToVirtualCaddy,
   } = state;
   const {
     setWedgeMatrixMode,
@@ -728,6 +731,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
     cancelWedgeEdit,
     startWedgeEdit,
     deleteWedgeEntry,
+    onBackToVirtualCaddy,
   } = actions;
   const { buildWedgeMatrixRows, sortClubsByDefaultOrder, metersToPaces, pacesToMeters } = helpers;
   const closeWedgeSetup = () => {
@@ -757,6 +761,11 @@ export function WedgeMatrixPage({ state, actions, helpers }: WedgeMatrixPageProp
     <section className="card" aria-label="wedge matrix">
       <div className="card-header close-header">
         <h2>Wedge matrix</h2>
+        {showBackToVirtualCaddy && onBackToVirtualCaddy ? (
+          <button type="button" className="setup-toggle" onClick={onBackToVirtualCaddy}>
+            Back to virtual caddy
+          </button>
+        ) : null}
         {wedgeMatrixMode !== 'setup' ? (
           <button
             type="button"

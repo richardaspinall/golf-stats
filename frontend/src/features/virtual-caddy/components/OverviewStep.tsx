@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import { hasHolePrepPlanContent } from '../../../lib/holePrep';
 import type { HolePrepPlan } from '../../../types';
 
@@ -13,6 +15,7 @@ type OverviewStepProps = {
   defaultDistanceMeters: number | null;
   distanceToHoleMeters: number;
   prepPlan: HolePrepPlan;
+  headerActions?: ReactNode;
   onCancelEdit: () => void;
   onNext: () => void;
 };
@@ -29,6 +32,7 @@ export function OverviewStep({
   defaultDistanceMeters,
   distanceToHoleMeters,
   prepPlan,
+  headerActions,
   onCancelEdit,
   onNext,
 }: OverviewStepProps) {
@@ -44,11 +48,14 @@ export function OverviewStep({
             {!isFirstShot && overviewDistanceSummary ? <p>{overviewDistanceSummary}</p> : null}
           </div>
         </div>
-        {editingIndex != null ? (
-          <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
-            ×
-          </button>
-        ) : null}
+        <div className="virtual-caddy-step-header-actions">
+          {headerActions}
+          {editingIndex != null ? (
+            <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
+              ×
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="prototype-block virtual-caddy-distance-block">
         <div className={isFirstShot ? 'virtual-caddy-overview-card virtual-caddy-overview-card-hole' : 'virtual-caddy-overview-card'}>

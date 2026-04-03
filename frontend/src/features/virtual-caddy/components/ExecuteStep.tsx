@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { PENALTY_STROKE_OPTIONS, PUTT_COUNT_OPTIONS, PUTTING_DETAIL_OPTIONS } from '../constants';
 import { clampPreviousShotDistanceAdjustmentMeters, getAdjustedMeasuredDistanceMeters, getOutcomePositionClass } from '../domain/planner';
@@ -33,6 +34,7 @@ type ExecuteStepProps = {
   canSaveShot: boolean;
   shotDistanceBannerLabel: string;
   shotDistanceBannerValue: string | null;
+  headerActions?: ReactNode;
   onCancelEdit: () => void;
   onBack: (() => void) | null;
   onSave: () => void;
@@ -65,6 +67,7 @@ export function ExecuteStep({
   canSaveShot,
   shotDistanceBannerLabel,
   shotDistanceBannerValue,
+  headerActions,
   onCancelEdit,
   onBack,
   onSave,
@@ -101,11 +104,14 @@ export function ExecuteStep({
             <h5>Execute</h5>
           </div>
         </div>
-        {editingIndex != null ? (
-          <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
-            ×
-          </button>
-        ) : null}
+        <div className="virtual-caddy-step-header-actions">
+          {headerActions}
+          {editingIndex != null ? (
+            <button type="button" className="icon-close-btn" aria-label="Cancel edit" onClick={onCancelEdit}>
+              ×
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="virtual-caddy-overview-hero virtual-caddy-distance-hero">
         {shotDistanceBannerValue != null ? <span className="virtual-caddy-overview-kicker">{shotDistanceBannerLabel}</span> : null}

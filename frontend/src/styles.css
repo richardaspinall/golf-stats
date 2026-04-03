@@ -1011,6 +1011,10 @@ button:disabled {
   font-weight: 700;
 }
 
+.virtual-caddy-focus-btn {
+  min-width: 88px;
+}
+
 .virtual-caddy-step {
   display: flex;
   flex-direction: column;
@@ -1025,6 +1029,14 @@ button:disabled {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+.virtual-caddy-step-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
 }
 
 .virtual-caddy-card-footer {
@@ -3218,23 +3230,16 @@ button:disabled {
 }
 
 .virtual-caddy-page {
-  overflow: hidden;
-  border: 1px solid rgba(173, 196, 170, 0.72);
-  border-radius: 28px 28px 0 0;
-  background:
-    radial-gradient(circle at top right, rgba(214, 233, 212, 0.72), transparent 26%),
-    linear-gradient(180deg, rgba(246, 250, 244, 0.98) 0%, rgba(233, 242, 229, 0.98) 100%);
-  box-shadow:
-    0 28px 48px rgba(25, 48, 31, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  overflow: visible;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .virtual-caddy-page-focus {
   padding-top: 18px;
-  background:
-    radial-gradient(circle at top center, rgba(228, 244, 228, 0.92), transparent 34%),
-    linear-gradient(180deg, rgba(250, 252, 249, 0.98) 0%, rgba(237, 244, 234, 0.98) 100%);
-  border-color: #c9d8c7;
+  background: transparent;
 }
 
 .virtual-caddy-page-focus .virtual-caddy-section {
@@ -3541,6 +3546,15 @@ button:disabled {
     width: 100%;
   }
 
+  .virtual-caddy-step-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .virtual-caddy-step-header-actions {
+    width: 100%;
+  }
+
   .virtual-caddy-tab-row .tab-btn {
     flex: 1 1 0;
     min-width: 0;
@@ -3595,7 +3609,7 @@ button:disabled {
   }
 
   .virtual-caddy-focus-btn {
-    width: 100%;
+    width: auto;
     justify-content: center;
   }
 

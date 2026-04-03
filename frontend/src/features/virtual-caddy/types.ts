@@ -27,6 +27,7 @@ export type VirtualCaddyPanelProps = {
   }) => Promise<Array<{ shotId: number; entryId: number }>>;
   onDeleteClubActualEntry?: (entryId: number) => Promise<void>;
   onOpenWedgeMatrix?: (matrixId: number | null) => void;
+  onToggleFocusMode?: () => void;
   onHoleComplete?: (
     nextHoleStats: HoleStats,
     options?: { persistToServer?: boolean; advanceHole?: boolean },
