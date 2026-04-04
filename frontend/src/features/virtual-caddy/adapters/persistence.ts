@@ -117,6 +117,7 @@ export const buildNextHoleStats = (
     ...applyVirtualCaddyTrailToHole(nextBaseHoleStats, nextTrail),
     prepPlan,
     manualScoreEnteredOnTrack: options.clearManualTrackScore ? false : Boolean(holeStats.manualScoreEnteredOnTrack),
+    quickEntrySaved: false,
     virtualCaddyState: {
       version: 1,
       baseHoleStats: {

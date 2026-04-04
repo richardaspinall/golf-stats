@@ -17,6 +17,7 @@ export const emptyHoleStats = (): StatsByHole[number] =>
       teePosition: null,
       greenPosition: null,
       prepPlan: emptyHolePrepPlan(),
+      quickEntrySaved: false,
       virtualCaddyState: null,
     } as StatsByHole[number],
   );

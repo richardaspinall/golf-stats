@@ -8,7 +8,9 @@ type CompletionCardProps = {
   putts: number;
   tone: string;
   awaitingHoleAdvance: boolean;
-  onNext: () => void;
+  onNext?: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
 };
 
 export function CompletionCard({
@@ -22,6 +24,8 @@ export function CompletionCard({
   tone,
   awaitingHoleAdvance,
   onNext,
+  secondaryActionLabel,
+  onSecondaryAction,
 }: CompletionCardProps) {
   const className = isHoleInOneFinish
     ? 'prototype-block virtual-caddy-complete virtual-caddy-complete-hole-in-one'
@@ -60,11 +64,18 @@ export function CompletionCard({
           <strong>{putts}</strong>
         </div>
       </div>
-      {awaitingHoleAdvance ? (
+      {awaitingHoleAdvance || onSecondaryAction ? (
         <div className="virtual-caddy-card-footer">
-          <button type="button" className="save-btn virtual-caddy-save-btn" onClick={onNext}>
-            Next
-          </button>
+          {onSecondaryAction ? (
+            <button type="button" className="setup-toggle" onClick={onSecondaryAction}>
+              {secondaryActionLabel ?? 'Edit'}
+            </button>
+          ) : null}
+          {awaitingHoleAdvance ? (
+            <button type="button" className="save-btn virtual-caddy-save-btn" onClick={onNext}>
+              Next
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

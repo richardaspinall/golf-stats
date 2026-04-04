@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import { useState } from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -109,7 +110,7 @@ describe('VirtualCaddyPage', () => {
     await user.click(screen.getByRole('button', { name: 'Save result' }));
 
     expect(saveHoleStats).toHaveBeenCalledTimes(1);
-    expect(saveHoleStats).toHaveBeenLastCalledWith(4, expect.any(Object));
+    expect(saveHoleStats).toHaveBeenLastCalledWith(4, expect.any(Object), undefined);
     expect(saveClubActual).not.toHaveBeenCalled();
   });
 
@@ -522,6 +523,238 @@ describe('VirtualCaddyPage', () => {
 
     expect(saveHoleStats).toHaveBeenLastCalledWith(4, expect.any(Object), { persistToServer: true });
     expect(setSelectedHole).toHaveBeenCalledWith(5);
+  });
+
+  it('saves quick totals and advances to the next hole', async () => {
+    const user = userEvent.setup();
+    const setSelectedHole = vi.fn();
+    const saveHoleStats = vi.fn(async () => true);
+
+    render(
+      <VirtualCaddyPage
+        round={{
+          selectedHole: 4,
+          displayHoleIndex: 7,
+          displayHolePar: 4,
+          activeRound: { id: 'r1', name: 'Morning Round' },
+          activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+          statsByHole,
+          holeStats: {
+            score: 0,
+            holeIndex: 7,
+            fairwaySelection: null,
+            girSelection: null,
+            teePosition: null,
+            greenPosition: null,
+          },
+          saveState: 'saved',
+          teeToGreenMeters: 390,
+          clubCarryByClub: { Driver: 200, '3 wood': 180 },
+          wedgeMatrices: [],
+          wedgeEntriesByMatrix: {},
+          isFocusMode: false,
+        }}
+        actions={{
+          setSelectedHole,
+          saveCurrentRound: vi.fn(async () => true),
+          replaceHoleStats: vi.fn(),
+          saveHoleStats,
+          saveClubActual: vi.fn(async () => null),
+          deleteClubActualEntry: vi.fn(async () => {}),
+          onToggleFocusMode: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: 'Quick' }));
+    await user.click(within(screen.getByRole('group', { name: 'Quick score presets' })).getByRole('button', { name: '5 Bogey' }));
+    await user.click(within(screen.getByRole('group', { name: 'Quick fairway selection' })).getByRole('button', { name: 'Left' }));
+    await user.click(within(screen.getByRole('group', { name: 'Quick GIR selection' })).getByRole('button', { name: 'No chance' }));
+    await user.click(within(screen.getByRole('group', { name: 'Quick putts selection' })).getByRole('button', { name: '3' }));
+    await user.click(within(screen.getByRole('group', { name: 'Quick penalties selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save and next' }));
+
+    expect(saveHoleStats).toHaveBeenLastCalledWith(
+      4,
+      expect.objectContaining({
+        score: 5,
+        fairwaySelection: 'fairwayLeft',
+        girSelection: 'girNoChance',
+        totalPutts: 3,
+        penalties: 2,
+        virtualCaddyState: null,
+      }),
+      { persistToServer: true },
+    );
+    expect(setSelectedHole).toHaveBeenCalledWith(5);
+  });
+
+  it('shows the quick summary when returning to a quick-saved hole', async () => {
+    const user = userEvent.setup();
+    const saveHoleStates: Array<(typeof statsByHole)[number]> = [];
+
+    render(
+      <VirtualCaddyPage
+        round={{
+          selectedHole: 4,
+          displayHoleIndex: 7,
+          displayHolePar: 4,
+          activeRound: { id: 'r1', name: 'Morning Round' },
+          activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+          statsByHole,
+          holeStats: {
+            score: 0,
+            holeIndex: 7,
+            fairwaySelection: null,
+            girSelection: null,
+            teePosition: null,
+            greenPosition: null,
+          },
+          saveState: 'saved',
+          teeToGreenMeters: 390,
+          clubCarryByClub: { Driver: 200, '3 wood': 180 },
+          wedgeMatrices: [],
+          wedgeEntriesByMatrix: {},
+          isFocusMode: false,
+        }}
+        actions={{
+          setSelectedHole: vi.fn(),
+          saveCurrentRound: vi.fn(async () => true),
+          replaceHoleStats: vi.fn(),
+          saveHoleStats: vi.fn(async (hole, nextHoleStats) => {
+            saveHoleStates.push(nextHoleStats);
+            return true;
+          }),
+          saveClubActual: vi.fn(async () => null),
+          deleteClubActualEntry: vi.fn(async () => {}),
+          onToggleFocusMode: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: 'Quick' }));
+    await user.click(within(screen.getByRole('group', { name: 'Quick score presets' })).getByRole('button', { name: '5 Bogey' }));
+    await user.click(within(screen.getByRole('group', { name: 'Quick putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save and next' }));
+
+    const savedHoleStats = saveHoleStates[saveHoleStates.length - 1];
+
+    cleanup();
+
+    function QuickSavedHoleHarness() {
+      const [holeState, setHoleState] = useState(savedHoleStats);
+      const [allStats, setAllStats] = useState({ ...buildInitialByHole(), 4: savedHoleStats });
+
+      return (
+        <VirtualCaddyPage
+          round={{
+            selectedHole: 4,
+            displayHoleIndex: 7,
+            displayHolePar: 4,
+            activeRound: { id: 'r1', name: 'Morning Round' },
+            activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+            statsByHole: allStats,
+            holeStats: holeState,
+            saveState: 'saved',
+            teeToGreenMeters: 390,
+            clubCarryByClub: { Driver: 200, '3 wood': 180 },
+            wedgeMatrices: [],
+            wedgeEntriesByMatrix: {},
+            isFocusMode: false,
+          }}
+          actions={{
+            setSelectedHole: vi.fn(),
+            saveCurrentRound: vi.fn(async () => true),
+            replaceHoleStats: vi.fn((nextHoleStats) => {
+              setHoleState(nextHoleStats);
+              setAllStats((prev) => ({ ...prev, 4: nextHoleStats }));
+            }),
+            saveHoleStats: vi.fn(async () => true),
+            saveClubActual: vi.fn(async () => null),
+            deleteClubActualEntry: vi.fn(async () => {}),
+            onToggleFocusMode: vi.fn(),
+          }}
+        />
+      );
+    }
+
+    render(<QuickSavedHoleHarness />);
+
+    const summaryCard = screen.getByText('Hole summary').closest('.virtual-caddy-complete');
+    expect(summaryCard).toBeTruthy();
+    expect(within(summaryCard as HTMLElement).getByText('Score')).toBeTruthy();
+    expect(within(summaryCard as HTMLElement).getByText('Putts')).toBeTruthy();
+    expect(within(summaryCard as HTMLElement).getByText('5')).toBeTruthy();
+    expect(within(summaryCard as HTMLElement).getByText('2')).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Quick' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save and next' })).toBeNull();
+  });
+
+  it('lets you edit a quick-saved hole from the summary and returns to the summary after saving', async () => {
+    const user = userEvent.setup();
+    const initialHoleStats = {
+      ...buildInitialByHole()[4],
+      holeIndex: 7,
+      score: 5,
+      totalPutts: 2,
+      fairwaySelection: 'fairwayLeft',
+      quickEntrySaved: true,
+    };
+
+    function QuickSavedEditHarness() {
+      const [holeState, setHoleState] = useState(initialHoleStats);
+      const [allStats, setAllStats] = useState({ ...buildInitialByHole(), 4: initialHoleStats });
+
+      return (
+        <VirtualCaddyPage
+          round={{
+            selectedHole: 4,
+            displayHoleIndex: 7,
+            displayHolePar: 4,
+            activeRound: { id: 'r1', name: 'Morning Round' },
+            activeCourse: { id: 'c1', name: 'Royal Test', markers: {} as never },
+            statsByHole: allStats,
+            holeStats: holeState,
+            saveState: 'saved',
+            teeToGreenMeters: 390,
+            clubCarryByClub: { Driver: 200, '3 wood': 180 },
+            wedgeMatrices: [],
+            wedgeEntriesByMatrix: {},
+            isFocusMode: false,
+          }}
+          actions={{
+            setSelectedHole: vi.fn(),
+            saveCurrentRound: vi.fn(async () => true),
+            replaceHoleStats: vi.fn((nextHoleStats) => {
+              setHoleState(nextHoleStats);
+              setAllStats((prev) => ({ ...prev, 4: nextHoleStats }));
+            }),
+            saveHoleStats: vi.fn(async (_hole, nextHoleStats) => {
+              setHoleState(nextHoleStats);
+              setAllStats((prev) => ({ ...prev, 4: nextHoleStats }));
+              return true;
+            }),
+            saveClubActual: vi.fn(async () => null),
+            deleteClubActualEntry: vi.fn(async () => {}),
+            onToggleFocusMode: vi.fn(),
+          }}
+        />
+      );
+    }
+
+    render(<QuickSavedEditHarness />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByRole('tab', { name: 'Quick' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy();
+    await user.click(within(screen.getByRole('group', { name: 'Quick putts selection' })).getByRole('button', { name: '3' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    const summaryCard = screen.getByText('Hole summary').closest('.virtual-caddy-complete');
+    expect(summaryCard).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    expect(within(summaryCard as HTMLElement).getByText('3')).toBeTruthy();
   });
 
   it('waits for next on a direct holed finish before moving to the next hole', async () => {

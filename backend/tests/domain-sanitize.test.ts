@@ -45,6 +45,7 @@ describe('sanitizeStats', () => {
         teePosition: { lat: 200, lng: 0 },
         greenPosition: { lat: -37.1, lng: 145.2 },
         inside100Over3: 2.7,
+        quickEntrySaved: 1,
       },
     });
 
@@ -60,6 +61,7 @@ describe('sanitizeStats', () => {
     expect(stats[1].teePosition).toBeNull();
     expect(stats[1].greenPosition).toEqual({ lat: -37.1, lng: 145.2 });
     expect(stats[1].inside100Over3).toBe(2);
+    expect(stats[1].quickEntrySaved).toBe(true);
 
     COUNTER_OPTIONS.forEach((key) => {
       expect(Number.isFinite(stats[1][key])).toBe(true);
@@ -71,6 +73,7 @@ describe('sanitizeStats', () => {
       ...sampleStats(),
       1: {
         ...sampleStats()[1],
+        quickEntrySaved: true,
         virtualCaddyState: {
           version: 1,
           trail: [{ label: 'Tee shot' }],
@@ -80,6 +83,7 @@ describe('sanitizeStats', () => {
     expect(stats[1].fairwaySelection).toBe(FAIRWAY_KEYS[0]);
     expect(stats[1].girSelection).toBe(GIR_KEYS[0]);
     expect(stats[1].bunkerSelection).toBe(BUNKER_KEYS[0]);
+    expect(stats[1].quickEntrySaved).toBe(true);
     expect(stats[1].virtualCaddyState).toEqual({
       version: 1,
       trail: [{ label: 'Tee shot' }],

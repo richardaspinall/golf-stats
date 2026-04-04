@@ -39,6 +39,7 @@ export type HoleStats = {
   teePosition: LatLng | null;
   greenPosition: LatLng | null;
   prepPlan: HolePrepPlan;
+  quickEntrySaved?: boolean;
   virtualCaddyState?: Record<string, unknown> | null;
 } & Record<CounterOption, number>;
 

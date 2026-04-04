@@ -50,6 +50,7 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
     safe[hole].teePosition = sanitizeLatLng(holeRaw.teePosition);
     safe[hole].greenPosition = sanitizeLatLng(holeRaw.greenPosition);
     safe[hole].prepPlan = sanitizeHolePrepPlan(holeRaw.prepPlan);
+    safe[hole].quickEntrySaved = Boolean(holeRaw.quickEntrySaved);
     safe[hole].virtualCaddyState =
       holeRaw.virtualCaddyState && typeof holeRaw.virtualCaddyState === 'object'
         ? (holeRaw.virtualCaddyState as Record<string, unknown>)

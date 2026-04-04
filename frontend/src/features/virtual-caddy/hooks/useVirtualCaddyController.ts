@@ -105,6 +105,7 @@ export function useVirtualCaddyController({
   const showHoledCelebration = isDirectHoledFinish && !isHoleInOneFinish;
   const showOopOptions = getShowOopOptions(state);
   const hasCustomContext = getHasCustomContext(state);
+  const isQuickSavedHole = Boolean(holeStats.quickEntrySaved) && !holeStats.virtualCaddyState;
 
   useEffect(() => {
     if (state.actionType === 'chipping' && (state.distanceToMiddleMeters > CHIPPING_MAX_DISTANCE_METERS || state.distanceMode === 'point')) {
@@ -132,6 +133,10 @@ export function useVirtualCaddyController({
   }, [state, state.editingBaselineDraft, state.editingIndex]);
 
   useEffect(() => {
+    if (isQuickSavedHole) {
+      return;
+    }
+
     const nextHoleStats = buildNextHoleStats(holeStats, state.baseHoleStats, state.trail, buildPersistedDraftFromState(state), {});
     const serializedNextHoleStats = JSON.stringify(nextHoleStats);
 
@@ -141,7 +146,7 @@ export function useVirtualCaddyController({
 
     lastSyncedHoleStatsRef.current = serializedNextHoleStats;
     replaceHoleStatsRef.current(nextHoleStats);
-  }, [holeStats, state]);
+  }, [holeStats, isQuickSavedHole, state]);
 
   const startEdit = (index: number) => {
     const { shot, showAdvanced } = buildEditSnapshot(state.trail, index);
