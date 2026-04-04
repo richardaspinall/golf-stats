@@ -40,6 +40,7 @@ export interface HoleStats {
   greenPosition: LatLng | null;
   prepPlan: HolePrepPlan;
   manualScoreEnteredOnTrack?: boolean;
+  quickEntrySaved?: boolean;
   virtualCaddyState?: PersistedVirtualCaddyState | null;
   [key: string]: unknown;
 }

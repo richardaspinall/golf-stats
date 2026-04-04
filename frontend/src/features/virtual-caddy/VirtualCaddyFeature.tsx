@@ -4,21 +4,61 @@ import { OverviewStep } from './components/OverviewStep';
 import { PrepStep } from './components/PrepStep';
 import { SetupStep } from './components/SetupStep';
 import { ExecuteStep } from './components/ExecuteStep';
+import { QuickTotalsStep } from './components/QuickTotalsStep';
 import { CompletionCard } from './components/CompletionCard';
 import { TrailList } from './components/TrailList';
 import { useVirtualCaddyController } from './hooks/useVirtualCaddyController';
 import { buildNextHoleStats, buildPersistedDraftFromState } from './adapters/persistence';
+import { getScoreSummaryStyle } from './domain/planner';
 import { getCompletionViewModel, getOverviewViewModel, getShotBannerViewModel } from './state/viewModel';
 import type { VirtualCaddyPanelProps } from './types';
 import { hasHolePlayStarted, sanitizeHolePrepPlan } from '../../lib/holePrep';
+import { emptyHoleStats } from '../../lib/rounds';
 import type { HolePrepPlan } from '../../types';
+
+const readPositiveInt = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.floor(parsed));
+};
+
+const readNonNegativeInt = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(parsed));
+};
+
+const buildScorePresetValues = (par: number | null) =>
+  Array.from(new Set([Math.max(1, (par ?? 4) - 2), Math.max(1, (par ?? 4) - 1), par ?? 4, (par ?? 4) + 1, (par ?? 4) + 2].filter((value) => value > 0)));
+
+const getScorePresetLabel = (value: number, par: number | null) => {
+  const parValue = par ?? 4;
+  const diff = value - parValue;
+  if (diff <= -2) return 'Eagle+';
+  if (diff === -1) return 'Birdie';
+  if (diff === 0) return 'Par';
+  if (diff === 1) return 'Bogey';
+  return 'Double+';
+};
 
 export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
   const { hole, displayHoleIndex = null, displayHolePar, defaultDistanceMeters, isFocusMode = false } = props;
-  const [activeTab, setActiveTab] = useState<'play' | 'prep'>('play');
+  const [activeTab, setActiveTab] = useState<'play' | 'prep' | 'totals'>('play');
   const [prepDraft, setPrepDraft] = useState<HolePrepPlan>(() => sanitizeHolePrepPlan(props.holeStats.prepPlan));
   const [savedPrepPlan, setSavedPrepPlan] = useState<HolePrepPlan>(() => sanitizeHolePrepPlan(props.holeStats.prepPlan));
   const [prepSaveState, setPrepSaveState] = useState('saved');
+  const [quickTotalScore, setQuickTotalScore] = useState(() => readPositiveInt(props.holeStats.score, displayHolePar ?? 4));
+  const [quickFairwaySelection, setQuickFairwaySelection] = useState<string | null>(() => props.holeStats.fairwaySelection ?? null);
+  const [quickGirSelection, setQuickGirSelection] = useState<string | null>(() => props.holeStats.girSelection ?? null);
+  const [quickPutts, setQuickPutts] = useState(() => readNonNegativeInt(props.holeStats.totalPutts));
+  const [quickPenalties, setQuickPenalties] = useState(() => readNonNegativeInt(props.holeStats.penalties));
+  const [quickTotalsSaveState, setQuickTotalsSaveState] = useState<'idle' | 'saving'>('idle');
   const lastLoadedHoleRef = useRef(hole);
   const {
     state,
@@ -57,10 +97,17 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
   const prepDraftKey = JSON.stringify(prepDraft);
   const savedPrepPlanKey = JSON.stringify(savedPrepPlan);
   const prepIsDirty = prepDraftKey !== savedPrepPlanKey;
+  const scorePresetValues = useMemo(() => buildScorePresetValues(displayHolePar), [displayHolePar]);
+  const hasQuickSavedSummary =
+    Boolean(props.holeStats.quickEntrySaved) &&
+    !props.holeStats.virtualCaddyState &&
+    !props.holeStats.manualScoreEnteredOnTrack &&
+    Number(props.holeStats.score || 0) > 0;
+  const quickSavedSummaryTone = useMemo(() => getScoreSummaryStyle(displayHolePar, Number(props.holeStats.score || 0)).tone, [displayHolePar, props.holeStats.score]);
 
   useEffect(() => {
     setActiveTab('play');
-  }, [hole]);
+  }, [hasQuickSavedSummary, hole]);
 
   useEffect(() => {
     if (lastLoadedHoleRef.current === hole) {
@@ -70,7 +117,13 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
     setPrepDraft(persistedPrepPlan);
     setSavedPrepPlan(persistedPrepPlan);
     setPrepSaveState('saved');
-  }, [hole, persistedPrepPlanKey]);
+    setQuickTotalScore(readPositiveInt(props.holeStats.score, displayHolePar ?? 4));
+    setQuickFairwaySelection(props.holeStats.fairwaySelection ?? null);
+    setQuickGirSelection(props.holeStats.girSelection ?? null);
+    setQuickPutts(readNonNegativeInt(props.holeStats.totalPutts));
+    setQuickPenalties(readNonNegativeInt(props.holeStats.penalties));
+    setQuickTotalsSaveState('idle');
+  }, [displayHolePar, hole, persistedPrepPlanKey, props.holeStats.fairwaySelection, props.holeStats.girSelection, props.holeStats.penalties, props.holeStats.score, props.holeStats.totalPutts]);
 
   const patchPrepPlan = (patch: Partial<HolePrepPlan>) => {
     const nextPrepPlan = { ...prepDraft, ...patch };
@@ -98,6 +151,52 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
     setPrepSaveState(didSave ? 'saved' : 'error');
   };
 
+  const saveQuickTotals = async () => {
+    if (quickTotalsSaveState === 'saving') {
+      return;
+    }
+
+    setQuickTotalsSaveState('saving');
+    const baseStats = emptyHoleStats();
+    const prepPlan = sanitizeHolePrepPlan(props.holeStats.prepPlan);
+    const nextHoleStats = {
+      ...baseStats,
+      holeIndex: props.holeStats.holeIndex,
+      teePosition: props.holeStats.teePosition ?? null,
+      greenPosition: props.holeStats.greenPosition ?? null,
+      prepPlan,
+      score: quickTotalScore,
+      fairwaySelection: quickFairwaySelection,
+      girSelection: quickGirSelection,
+      totalPutts: quickPutts,
+      penalties: quickPenalties,
+      manualScoreEnteredOnTrack: false,
+      quickEntrySaved: true,
+      virtualCaddyState: null,
+    };
+
+    if (hasQuickSavedSummary) {
+      const didSave = props.onSaveHoleStats ? await props.onSaveHoleStats(nextHoleStats, { persistToServer: true }) : true;
+      if (didSave) {
+        setActiveTab('play');
+        setQuickTotalsSaveState('idle');
+        return;
+      }
+      setQuickTotalsSaveState('idle');
+      return;
+    }
+
+    if (!props.onHoleComplete) {
+      setQuickTotalsSaveState('idle');
+      return;
+    }
+
+    const didComplete = await props.onHoleComplete(nextHoleStats, { persistToServer: true, advanceHole: true });
+    if (!didComplete) {
+      setQuickTotalsSaveState('idle');
+    }
+  };
+
   const headerActions = (
     <div className="virtual-caddy-tab-row" role="tablist" aria-label="Virtual caddy hole tabs">
       {!isFocusMode ? (
@@ -122,6 +221,17 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
           </button>
         </>
       ) : null}
+      {!hasQuickSavedSummary || activeTab === 'totals' ? (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'totals'}
+          className={activeTab === 'totals' ? 'tab-btn active' : 'tab-btn'}
+          onClick={() => setActiveTab('totals')}
+        >
+          Quick
+        </button>
+      ) : null}
       {props.onToggleFocusMode ? (
         <button type="button" className={isFocusMode ? 'tab-btn active virtual-caddy-focus-btn' : 'tab-btn virtual-caddy-focus-btn'} onClick={props.onToggleFocusMode}>
           {isFocusMode ? 'Exit focus' : 'Focus'}
@@ -133,8 +243,49 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
   return (
     <div className="track-distance-section virtual-caddy-section">
       <div className="virtual-caddy-panel active-panel">
-        {activeTab === 'prep' ? (
+        {hasQuickSavedSummary && activeTab === 'play' ? (
+          <CompletionCard
+            isHoleInOneFinish={false}
+            showHoledCelebration={false}
+            completionTitle="Hole summary"
+            completionDetail={null}
+            par={displayHolePar}
+            score={Number(props.holeStats.score || 0)}
+            putts={Number(props.holeStats.totalPutts || 0)}
+            tone={quickSavedSummaryTone}
+            awaitingHoleAdvance={false}
+            secondaryActionLabel="Edit"
+            onSecondaryAction={() => setActiveTab('totals')}
+          />
+        ) : activeTab === 'prep' ? (
           <PrepStep prepPlan={prepDraft} isLocked={prepLocked} saveState={prepSaveState} isDirty={prepIsDirty} headerActions={headerActions} onPatch={patchPrepPlan} onSave={() => void savePrepPlan()} />
+        ) : activeTab === 'totals' ? (
+          <QuickTotalsStep
+            totalScore={quickTotalScore}
+            scorePresetValues={scorePresetValues}
+            fairwaySelection={quickFairwaySelection}
+            girSelection={quickGirSelection}
+            putts={quickPutts}
+            penalties={quickPenalties}
+            isSaving={quickTotalsSaveState === 'saving'}
+            saveLabel={hasQuickSavedSummary ? 'Save changes' : 'Save and next'}
+            secondaryActionLabel={hasQuickSavedSummary ? 'Back to summary' : undefined}
+            headerActions={headerActions}
+            onSetTotalScore={setQuickTotalScore}
+            getScorePresetLabel={(value) => getScorePresetLabel(value, displayHolePar)}
+            onSetFairwaySelection={setQuickFairwaySelection}
+            onSetGirSelection={setQuickGirSelection}
+            onSetPutts={setQuickPutts}
+            onSetPenalties={setQuickPenalties}
+            onSave={() => void saveQuickTotals()}
+            onSecondaryAction={
+              hasQuickSavedSummary
+                ? () => {
+                    setActiveTab('play');
+                  }
+                : undefined
+            }
+          />
         ) : !isHoleComplete ? (
           <>
             {isFirstShot && state.flowStep === 'overview' ? (

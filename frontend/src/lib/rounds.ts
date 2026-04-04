@@ -40,6 +40,7 @@ export const emptyHoleStats = (): HoleStats =>
       greenPosition: null,
       prepPlan: emptyHolePrepPlan(),
       manualScoreEnteredOnTrack: false,
+      quickEntrySaved: false,
       virtualCaddyState: null,
     } as HoleStats,
   );
@@ -163,6 +164,7 @@ export const sanitizeStats = (raw: unknown): StatsByHole => {
     safe[hole].greenPosition = sanitizeLatLng(rawStats.greenPosition);
     safe[hole].prepPlan = sanitizeHolePrepPlan(rawStats.prepPlan);
     safe[hole].manualScoreEnteredOnTrack = Boolean(rawStats.manualScoreEnteredOnTrack);
+    safe[hole].quickEntrySaved = Boolean(rawStats.quickEntrySaved);
     safe[hole].virtualCaddyState =
       rawStats.virtualCaddyState && typeof rawStats.virtualCaddyState === 'object' ? (rawStats.virtualCaddyState as HoleStats['virtualCaddyState']) : null;
   });
