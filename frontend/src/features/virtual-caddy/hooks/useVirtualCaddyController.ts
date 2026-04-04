@@ -338,6 +338,17 @@ export function useVirtualCaddyController({
         });
     const nextHoleStats = buildNextHoleStats(holeStats, state.baseHoleStats, nextTrail, nextStateDraft, { clearManualTrackScore: true });
     lastSyncedHoleStatsRef.current = JSON.stringify(nextHoleStats);
+    dispatch({
+      type: 'applySavedShot',
+      payload: {
+        nextTrail,
+        nextShotId: state.nextShotId + 1,
+        nextActionType,
+        remainingDistanceMeters,
+        nextSurface,
+        awaitingHoleAdvance: false,
+      },
+    });
     replaceHoleStatsRef.current(nextHoleStats);
     let didPersist = true;
     if (saveHoleStatsRef.current) {
@@ -356,23 +367,14 @@ export function useVirtualCaddyController({
       }
     }
 
-    dispatch({
-      type: 'patch',
-      payload: {
-        baseHoleStats: nextHoleStats,
-      },
-    });
-    dispatch({
-      type: 'applySavedShot',
-      payload: {
-        nextTrail,
-        nextShotId: state.nextShotId + 1,
-        nextActionType,
-        remainingDistanceMeters,
-        nextSurface,
-        awaitingHoleAdvance: Boolean(didPersist && !nextActionType && state.outcomeSelection === 'girHoled'),
-      },
-    });
+    if (didPersist && !nextActionType && state.outcomeSelection === 'girHoled') {
+      dispatch({
+        type: 'patch',
+        payload: {
+          awaitingHoleAdvance: true,
+        },
+      });
+    }
   };
 
   const setFlowStep = (flowStep: 'overview' | 'setup' | 'action') => dispatch({ type: 'setFlowStep', payload: flowStep });

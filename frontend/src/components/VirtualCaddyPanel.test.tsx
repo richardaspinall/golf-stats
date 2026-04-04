@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import { useState } from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -305,6 +306,92 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('Putter: 2 putts')).toBeTruthy();
     expect(screen.queryByText('50w · 0m')).toBeNull();
     expect(screen.queryByText('260m')).toBeNull();
+  });
+
+  it('does not inflate the score when hole stats are replaced after each saved shot', async () => {
+    const user = userEvent.setup();
+
+    function StatefulPanel() {
+      const [holeStats, setHoleStats] = useState(emptyHoleStats());
+
+      return (
+        <>
+          <VirtualCaddyPanel
+            hole={4}
+            holeStats={holeStats}
+            displayHolePar={4}
+            defaultDistanceMeters={260}
+            onReplaceHoleStats={setHoleStats}
+            onSaveHoleStats={async (nextHoleStats) => {
+              setHoleStats(nextHoleStats);
+              return true;
+            }}
+            onHoleComplete={() => true}
+          />
+          <output data-testid="tracked-score">{holeStats.score}</output>
+        </>
+      );
+    }
+
+    render(<StatefulPanel />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '86' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(screen.getByTestId('tracked-score').textContent).toBe('4');
+    expect(screen.getByText('Score')).toBeTruthy();
+    expect(screen.getAllByText('4').length).toBeGreaterThan(0);
+  });
+
+  it('shows the completion summary after saving a putting result through prop rehydration', async () => {
+    const user = userEvent.setup();
+
+    function StatefulPanel() {
+      const [holeStats, setHoleStats] = useState(emptyHoleStats());
+
+      return (
+        <VirtualCaddyPanel
+          hole={4}
+          holeStats={holeStats}
+          displayHolePar={4}
+          defaultDistanceMeters={260}
+          onReplaceHoleStats={setHoleStats}
+          onSaveHoleStats={async (nextHoleStats) => {
+            setHoleStats(nextHoleStats);
+            return true;
+          }}
+          onHoleComplete={() => true}
+        />
+      );
+    }
+
+    render(<StatefulPanel />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Fairway hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '86' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(screen.getByText('Hole summary')).toBeTruthy();
+    expect(screen.getByText('Putts')).toBeTruthy();
+    expect(screen.getByText('Putter: 2 putts')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Putting' })).toBeNull();
   });
 
   it('deletes the previous affected club distances when editing a completed hole', async () => {

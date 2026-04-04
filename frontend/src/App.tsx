@@ -258,6 +258,7 @@ export default function App() {
   });
   const effectiveTeeToGreenMeters = manualHoleDistanceMeters ?? teeToGreenMeters ?? derivedTeeToGreenMeters;
   const handleAuthFailure = (message = 'Session expired. Log in again.') => {
+    const initialStatsByHole = buildInitialByHole();
     clearAuthToken();
     setAuthToken('');
     setCurrentUser(null);
@@ -277,7 +278,8 @@ export default function App() {
     setNewRoundHandicap('');
     setCourseEditorId('');
     setSelectedRoundId('');
-    setStatsByHole(buildInitialByHole());
+    statsByHoleRef.current = initialStatsByHole;
+    setStatsByHole(initialStatsByHole);
     setRoundHandicap(0);
     setRoundNotes([]);
     setNoteDraft('');
@@ -354,11 +356,13 @@ export default function App() {
   const applyRoundToState = (round) => {
     const storedDraft = loadStoredRoundDraft(round.id);
     const hasStoredDraft = Boolean(storedDraft);
+    const nextStatsByHole = sanitizeStats(hasStoredDraft ? storedDraft?.statsByHole : round.statsByHole);
 
     skipNextSaveRef.current = true;
     hasLoadedRef.current = true;
     setSelectedRoundId(round.id);
-    setStatsByHole(sanitizeStats(hasStoredDraft ? storedDraft?.statsByHole : round.statsByHole));
+    statsByHoleRef.current = nextStatsByHole;
+    setStatsByHole(nextStatsByHole);
     setRoundHandicap(sanitizeRoundHandicap(hasStoredDraft ? storedDraft?.roundHandicap : round.handicap) || 0);
     setRoundNotes(sanitizeNotesList(hasStoredDraft ? storedDraft?.roundNotes : round.notes));
     setSelectedCourseId(
@@ -685,10 +689,12 @@ export default function App() {
       });
 
       if (updatedRounds.length === 0) {
+        const initialStatsByHole = buildInitialByHole();
         skipNextSaveRef.current = true;
         hasLoadedRef.current = true;
         setSelectedRoundId('');
-        setStatsByHole(buildInitialByHole());
+        statsByHoleRef.current = initialStatsByHole;
+        setStatsByHole(initialStatsByHole);
         setRoundHandicap(0);
         setRoundNotes([]);
         setNoteDraft('');
