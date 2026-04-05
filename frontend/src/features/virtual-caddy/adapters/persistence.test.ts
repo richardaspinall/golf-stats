@@ -39,4 +39,22 @@ describe('virtual caddy persistence adapters', () => {
     expect(hydrated.distanceToHoleMeters).toBe(180);
     expect(hydrated.showAdvanced).toBe(true);
   });
+
+  it('treats zero first putt distance as unset so the default can show', () => {
+    const initial = createInitialVirtualCaddyState(emptyHoleStats(), 150, 'tee');
+    const persistedDraft = buildPersistedDraftFromState({ ...initial, actionType: 'putting', firstPuttDistanceMeters: 0 });
+    const holeStats = {
+      ...emptyHoleStats(),
+      virtualCaddyState: {
+        version: 1 as const,
+        baseHoleStats: emptyHoleStats(),
+        trail: [],
+        draft: persistedDraft,
+      },
+    };
+
+    const hydrated = buildHydratedState(holeStats, 150, createInitialVirtualCaddyState);
+
+    expect(hydrated.firstPuttDistanceMeters).toBeNull();
+  });
 });

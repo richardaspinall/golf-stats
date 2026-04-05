@@ -18,6 +18,11 @@ const readNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const normalizeFirstPuttDistanceMeters = (value: unknown) => {
+  const parsed = readNumber(value);
+  return typeof parsed === 'number' && parsed > 0 ? Math.round(parsed) : null;
+};
+
 export const buildPersistedDraftFromState = (state: VirtualCaddyState, overrides: Partial<PersistedPlannerDraft> = {}): PersistedPlannerDraft => ({
   nextShotId: state.nextShotId,
   flowStep: state.flowStep,
@@ -39,8 +44,9 @@ export const buildPersistedDraftFromState = (state: VirtualCaddyState, overrides
   resultModeOverride: state.resultModeOverride,
   oopResult: state.oopResult,
   outcomeSelection: state.outcomeSelection,
-  firstPuttDistanceMeters: state.firstPuttDistanceMeters,
+  firstPuttDistanceMeters: normalizeFirstPuttDistanceMeters(state.firstPuttDistanceMeters),
   previousShotDistanceAdjustmentMeters: state.previousShotDistanceAdjustmentMeters,
+  previousShotUseFlagAdjustment: state.previousShotUseFlagAdjustment,
   puttCount: state.puttCount,
   penaltyStrokes: state.penaltyStrokes,
   puttMissLong: state.puttMissLong,
@@ -94,8 +100,9 @@ export const buildShotDraftFromShot = (
   outcomeSelection: shot.outcomeSelection,
   puttCount: shot.puttCount ?? null,
   penaltyStrokes: shot.penaltyStrokes ?? 0,
-  firstPuttDistanceMeters: shot.firstPuttDistanceMeters ?? null,
+  firstPuttDistanceMeters: normalizeFirstPuttDistanceMeters(shot.firstPuttDistanceMeters),
   previousShotDistanceAdjustmentMeters: shot.previousShotDistanceAdjustmentMeters ?? 0,
+  previousShotUseFlagAdjustment: Boolean(shot.previousShotUseFlagAdjustment),
   puttMissLong: shot.puttMissLong ?? 0,
   puttMissShort: shot.puttMissShort ?? 0,
   puttMissWithin2m: shot.puttMissWithin2m ?? 0,
@@ -192,8 +199,9 @@ export const buildHydratedState = (
         : null,
     oopResult: (persistedDraft.oopResult as VirtualCaddyState['oopResult']) || 'none',
     outcomeSelection: (persistedDraft.outcomeSelection as VirtualCaddyState['outcomeSelection']) ?? null,
-    firstPuttDistanceMeters: typeof persistedDraft.firstPuttDistanceMeters === 'number' ? persistedDraft.firstPuttDistanceMeters : null,
+    firstPuttDistanceMeters: normalizeFirstPuttDistanceMeters(persistedDraft.firstPuttDistanceMeters),
     previousShotDistanceAdjustmentMeters: Math.round(readNumber(persistedDraft.previousShotDistanceAdjustmentMeters) ?? 0),
+    previousShotUseFlagAdjustment: Boolean(persistedDraft.previousShotUseFlagAdjustment),
     puttCount: typeof persistedDraft.puttCount === 'number' ? persistedDraft.puttCount : null,
     penaltyStrokes: Math.max(0, Math.floor(readNumber(persistedDraft.penaltyStrokes) ?? 0)),
     puttMissLong: readNumber(persistedDraft.puttMissLong) ?? 0,

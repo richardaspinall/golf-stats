@@ -7,6 +7,7 @@ import {
   deriveShotCategory,
   formatOutcomeLabel,
   getAdjustedMeasuredDistanceMeters,
+  getRecordedDistanceFromFollowingShot,
   getScoreSummaryStyle,
   getSurfaceFromOutcome,
   summarizeCompletedHole,
@@ -27,6 +28,59 @@ describe('virtual caddy planner helpers', () => {
   it('adjusts measured shot distances around the target reference', () => {
     expect(getAdjustedMeasuredDistanceMeters(160, 6)).toBe(166);
     expect(getAdjustedMeasuredDistanceMeters(160, -8)).toBe(152);
+  });
+
+  it('records long misses into chip range as added distance and supports flag-based chip adjustments', () => {
+    expect(
+      getRecordedDistanceFromFollowingShot(
+        {
+          distanceStartMeters: 150,
+          plannedDistanceMeters: 150,
+          remainingDistanceMeters: 10,
+          outcomeSelection: 'girLong',
+        } as never,
+        {
+          actionType: 'chipping',
+          distanceStartMeters: 20,
+          previousShotDistanceAdjustmentMeters: 0,
+          previousShotUseFlagAdjustment: false,
+        } as never,
+      ),
+    ).toBe(170);
+
+    expect(
+      getRecordedDistanceFromFollowingShot(
+        {
+          distanceStartMeters: 150,
+          plannedDistanceMeters: 150,
+          remainingDistanceMeters: 10,
+          outcomeSelection: 'girLeft',
+        } as never,
+        {
+          actionType: 'chipping',
+          distanceStartMeters: 20,
+          previousShotDistanceAdjustmentMeters: 0,
+          previousShotUseFlagAdjustment: false,
+        } as never,
+      ),
+    ).toBe(130);
+
+    expect(
+      getRecordedDistanceFromFollowingShot(
+        {
+          distanceStartMeters: 150,
+          plannedDistanceMeters: 150,
+          remainingDistanceMeters: 10,
+          outcomeSelection: 'girLeft',
+        } as never,
+        {
+          actionType: 'chipping',
+          distanceStartMeters: 20,
+          previousShotDistanceAdjustmentMeters: 5,
+          previousShotUseFlagAdjustment: true,
+        } as never,
+      ),
+    ).toBe(155);
   });
 
   it('derives OOP only for non-fairway non-putting shots', () => {
