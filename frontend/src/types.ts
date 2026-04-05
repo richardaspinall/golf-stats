@@ -66,6 +66,7 @@ export interface RoundSummaryTotals {
 
 export interface RoundSummaryData {
   totals: RoundSummaryTotals;
+  completedHolesPar: number;
 }
 
 export interface RoundListItem {

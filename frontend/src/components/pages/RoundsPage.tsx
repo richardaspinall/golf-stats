@@ -55,6 +55,8 @@ export function RoundsPage({
             <tr>
               <th>Round</th>
               <th>Total score</th>
+              <th>Par</th>
+              <th>Diff</th>
               <th>Up & down</th>
               <th>OOP total</th>
               <th>Fairway hit</th>
@@ -65,7 +67,7 @@ export function RoundsPage({
           <tbody>
             {rounds.length === 0 ? (
               <tr>
-                <td colSpan={7} className="rounds-empty">
+                <td colSpan={9} className="rounds-empty">
                   No rounds yet.
                 </td>
               </tr>
@@ -75,12 +77,21 @@ export function RoundsPage({
                 const totals = summary?.totals;
                 const isLoadingSummary = !summary && roundSummariesState === 'loading';
                 const fallback = isLoadingSummary ? '...' : '—';
+                const completedHolesPar = summary?.completedHolesPar ?? 0;
+                const differential = totals ? totals.score - completedHolesPar : null;
+                const differentialLabel = differential == null ? fallback : differential === 0 ? 'E' : differential > 0 ? `+${differential}` : String(differential);
 
                 return (
                   <tr key={round.id} className={round.id === selectedRoundId ? 'active' : ''}>
                     <td data-label="Round">{round.name}</td>
                     <td data-label="Total score" className="numeric">
                       {totals ? totals.score : fallback}
+                    </td>
+                    <td data-label="Par" className="numeric">
+                      {totals ? completedHolesPar : fallback}
+                    </td>
+                    <td data-label="Diff" className="numeric">
+                      {differentialLabel}
                     </td>
                     <td data-label="Up & down" className="numeric">
                       {totals ? totals.upAndDown || 0 : fallback}

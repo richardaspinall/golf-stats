@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 
 import type { VirtualCaddyOutcomeSelection } from '../../../lib/virtualCaddyExecution';
 import { createInitialVirtualCaddyState, virtualCaddyReducer } from '../state/reducer';
@@ -56,6 +56,7 @@ export function useVirtualCaddyController({
     virtualCaddyReducer,
     buildHydratedState(holeStats, defaultDistanceMeters, createInitialVirtualCaddyState),
   );
+  const [isSavingShot, setIsSavingShot] = useState(false);
   const lastSyncedHoleStatsRef = useRef<string | null>(null);
   const replaceHoleStatsRef = useRef(onReplaceHoleStats);
   const saveHoleStatsRef = useRef(onSaveHoleStats);
@@ -70,6 +71,7 @@ export function useVirtualCaddyController({
 
   useEffect(() => {
     dispatch({ type: 'hydrate', payload: buildHydratedState(holeStats, defaultDistanceMeters, createInitialVirtualCaddyState) });
+    setIsSavingShot(false);
   }, [defaultDistanceMeters, hole]);
 
   const shotNumber = getShotNumber(state);
@@ -218,168 +220,177 @@ export function useVirtualCaddyController({
   };
 
   const saveShot = async () => {
+    if (isSavingShot) {
+      return;
+    }
+
+    setIsSavingShot(true);
     if (holeStats.manualScoreEnteredOnTrack) {
       const shouldContinue = window.confirm(
         'This hole score was manually changed on the Track page. Saving in Virtual Caddy will continue from here and replace that manual score flow. Continue?',
       );
       if (!shouldContinue) {
+        setIsSavingShot(false);
         return;
       }
     }
+    try {
+      const { remainingDistanceMeters, nextActionType, nextSurface } = resolveShotTransition(state, outcomeMode, recommendation.carryMeters);
+      await deleteStaleTrackedClubActuals();
 
-    const { remainingDistanceMeters, nextActionType, nextSurface } = resolveShotTransition(state, outcomeMode, recommendation.carryMeters);
-    await deleteStaleTrackedClubActuals();
-
-    const nextShotBase: PlannerShot = {
-      id: state.nextShotId,
-      hole,
-      label: getShotLabel(shotNumber, state.actionType),
-      actionType: state.actionType,
-      distanceStartMeters: state.distanceToHoleMeters,
-      plannedDistanceMeters: state.distanceToMiddleMeters,
-      remainingDistanceMeters,
-      distanceMode: state.distanceMode,
-      surface: state.surface,
-      lieQuality: state.lieQuality,
-      slope: state.slope,
-      bunkerLie: state.bunkerLie,
-      temperature: state.temperature,
-      windDirection: state.windDirection,
-      windStrength: state.windStrength,
-      hazards: state.hazards,
-      club: recommendation.club,
-      carryMeters: recommendation.carryMeters,
-      firstPuttDistanceMeters: state.firstPuttDistanceMeters,
-      previousShotDistanceAdjustmentMeters:
-        state.actionType === 'putting' || state.actionType === 'chipping'
-          ? clampPreviousShotDistanceAdjustmentMeters(state.previousShotDistanceAdjustmentMeters)
-          : null,
-      previousShotUseFlagAdjustment: state.actionType === 'chipping' ? state.previousShotUseFlagAdjustment : null,
-      puttCount: state.puttCount,
-      penaltyStrokes: state.penaltyStrokes,
-      puttMissLong: state.puttMissLong,
-      puttMissShort: state.puttMissShort,
-      puttMissWithin2m: state.puttMissWithin2m,
-      clubActualEntryId: null,
-      scoreDelta: (state.actionType === 'putting' ? Math.max(1, state.puttCount ?? 1) : 1) + state.penaltyStrokes,
-      oopResult: deriveOopResult(state.actionType, state.surface, state.oopResult),
-      shotCategory: deriveShotCategory(state.actionType, state.surface, state.distanceToMiddleMeters, recommendation.club),
-      inside100Over3: 0,
-      outcomeSelection: state.outcomeSelection as VirtualCaddyOutcomeSelection,
-    };
-
-    let nextTrail = [...state.trail, nextShotBase];
-    if (nextActionType == null) {
-      if (onSyncClubActuals && roundId) {
-        const syncedEntries = await onSyncClubActuals({
-          roundId,
-          hole,
-          shots: buildTrackedClubActualShots(nextTrail),
-        });
-        const entryIdByShotId = new Map(syncedEntries.map((entry) => [entry.shotId, entry.entryId]));
-        nextTrail = nextTrail.map((shot) => ({
-          ...shot,
-          clubActualEntryId: shouldTrackClubActual(shot) ? (entryIdByShotId.get(shot.id) ?? null) : null,
-        }));
-      } else if (onSaveClubActual) {
-        nextTrail = await Promise.all(
-          nextTrail.map(async (shot, index) => {
-            if (!shouldTrackClubActual(shot)) {
-              return { ...shot, clubActualEntryId: null };
-            }
-
-            const actualDistanceMeters = getCompletedShotActualDistanceMeters(nextTrail, shot, index);
-            if (actualDistanceMeters <= 0) {
-              return { ...shot, clubActualEntryId: null };
-            }
-
-            const clubActualEntryId = await onSaveClubActual({
-              club: shot.club,
-              actualMeters: actualDistanceMeters,
-            });
-            return {
-              ...shot,
-              clubActualEntryId,
-            };
-          }),
-        );
-      }
-    }
-    const nextStateDraft = nextActionType
-      ? buildPersistedDraftFromState(state, {
-          nextShotId: state.nextShotId + 1,
-          actionType: nextActionType,
-          seededDistanceMeters: remainingDistanceMeters,
-          distanceToHoleMeters: remainingDistanceMeters,
-          distanceToMiddleMeters: remainingDistanceMeters,
-          distanceMode: 'hole',
-          surface: nextSurface,
-          lieQuality: 'good',
-          slope: 'flat',
-          bunkerLie: 'clean',
-          temperature: 'normal',
-          windDirection: 'none',
-          windStrength: 'calm',
-          hazards: [],
-          selectedClub: null,
-          showClubOverride: false,
-          resultModeOverride: null,
-          oopResult: 'none',
-          outcomeSelection: null,
-          firstPuttDistanceMeters: nextActionType === 'putting' ? 10 : null,
-          previousShotDistanceAdjustmentMeters: 0,
-          previousShotUseFlagAdjustment: false,
-          puttCount: null,
-          penaltyStrokes: 0,
-          puttMissLong: 0,
-          puttMissShort: 0,
-          puttMissWithin2m: 0,
-          showRecommendationWhy: false,
-          showPuttingDetails: false,
-          showAdvanced: false,
-        })
-      : buildPersistedDraftFromState(state, {
-          nextShotId: state.nextShotId + 1,
-          resultModeOverride: null,
-        });
-    const nextHoleStats = buildNextHoleStats(holeStats, state.baseHoleStats, nextTrail, nextStateDraft, { clearManualTrackScore: true });
-    lastSyncedHoleStatsRef.current = JSON.stringify(nextHoleStats);
-    dispatch({
-      type: 'applySavedShot',
-      payload: {
-        nextTrail,
-        nextShotId: state.nextShotId + 1,
-        nextActionType,
+      const nextShotBase: PlannerShot = {
+        id: state.nextShotId,
+        hole,
+        label: getShotLabel(shotNumber, state.actionType),
+        actionType: state.actionType,
+        distanceStartMeters: state.distanceToHoleMeters,
+        plannedDistanceMeters: state.distanceToMiddleMeters,
         remainingDistanceMeters,
-        nextSurface,
-        awaitingHoleAdvance: false,
-      },
-    });
-    replaceHoleStatsRef.current(nextHoleStats);
-    let didPersist = true;
-    if (saveHoleStatsRef.current) {
-      didPersist = await saveHoleStatsRef.current(nextHoleStats);
-    }
-    if (didPersist && !nextActionType) {
-      const didCompleteHole =
-        nextActionType == null
-          ? await onHoleComplete?.(nextHoleStats, {
-              persistToServer: true,
-              advanceHole: state.outcomeSelection !== 'girHoled',
-            })
-          : true;
-      if (didCompleteHole === false) {
-        return;
-      }
-    }
+        distanceMode: state.distanceMode,
+        surface: state.surface,
+        lieQuality: state.lieQuality,
+        slope: state.slope,
+        bunkerLie: state.bunkerLie,
+        temperature: state.temperature,
+        windDirection: state.windDirection,
+        windStrength: state.windStrength,
+        hazards: state.hazards,
+        club: recommendation.club,
+        carryMeters: recommendation.carryMeters,
+        firstPuttDistanceMeters: state.firstPuttDistanceMeters,
+        previousShotDistanceAdjustmentMeters:
+          state.actionType === 'putting' || state.actionType === 'chipping'
+            ? clampPreviousShotDistanceAdjustmentMeters(state.previousShotDistanceAdjustmentMeters)
+            : null,
+        previousShotUseFlagAdjustment: state.actionType === 'chipping' ? state.previousShotUseFlagAdjustment : null,
+        puttCount: state.puttCount,
+        penaltyStrokes: state.penaltyStrokes,
+        puttMissLong: state.puttMissLong,
+        puttMissShort: state.puttMissShort,
+        puttMissWithin2m: state.puttMissWithin2m,
+        clubActualEntryId: null,
+        scoreDelta: (state.actionType === 'putting' ? Math.max(1, state.puttCount ?? 1) : 1) + state.penaltyStrokes,
+        oopResult: deriveOopResult(state.actionType, state.surface, state.oopResult),
+        shotCategory: deriveShotCategory(state.actionType, state.surface, state.distanceToMiddleMeters, recommendation.club),
+        inside100Over3: 0,
+        outcomeSelection: state.outcomeSelection as VirtualCaddyOutcomeSelection,
+      };
 
-    if (didPersist && !nextActionType && state.outcomeSelection === 'girHoled') {
+      let nextTrail = [...state.trail, nextShotBase];
+      if (nextActionType == null) {
+        if (onSyncClubActuals && roundId) {
+          const syncedEntries = await onSyncClubActuals({
+            roundId,
+            hole,
+            shots: buildTrackedClubActualShots(nextTrail),
+          });
+          const entryIdByShotId = new Map(syncedEntries.map((entry) => [entry.shotId, entry.entryId]));
+          nextTrail = nextTrail.map((shot) => ({
+            ...shot,
+            clubActualEntryId: shouldTrackClubActual(shot) ? (entryIdByShotId.get(shot.id) ?? null) : null,
+          }));
+        } else if (onSaveClubActual) {
+          nextTrail = await Promise.all(
+            nextTrail.map(async (shot, index) => {
+              if (!shouldTrackClubActual(shot)) {
+                return { ...shot, clubActualEntryId: null };
+              }
+
+              const actualDistanceMeters = getCompletedShotActualDistanceMeters(nextTrail, shot, index);
+              if (actualDistanceMeters <= 0) {
+                return { ...shot, clubActualEntryId: null };
+              }
+
+              const clubActualEntryId = await onSaveClubActual({
+                club: shot.club,
+                actualMeters: actualDistanceMeters,
+              });
+              return {
+                ...shot,
+                clubActualEntryId,
+              };
+            }),
+          );
+        }
+      }
+      const nextStateDraft = nextActionType
+        ? buildPersistedDraftFromState(state, {
+            nextShotId: state.nextShotId + 1,
+            actionType: nextActionType,
+            seededDistanceMeters: remainingDistanceMeters,
+            distanceToHoleMeters: remainingDistanceMeters,
+            distanceToMiddleMeters: remainingDistanceMeters,
+            distanceMode: 'hole',
+            surface: nextSurface,
+            lieQuality: 'good',
+            slope: 'flat',
+            bunkerLie: 'clean',
+            temperature: 'normal',
+            windDirection: 'none',
+            windStrength: 'calm',
+            hazards: [],
+            selectedClub: null,
+            showClubOverride: false,
+            resultModeOverride: null,
+            oopResult: 'none',
+            outcomeSelection: null,
+            firstPuttDistanceMeters: nextActionType === 'putting' ? 10 : null,
+            previousShotDistanceAdjustmentMeters: 0,
+            previousShotUseFlagAdjustment: false,
+            puttCount: null,
+            penaltyStrokes: 0,
+            puttMissLong: 0,
+            puttMissShort: 0,
+            puttMissWithin2m: 0,
+            showRecommendationWhy: false,
+            showPuttingDetails: false,
+            showAdvanced: false,
+          })
+        : buildPersistedDraftFromState(state, {
+            nextShotId: state.nextShotId + 1,
+            resultModeOverride: null,
+          });
+      const nextHoleStats = buildNextHoleStats(holeStats, state.baseHoleStats, nextTrail, nextStateDraft, { clearManualTrackScore: true });
+      lastSyncedHoleStatsRef.current = JSON.stringify(nextHoleStats);
       dispatch({
-        type: 'patch',
+        type: 'applySavedShot',
         payload: {
-          awaitingHoleAdvance: true,
+          nextTrail,
+          nextShotId: state.nextShotId + 1,
+          nextActionType,
+          remainingDistanceMeters,
+          nextSurface,
+          awaitingHoleAdvance: false,
         },
       });
+      replaceHoleStatsRef.current(nextHoleStats);
+      let didPersist = true;
+      if (saveHoleStatsRef.current) {
+        didPersist = await saveHoleStatsRef.current(nextHoleStats);
+      }
+      if (didPersist && !nextActionType) {
+        const didCompleteHole =
+          nextActionType == null
+            ? await onHoleComplete?.(nextHoleStats, {
+                persistToServer: true,
+                advanceHole: state.outcomeSelection !== 'girHoled',
+              })
+            : true;
+        if (didCompleteHole === false) {
+          return;
+        }
+      }
+
+      if (didPersist && !nextActionType && state.outcomeSelection === 'girHoled') {
+        dispatch({
+          type: 'patch',
+          payload: {
+            awaitingHoleAdvance: true,
+          },
+        });
+      }
+    } finally {
+      setIsSavingShot(false);
     }
   };
 
@@ -421,6 +432,7 @@ export function useVirtualCaddyController({
     showHoledCelebration,
     showOopOptions,
     hasCustomContext,
+    isSavingShot,
     getTrailRecordedDistanceMeters: (shot: PlannerShot, index: number) =>
       getTrailRecordedDistanceMeters(
         state.trail,

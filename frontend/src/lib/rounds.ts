@@ -130,6 +130,15 @@ export const computeTotalsForStats = (
     emptyTotals(),
   );
 
+export const computeCompletedHolesPar = (statsByHole: StatsByHole, courseMarkers?: CourseMarkers): number =>
+  HOLES.reduce((acc, hole) => {
+    if (Number(statsByHole[hole]?.score || 0) <= 0) {
+      return acc;
+    }
+
+    return acc + Number(courseMarkers?.[hole]?.par || 0);
+  }, 0);
+
 export const sanitizeStats = (raw: unknown): StatsByHole => {
   const safe = buildInitialByHole();
   if (!raw || typeof raw !== 'object') {

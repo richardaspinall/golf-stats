@@ -37,6 +37,14 @@ export function OverviewStep({
   onNext,
 }: OverviewStepProps) {
   const hasPrepPlan = hasHolePrepPlanContent(prepPlan);
+  const holeIndexClassName =
+    displayHoleIndex == null
+      ? ''
+      : displayHoleIndex <= 6
+        ? 'virtual-caddy-overview-detail-index virtual-caddy-overview-detail-index-hard'
+        : displayHoleIndex <= 12
+          ? 'virtual-caddy-overview-detail-index virtual-caddy-overview-detail-index-mid'
+          : 'virtual-caddy-overview-detail-index virtual-caddy-overview-detail-index-easy';
 
   return (
     <div className="virtual-caddy-step">
@@ -67,7 +75,7 @@ export function OverviewStep({
               </div>
               <div className="virtual-caddy-overview-row">
                 {displayHoleIndex != null ? (
-                  <div className="virtual-caddy-overview-detail">
+                  <div className={`virtual-caddy-overview-detail ${holeIndexClassName}`.trim()}>
                     <span>Index</span>
                     <strong>{displayHoleIndex}</strong>
                   </div>
@@ -94,7 +102,7 @@ export function OverviewStep({
               </div>
               <div className="virtual-caddy-overview-details">
                 {displayHoleIndex != null ? (
-                  <div className="virtual-caddy-overview-detail">
+                  <div className={`virtual-caddy-overview-detail ${holeIndexClassName}`.trim()}>
                     <span>Index</span>
                     <strong>{displayHoleIndex}</strong>
                   </div>

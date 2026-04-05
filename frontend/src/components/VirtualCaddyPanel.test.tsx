@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -377,6 +377,43 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('Putter: 2 putts')).toBeTruthy();
     expect(screen.queryByText('50w · 0m')).toBeNull();
     expect(screen.queryByText('260m')).toBeNull();
+  });
+
+  it('ignores a second save click while hole completion is still pending', async () => {
+    const user = userEvent.setup();
+    let resolveCompletion: ((value: boolean) => void) | null = null;
+    const onHoleComplete = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveCompletion = resolve;
+        }),
+    );
+
+    render(
+      <VirtualCaddyPanel
+        hole={4}
+        holeStats={emptyHoleStats()}
+        displayHolePar={4}
+        defaultDistanceMeters={150}
+        onReplaceHoleStats={vi.fn()}
+        onHoleComplete={onHoleComplete}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+
+    const saveButton = screen.getByRole('button', { name: 'Save result' });
+    fireEvent.click(saveButton);
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(onHoleComplete).toHaveBeenCalledTimes(1);
+    });
+
+    resolveCompletion?.(true);
   });
 
   it('shows not set for a putting trail card when first putt distance was never captured', async () => {

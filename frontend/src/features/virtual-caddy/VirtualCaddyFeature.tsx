@@ -75,6 +75,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
     outcomeOptions,
     canOverrideOutcomeMode,
     canSaveShot,
+    isSavingShot,
     isHoleComplete,
     completedHoleSummary,
     finalShot,
@@ -256,6 +257,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
             awaitingHoleAdvance={false}
             secondaryActionLabel="Edit"
             onSecondaryAction={() => setActiveTab('totals')}
+            headerActions={headerActions}
           />
         ) : activeTab === 'prep' ? (
           <PrepStep prepPlan={prepDraft} isLocked={prepLocked} saveState={prepSaveState} isDirty={prepIsDirty} headerActions={headerActions} onPatch={patchPrepPlan} onSave={() => void savePrepPlan()} />
@@ -358,6 +360,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
                 outcomeOptions={outcomeOptions}
                 useCompassResultLayout={useCompassResultLayout}
                 canSaveShot={canSaveShot}
+                isSavingShot={isSavingShot}
                 shotDistanceBannerLabel={shotDistanceBannerLabel}
                 shotDistanceBannerValue={shotDistanceBannerValue}
                 headerActions={headerActions}
@@ -399,6 +402,7 @@ export function VirtualCaddyFeature(props: VirtualCaddyPanelProps) {
             putts={completedHoleSummary.putts}
             tone={completedHoleSummary.style.tone}
             awaitingHoleAdvance={state.awaitingHoleAdvance}
+            headerActions={headerActions}
             onNext={() => {
               actions.updateState({ awaitingHoleAdvance: false });
               void props.onHoleComplete?.(buildNextHoleStats(props.holeStats, state.baseHoleStats, state.trail, buildPersistedDraftFromState(state)), {
