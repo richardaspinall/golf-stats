@@ -51,6 +51,7 @@ import { isGoogleAuthEnabled, loadGoogleIdentityScript } from './lib/googleAuth'
 import {
   buildInitialByHole,
   computeTotalsForStats,
+  computeCompletedHolesPar,
   sanitizeCourseMarkers,
   sanitizeCarryMeters,
   sanitizeNotesList,
@@ -148,6 +149,9 @@ export default function App() {
   const [roundNotes, setRoundNotes] = useState([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [saveState, setSaveState] = useState('loading');
+  const [roundSyncStatus, setRoundSyncStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
+  const [roundSyncHole, setRoundSyncHole] = useState<number | null>(null);
+  const [roundSyncMessage, setRoundSyncMessage] = useState('');
   const [isSwitchingRound, setIsSwitchingRound] = useState(false);
   const [targetDistanceMeters, setTargetDistanceMeters] = useState(0);
   const [actualDistanceMeters, setActualDistanceMeters] = useState(120);
@@ -211,10 +215,15 @@ export default function App() {
   const skipNextClubCarrySaveRef = useRef(false);
   const hasLoadedClubAveragesRef = useRef(false);
   const statsByHoleRef = useRef(statsByHole);
+  const selectedRoundIdRef = useRef(selectedRoundId);
+  const roundRevisionRef = useRef(0);
 
   useEffect(() => {
     statsByHoleRef.current = statsByHole;
   }, [statsByHole]);
+  useEffect(() => {
+    selectedRoundIdRef.current = selectedRoundId;
+  }, [selectedRoundId]);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleLinkButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -283,6 +292,9 @@ export default function App() {
     setRoundHandicap(0);
     setRoundNotes([]);
     setNoteDraft('');
+    setRoundSyncStatus('idle');
+    setRoundSyncHole(null);
+    setRoundSyncMessage('');
     setClubAverages([]);
     setClubAveragesError('');
     setClubAveragesDirty(true);
@@ -343,6 +355,9 @@ export default function App() {
     setLoginPassword('');
     setGoogleLinkError('');
     setGoogleLinkSuccess('');
+    setRoundSyncStatus('idle');
+    setRoundSyncHole(null);
+    setRoundSyncMessage('');
     setSaveState('loading');
     setClubAveragesDirty(true);
     setClubCarrySaveState('saved');
@@ -353,14 +368,19 @@ export default function App() {
     hasLoadedClubAveragesRef.current = false;
   };
 
-  const applyRoundToState = (round) => {
+  const applyRoundToState = (round, options = {}) => {
     const storedDraft = loadStoredRoundDraft(round.id);
     const hasStoredDraft = Boolean(storedDraft);
     const nextStatsByHole = sanitizeStats(hasStoredDraft ? storedDraft?.statsByHole : round.statsByHole);
+    const shouldResetSelectedHole = Boolean(options?.resetSelectedHole);
 
     skipNextSaveRef.current = true;
     hasLoadedRef.current = true;
+    roundRevisionRef.current = 0;
     setSelectedRoundId(round.id);
+    if (shouldResetSelectedHole) {
+      setSelectedHole(1);
+    }
     statsByHoleRef.current = nextStatsByHole;
     setStatsByHole(nextStatsByHole);
     setRoundHandicap(sanitizeRoundHandicap(hasStoredDraft ? storedDraft?.roundHandicap : round.handicap) || 0);
@@ -465,7 +485,7 @@ export default function App() {
             }
             const roundCourse = courses.find((course) => course.id === (full.courseId || ''));
             const totals = computeTotalsForStats(full.statsByHole, roundCourse?.markers, full.handicap || 0);
-            return [round.id, { totals }];
+            return [round.id, { totals, completedHolesPar: computeCompletedHolesPar(full.statsByHole, roundCourse?.markers) }];
           }),
         );
         if (!isActive) {
@@ -509,6 +529,7 @@ export default function App() {
       return;
     }
 
+    roundRevisionRef.current += 1;
     setSaveState((prev) => (prev === 'saving' ? prev : 'unsaved'));
   }, [authToken, selectedRoundId, statsByHole, roundHandicap, roundNotes, selectedCourseId]);
 
@@ -532,20 +553,45 @@ export default function App() {
     }
   }, [authToken, selectedRoundId, saveState, selectedCourseId, roundHandicap, roundNotes, statsByHole]);
 
-  const persistRoundStats = async (nextStatsByHole = statsByHole) => {
-    if (!authToken || !selectedRoundId) {
+  const persistRoundStats = async (nextStatsByHole = statsByHole, options: { background?: boolean; hole?: number | null } = {}) => {
+    if (!authToken || !selectedRoundIdRef.current) {
       return false;
     }
 
+    const requestRoundId = selectedRoundIdRef.current;
+    const requestRevision = roundRevisionRef.current;
+    const requestRoundNotes = roundNotes;
+    const requestRoundHandicap = roundHandicap;
+    const requestCourseId = selectedCourseId;
+    const requestHole = options.hole ?? null;
+    const isBackgroundPersist = Boolean(options.background);
+    if (isBackgroundPersist && requestHole != null) {
+      setRoundSyncStatus('syncing');
+      setRoundSyncHole(requestHole);
+      setRoundSyncMessage(`Syncing hole ${requestHole}...`);
+    }
     setSaveState('saving');
     try {
-      const savedRound = await saveRoundToApi(selectedRoundId, nextStatsByHole, roundNotes, roundHandicap, selectedCourseId, authToken);
-      const savedCourse = courses.find((course) => course.id === (savedRound?.courseId || selectedCourseId));
-      setSaveState('saved');
-      clearStoredRoundDraft(selectedRoundId);
+      const savedRound = await saveRoundToApi(requestRoundId, nextStatsByHole, requestRoundNotes, requestRoundHandicap, requestCourseId, authToken);
+      const savedCourse = courses.find((course) => course.id === (savedRound?.courseId || requestCourseId));
+      const isStillActiveRound = selectedRoundIdRef.current === requestRoundId;
+      const hasNewerLocalChanges = roundRevisionRef.current !== requestRevision;
+
+      if (isStillActiveRound) {
+        setSaveState(hasNewerLocalChanges ? 'unsaved' : 'saved');
+        if (!hasNewerLocalChanges) {
+          clearStoredRoundDraft(requestRoundId);
+        }
+        if (isBackgroundPersist) {
+          setRoundSyncStatus('idle');
+          setRoundSyncHole(null);
+          setRoundSyncMessage('');
+        }
+      }
+
       setRounds((prev) =>
         prev.map((round) =>
-          round.id === selectedRoundId
+          round.id === requestRoundId
             ? {
                 ...round,
                 name: savedRound?.name ?? round.name,
@@ -556,12 +602,15 @@ export default function App() {
             : round,
         ),
       );
-      setRoundSummaries((prev) => ({
-        ...prev,
-        [selectedRoundId]: {
-          totals: computeTotalsForStats(savedRound?.statsByHole ?? nextStatsByHole, savedCourse?.markers, savedRound?.handicap ?? roundHandicap),
-        },
-      }));
+      if (!hasNewerLocalChanges) {
+        setRoundSummaries((prev) => ({
+          ...prev,
+          [requestRoundId]: {
+            totals: computeTotalsForStats(savedRound?.statsByHole ?? nextStatsByHole, savedCourse?.markers, savedRound?.handicap ?? requestRoundHandicap),
+            completedHolesPar: computeCompletedHolesPar(savedRound?.statsByHole ?? nextStatsByHole, savedCourse?.markers),
+          },
+        }));
+      }
       return true;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -569,7 +618,14 @@ export default function App() {
         return false;
       }
 
-      setSaveState('error');
+      if (selectedRoundIdRef.current === requestRoundId) {
+        setSaveState('error');
+        if (isBackgroundPersist && requestHole != null) {
+          setRoundSyncStatus('error');
+          setRoundSyncHole(requestHole);
+          setRoundSyncMessage(`Hole ${requestHole} did not sync. Changes are still on this device.`);
+        }
+      }
       return false;
     }
   };
@@ -597,7 +653,7 @@ export default function App() {
     try {
       const round = await loadRoundFromApi(roundId, authToken);
       if (round) {
-        applyRoundToState(round);
+        applyRoundToState(round, { resetSelectedHole: true });
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -638,6 +694,7 @@ export default function App() {
           ...prev,
           [round.id]: {
             totals: computeTotalsForStats(round.statsByHole, roundCourse?.markers, round.handicap || 0),
+            completedHolesPar: computeCompletedHolesPar(round.statsByHole, roundCourse?.markers),
           },
         }));
         setNewRoundTitle('');
@@ -723,6 +780,8 @@ export default function App() {
   const totals = useMemo(() => {
     return computeTotalsForStats(statsByHole, activeCourse?.markers, roundHandicap);
   }, [activeCourse?.markers, roundHandicap, statsByHole]);
+  const completedHolesPar = useMemo(() => computeCompletedHolesPar(statsByHole, activeCourse?.markers), [activeCourse?.markers, statsByHole]);
+  const completedHolesCount = useMemo(() => HOLES.filter((hole) => Number(statsByHole[hole]?.score || 0) > 0).length, [statsByHole]);
 
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => updateHoleCounter(prev, hole, statKey, delta));
@@ -758,7 +817,11 @@ export default function App() {
     setStatsByHole(nextStatsByHole);
 
     if (options.persistToServer) {
-      return persistRoundStats(nextStatsByHole);
+      if (options.backgroundPersist) {
+        void persistRoundStats(nextStatsByHole, { background: true, hole });
+        return true;
+      }
+      return persistRoundStats(nextStatsByHole, { hole });
     }
 
     return true;
@@ -1559,6 +1622,7 @@ export default function App() {
   }
 
   const isVirtualCaddyShellHidden = page === 'virtualCaddy' && isVirtualCaddyFocusMode;
+  const isRoundLoading = Boolean(authToken) && saveState === 'loading';
   const appClassName =
     page === 'track' && saveState === 'unsaved' ? 'app app-has-mobile-save-tray' : isVirtualCaddyShellHidden ? 'app app-focus-mode' : 'app';
 
@@ -1696,6 +1760,9 @@ export default function App() {
       {!showNewRoundForm ? (
         <>
           {!isVirtualCaddyShellHidden ? <SavePill state={saveState} /> : null}
+          {!isVirtualCaddyShellHidden && roundSyncStatus !== 'idle' ? (
+            <p className={roundSyncStatus === 'error' ? 'sync-banner sync-banner-error' : 'sync-banner'}>{roundSyncMessage}</p>
+          ) : null}
 
           {!isVirtualCaddyShellHidden ? (
             <PageTabs
@@ -1854,6 +1921,8 @@ export default function App() {
               activeRoundName={activeRound?.name}
               activeRoundHandicap={roundHandicap}
               totals={totals}
+              completedHolesPar={completedHolesPar}
+              completedHolesCount={completedHolesCount}
             />
           ) : page === 'rounds' ? (
             <RoundsPage
@@ -1967,6 +2036,15 @@ export default function App() {
             />
           ) : null}
         </>
+      ) : null}
+      {isRoundLoading ? (
+        <div className="loading-overlay" role="status" aria-live="polite" aria-label="Loading round">
+          <div className="loading-card">
+            <div className="loading-spinner" aria-hidden="true" />
+            <h2>Loading round</h2>
+            <p className="hint">Fetching scores, notes, and course details.</p>
+          </div>
+        </div>
       ) : null}
     </main>
   );

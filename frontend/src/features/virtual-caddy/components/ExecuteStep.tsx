@@ -32,6 +32,7 @@ type ExecuteStepProps = {
   outcomeOptions: Array<{ key: string; label: string }>;
   useCompassResultLayout: boolean;
   canSaveShot: boolean;
+  isSavingShot: boolean;
   shotDistanceBannerLabel: string;
   shotDistanceBannerValue: string | null;
   headerActions?: ReactNode;
@@ -65,6 +66,7 @@ export function ExecuteStep({
   outcomeOptions,
   useCompassResultLayout,
   canSaveShot,
+  isSavingShot,
   shotDistanceBannerLabel,
   shotDistanceBannerValue,
   headerActions,
@@ -460,8 +462,8 @@ export function ExecuteStep({
       </div>
       <div className="virtual-caddy-card-footer">
         {onBack ? <button type="button" className="setup-toggle" onClick={onBack}>Back</button> : null}
-        <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot} onClick={onSave}>
-          Save result
+        <button type="button" className="save-btn virtual-caddy-save-btn" disabled={!canSaveShot || isSavingShot} onClick={onSave}>
+          {isSavingShot ? 'Saving...' : 'Save result'}
         </button>
       </div>
     </div>

@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 type CompletionCardProps = {
   isHoleInOneFinish: boolean;
   showHoledCelebration: boolean;
@@ -11,6 +13,7 @@ type CompletionCardProps = {
   onNext?: () => void;
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
+  headerActions?: ReactNode;
 };
 
 export function CompletionCard({
@@ -26,6 +29,7 @@ export function CompletionCard({
   onNext,
   secondaryActionLabel,
   onSecondaryAction,
+  headerActions,
 }: CompletionCardProps) {
   const className = isHoleInOneFinish
     ? 'prototype-block virtual-caddy-complete virtual-caddy-complete-hole-in-one'
@@ -47,8 +51,11 @@ export function CompletionCard({
         </div>
       ) : null}
       <div className="virtual-caddy-complete-header">
-        <span className="quick-select-label">{completionTitle}</span>
-        {completionDetail ? <p>{completionDetail}</p> : null}
+        <div>
+          <span className="quick-select-label">{completionTitle}</span>
+          {completionDetail ? <p>{completionDetail}</p> : null}
+        </div>
+        {headerActions ? <div className="virtual-caddy-step-header-actions">{headerActions}</div> : null}
       </div>
       <div className="virtual-caddy-complete-summary">
         <div className="virtual-caddy-complete-stat">

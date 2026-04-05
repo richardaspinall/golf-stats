@@ -76,6 +76,7 @@ export const applyVirtualCaddyTrailToHole = (baseHoleStats: HoleStats, execution
   nextHoleStats.inside100ChipShots = Number(baseHoleStats.inside100ChipShots || 0);
   nextHoleStats.inside100Bunkers = Number(baseHoleStats.inside100Bunkers || 0);
   nextHoleStats.inside100Over3 = Number(baseHoleStats.inside100Over3 || 0);
+  nextHoleStats.upAndDown = Number(baseHoleStats.upAndDown || 0);
   nextHoleStats.puttMissLong = Number(baseHoleStats.puttMissLong || 0);
   nextHoleStats.puttMissShort = Number(baseHoleStats.puttMissShort || 0);
   nextHoleStats.puttMissWithin2m = Number(baseHoleStats.puttMissWithin2m || 0);
@@ -120,6 +121,16 @@ export const applyVirtualCaddyTrailToHole = (baseHoleStats: HoleStats, execution
   });
 
   nextHoleStats.inside100Over3 = Math.max(0, inside100Shots - 3);
+  const firstGreenHitOutcome =
+    executions.find((execution) => execution.outcomeSelection === 'girHit' || execution.outcomeSelection === 'girHoled' || execution.outcomeSelection === 'chipOnGreen')
+      ?.outcomeSelection ?? null;
+  const totalTrailPutts = executions.reduce(
+    (sum, execution) => sum + (typeof execution.puttCount === 'number' && execution.puttCount > 0 ? execution.puttCount : 0),
+    0,
+  );
+  if (firstGreenHitOutcome === 'chipOnGreen' && totalTrailPutts === 1) {
+    nextHoleStats.upAndDown = Number(nextHoleStats.upAndDown || 0) + 1;
+  }
 
   return nextHoleStats;
 };

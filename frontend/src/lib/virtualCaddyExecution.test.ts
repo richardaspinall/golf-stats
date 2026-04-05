@@ -80,4 +80,16 @@ describe('applyVirtualCaddyExecution', () => {
 
     expect(updated.girSelection).toBe('girRight');
   });
+
+  it('counts an up and down when the first green hit is a chip and the player one-putts', () => {
+    const holeStats = buildInitialByHole()[8];
+
+    const updated = applyVirtualCaddyTrailToHole(holeStats, [
+      { hole: 8, scoreDelta: 1, oopResult: 'none', shotCategory: 'none', inside100Over3: 0, distanceStartMeters: 340, outcomeSelection: 'fairwayRight' },
+      { hole: 8, scoreDelta: 1, oopResult: 'none', shotCategory: 'chip', inside100Over3: 0, distanceStartMeters: 14, outcomeSelection: 'chipOnGreen' },
+      { hole: 8, scoreDelta: 1, oopResult: 'none', shotCategory: 'none', inside100Over3: 0, distanceStartMeters: 3, outcomeSelection: 'puttHoled', puttCount: 1 },
+    ]);
+
+    expect(updated.upAndDown).toBe(1);
+  });
 });
