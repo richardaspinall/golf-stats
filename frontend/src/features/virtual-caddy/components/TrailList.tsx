@@ -16,6 +16,9 @@ export function TrailList({ trail, getTrailRecordedDistanceMeters, getTrailSumma
     <div className="virtual-caddy-trail">
       {[...trail].reverse().map((shot) => {
         const index = trail.findIndex((entry) => entry.id === shot.id);
+        const recordedDistanceMeters = getTrailRecordedDistanceMeters(shot, index);
+        const recordedDistanceLabel =
+          shot.actionType === 'putting' && recordedDistanceMeters <= 0 ? 'Not set' : `${recordedDistanceMeters}m`;
         return (
           <div key={shot.id} className="prototype-block virtual-caddy-trail-card">
             <div className="virtual-caddy-trail-header">
@@ -23,7 +26,7 @@ export function TrailList({ trail, getTrailRecordedDistanceMeters, getTrailSumma
                 <span className="virtual-caddy-trail-number">{index + 1}</span>
                 <span className="quick-select-label">{shot.label}</span>
                 <strong className="virtual-caddy-trail-club">
-                  {shot.club} · {getTrailRecordedDistanceMeters(shot, index)}m
+                  {shot.club} · {recordedDistanceLabel}
                 </strong>
               </div>
               <button type="button" className="setup-toggle" onClick={() => onStartEdit(index)}>

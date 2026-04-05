@@ -25,8 +25,7 @@ import {
   clampPreviousShotDistanceAdjustmentMeters,
   deriveOopResult,
   deriveShotCategory,
-  getActualDistanceFromStart,
-  getAdjustedMeasuredDistanceMeters,
+  getRecordedDistanceFromFollowingShot,
   getShotLabel,
   getSurfaceFromOutcome,
   shouldTrackClubActual,
@@ -177,10 +176,7 @@ export function useVirtualCaddyController({
 
   const getCompletedShotActualDistanceMeters = (trail: PlannerShot[], shot: PlannerShot, index: number) => {
     const followingShot = trail[index + 1];
-    if (followingShot?.actionType === 'putting' && (shot.outcomeSelection === 'girHit' || shot.outcomeSelection === 'chipOnGreen')) {
-      return getAdjustedMeasuredDistanceMeters(shot.plannedDistanceMeters, followingShot.previousShotDistanceAdjustmentMeters ?? 0);
-    }
-    return getActualDistanceFromStart(shot.distanceStartMeters, followingShot ? followingShot.distanceStartMeters : shot.remainingDistanceMeters);
+    return getRecordedDistanceFromFollowingShot(shot, followingShot);
   };
 
   const buildTrackedClubActualShots = (trail: PlannerShot[]) =>
@@ -254,7 +250,11 @@ export function useVirtualCaddyController({
       club: recommendation.club,
       carryMeters: recommendation.carryMeters,
       firstPuttDistanceMeters: state.firstPuttDistanceMeters,
-      previousShotDistanceAdjustmentMeters: state.actionType === 'putting' ? clampPreviousShotDistanceAdjustmentMeters(state.previousShotDistanceAdjustmentMeters) : null,
+      previousShotDistanceAdjustmentMeters:
+        state.actionType === 'putting' || state.actionType === 'chipping'
+          ? clampPreviousShotDistanceAdjustmentMeters(state.previousShotDistanceAdjustmentMeters)
+          : null,
+      previousShotUseFlagAdjustment: state.actionType === 'chipping' ? state.previousShotUseFlagAdjustment : null,
       puttCount: state.puttCount,
       penaltyStrokes: state.penaltyStrokes,
       puttMissLong: state.puttMissLong,
@@ -328,6 +328,7 @@ export function useVirtualCaddyController({
           outcomeSelection: null,
           firstPuttDistanceMeters: nextActionType === 'putting' ? 10 : null,
           previousShotDistanceAdjustmentMeters: 0,
+          previousShotUseFlagAdjustment: false,
           puttCount: null,
           penaltyStrokes: 0,
           puttMissLong: 0,
@@ -429,6 +430,7 @@ export function useVirtualCaddyController({
         isHoleComplete,
         state.actionType,
         state.previousShotDistanceAdjustmentMeters,
+        state.previousShotUseFlagAdjustment,
       ),
     getTrailSummary,
     actions: {

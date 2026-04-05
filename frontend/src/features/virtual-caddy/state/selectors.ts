@@ -1,9 +1,8 @@
 import { CHIP_OUTCOME_OPTIONS, FAIRWAY_OUTCOME_OPTIONS, GIR_OUTCOME_OPTIONS } from '../constants';
 import {
   formatTrailSummary,
-  getActualDistanceFromStart,
-  getAdjustedMeasuredDistanceMeters,
   getOutcomeMode,
+  getRecordedDistanceFromFollowingShot,
   getScoreSummaryStyle,
   getShotLabel,
   isGreenHitOutcome,
@@ -89,6 +88,7 @@ export const getTrailRecordedDistanceMeters = (
   isHoleComplete: boolean,
   currentActionType?: VirtualCaddyState['actionType'],
   currentPreviousShotDistanceAdjustmentMeters?: number,
+  currentPreviousShotUseFlagAdjustment?: boolean,
 ) => {
   if (shot.actionType === 'putting' && typeof shot.firstPuttDistanceMeters === 'number' && shot.firstPuttDistanceMeters > 0) {
     return shot.firstPuttDistanceMeters;
@@ -96,24 +96,35 @@ export const getTrailRecordedDistanceMeters = (
 
   const nextShot = trail[index + 1];
   if (nextShot) {
-    if (nextShot.actionType === 'putting' && (shot.outcomeSelection === 'girHit' || shot.outcomeSelection === 'chipOnGreen')) {
-      return getAdjustedMeasuredDistanceMeters(shot.plannedDistanceMeters, nextShot.previousShotDistanceAdjustmentMeters ?? 0);
-    }
-    return getActualDistanceFromStart(shot.distanceStartMeters, nextShot.distanceStartMeters);
+    return getRecordedDistanceFromFollowingShot(shot, nextShot);
   }
 
   if (!isHoleComplete) {
     const isCurrentPreviousShotPreview =
-      currentActionType === 'putting' &&
+      (currentActionType === 'putting' || currentActionType === 'chipping') &&
       index === trail.length - 1 &&
-      (shot.outcomeSelection === 'girHit' || shot.outcomeSelection === 'chipOnGreen');
+      (shot.outcomeSelection === 'girHit' ||
+        shot.outcomeSelection === 'chipOnGreen' ||
+        shot.outcomeSelection === 'girLong' ||
+        shot.outcomeSelection === 'girLeft' ||
+        shot.outcomeSelection === 'girRight');
     if (isCurrentPreviousShotPreview) {
-      return getAdjustedMeasuredDistanceMeters(shot.plannedDistanceMeters, currentPreviousShotDistanceAdjustmentMeters ?? 0);
+      return getRecordedDistanceFromFollowingShot(shot, {
+        actionType: currentActionType,
+        distanceStartMeters: currentDistanceToHoleMeters,
+        previousShotDistanceAdjustmentMeters: currentPreviousShotDistanceAdjustmentMeters ?? 0,
+        previousShotUseFlagAdjustment: Boolean(currentPreviousShotUseFlagAdjustment),
+      });
     }
-    return getActualDistanceFromStart(shot.distanceStartMeters, currentDistanceToHoleMeters);
+    return getRecordedDistanceFromFollowingShot(shot, {
+      actionType: currentActionType ?? 'shot',
+      distanceStartMeters: currentDistanceToHoleMeters,
+      previousShotDistanceAdjustmentMeters: currentPreviousShotDistanceAdjustmentMeters ?? 0,
+      previousShotUseFlagAdjustment: false,
+    });
   }
 
-  return getActualDistanceFromStart(shot.distanceStartMeters, shot.remainingDistanceMeters);
+  return getRecordedDistanceFromFollowingShot(shot, null);
 };
 
 export const getTrailSummary = (shot: PlannerShot) => formatTrailSummary(shot);

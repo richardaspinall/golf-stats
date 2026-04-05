@@ -33,6 +33,7 @@ const createDefaultDraft = (distanceMeters: number, surface: NonNullable<Virtual
   outcomeSelection: null,
   firstPuttDistanceMeters: null,
   previousShotDistanceAdjustmentMeters: 0,
+  previousShotUseFlagAdjustment: false,
   puttCount: null,
   penaltyStrokes: 0,
   puttMissLong: 0,
@@ -112,12 +113,16 @@ export function virtualCaddyReducer(state: VirtualCaddyState, action: VirtualCad
       return { ...state, surface: action.payload };
     case 'setBunkerLie':
       return { ...state, bunkerLie: action.payload };
-    case 'setOutcomeSelection':
+    case 'setOutcomeSelection': {
+      const keepPreviousShotAdjustment =
+        state.actionType === 'chipping' || action.payload === 'girHit' || action.payload === 'chipOnGreen';
       return {
         ...state,
         outcomeSelection: action.payload,
-        previousShotDistanceAdjustmentMeters: action.payload === 'girHit' || action.payload === 'chipOnGreen' ? state.previousShotDistanceAdjustmentMeters : 0,
+        previousShotDistanceAdjustmentMeters: keepPreviousShotAdjustment ? state.previousShotDistanceAdjustmentMeters : 0,
+        previousShotUseFlagAdjustment: state.actionType === 'chipping' ? state.previousShotUseFlagAdjustment : false,
       };
+    }
     case 'setDistanceMode':
       if (action.payload === 'hole') {
         return { ...state, distanceMode: 'hole', distanceToMiddleMeters: state.distanceToHoleMeters };
@@ -194,6 +199,7 @@ export function virtualCaddyReducer(state: VirtualCaddyState, action: VirtualCad
         outcomeSelection: action.payload.shot.outcomeSelection,
         firstPuttDistanceMeters: action.payload.shot.firstPuttDistanceMeters ?? null,
         previousShotDistanceAdjustmentMeters: action.payload.shot.previousShotDistanceAdjustmentMeters ?? 0,
+        previousShotUseFlagAdjustment: Boolean(action.payload.shot.previousShotUseFlagAdjustment),
         puttCount: action.payload.shot.puttCount ?? null,
         penaltyStrokes: action.payload.shot.penaltyStrokes ?? 0,
         puttMissLong: action.payload.shot.puttMissLong ?? 0,

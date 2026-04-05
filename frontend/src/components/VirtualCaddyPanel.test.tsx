@@ -257,6 +257,77 @@ describe('VirtualCaddyPanel', () => {
     ]);
   });
 
+  it('adds chip distance onto a previous long green miss for club tracking', async () => {
+    const user = userEvent.setup();
+    const onSaveClubActual = vi.fn().mockResolvedValueOnce(101);
+
+    render(
+      <VirtualCaddyPanel
+        hole={3}
+        holeStats={emptyHoleStats()}
+        displayHolePar={3}
+        defaultDistanceMeters={150}
+        onReplaceHoleStats={vi.fn()}
+        onSaveClubActual={onSaveClubActual}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Long' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '20' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByText(/Recorded 170m from a 150m flag measurement because the miss finished 20m long\./)).toBeTruthy();
+    expect(screen.getByText(/· 170m/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'On green' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(onSaveClubActual).toHaveBeenCalledTimes(1);
+    expect(onSaveClubActual.mock.calls[0]?.[0]).toMatchObject({ actualMeters: 170 });
+  });
+
+  it('allows adjusting a previous left or right miss to the flag from the chip step', async () => {
+    const user = userEvent.setup();
+    const onSaveClubActual = vi.fn().mockResolvedValueOnce(101);
+
+    render(
+      <VirtualCaddyPanel
+        hole={3}
+        holeStats={emptyHoleStats()}
+        displayHolePar={3}
+        defaultDistanceMeters={150}
+        onReplaceHoleStats={vi.fn()}
+        onSaveClubActual={onSaveClubActual}
+      />,
+    );
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Left' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    fireEvent.change(screen.getByLabelText('Virtual caddy distance to hole'), { target: { value: '20' } });
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByText(/· 130m/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Adjust to flag' }));
+    expect(screen.getByText(/Using the flag as the reference instead of the 20m chip leave\./)).toBeTruthy();
+    expect(screen.getByLabelText('Virtual caddy previous shot distance adjustment')).toBeTruthy();
+    expect(screen.getByText(/· 150m/)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'On green' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(onSaveClubActual).toHaveBeenCalledTimes(1);
+    expect(onSaveClubActual.mock.calls[0]?.[0]).toMatchObject({ actualMeters: 150 });
+  });
+
   it('rehydrates a completed hole without replacing zero distances with the full hole length', async () => {
     const user = userEvent.setup();
     const savedHoleStates: HoleStats[] = [];
@@ -306,6 +377,37 @@ describe('VirtualCaddyPanel', () => {
     expect(screen.getByText('Putter: 2 putts')).toBeTruthy();
     expect(screen.queryByText('50w · 0m')).toBeNull();
     expect(screen.queryByText('260m')).toBeNull();
+  });
+
+  it('shows not set for a putting trail card when first putt distance was never captured', async () => {
+    const user = userEvent.setup();
+
+    render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+    await user.click(within(screen.getByRole('group', { name: 'Virtual caddy putts selection' })).getByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    expect(screen.getByText('Putter · Not set')).toBeTruthy();
+    expect(screen.queryByText('Putter · 0m')).toBeNull();
+  });
+
+  it('shows not set in the putting distance control when the slider is at zero', async () => {
+    const user = userEvent.setup();
+
+    render(<VirtualCaddyPanel hole={4} holeStats={emptyHoleStats()} displayHolePar={4} defaultDistanceMeters={150} onReplaceHoleStats={vi.fn()} />);
+
+    await advanceToAction(user);
+    await user.click(screen.getByRole('button', { name: 'Green hit' }));
+    await user.click(screen.getByRole('button', { name: 'Save result' }));
+
+    const firstPuttSlider = screen.getByLabelText('Virtual caddy first putt distance');
+    fireEvent.change(firstPuttSlider, { target: { value: '0' } });
+
+    expect(screen.getByText('Not set')).toBeTruthy();
+    expect((firstPuttSlider as HTMLInputElement).value).toBe('0');
   });
 
   it('does not inflate the score when hole stats are replaced after each saved shot', async () => {

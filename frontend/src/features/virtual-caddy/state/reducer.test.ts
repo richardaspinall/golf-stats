@@ -42,4 +42,20 @@ describe('virtual caddy reducer', () => {
     expect(updated.previousShotDistanceAdjustmentMeters).toBe(6);
     expect(cleared.previousShotDistanceAdjustmentMeters).toBe(0);
   });
+
+  it('preserves chip-step flag adjustment state while selecting chip results', () => {
+    const initial = createInitialVirtualCaddyState(emptyHoleStats(), 20, 'fairway');
+    const chipping = virtualCaddyReducer(initial, {
+      type: 'patchDraft',
+      payload: {
+        actionType: 'chipping',
+        previousShotDistanceAdjustmentMeters: 4,
+        previousShotUseFlagAdjustment: true,
+      },
+    });
+    const updated = virtualCaddyReducer(chipping, { type: 'setOutcomeSelection', payload: 'chipOnGreen' });
+
+    expect(updated.previousShotDistanceAdjustmentMeters).toBe(4);
+    expect(updated.previousShotUseFlagAdjustment).toBe(true);
+  });
 });

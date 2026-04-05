@@ -82,6 +82,37 @@ export const clampPreviousShotDistanceAdjustmentMeters = (distanceMeters: number
 export const getAdjustedMeasuredDistanceMeters = (measuredDistanceMeters: number, adjustmentMeters: number) =>
   Math.max(0, Math.round(measuredDistanceMeters) + clampPreviousShotDistanceAdjustmentMeters(adjustmentMeters));
 
+export const getRecordedDistanceFromFollowingShot = (
+  shot: Pick<PlannerShot, 'distanceStartMeters' | 'plannedDistanceMeters' | 'remainingDistanceMeters' | 'outcomeSelection'>,
+  followingShot:
+    | Pick<PlannerShot, 'actionType' | 'distanceStartMeters' | 'previousShotDistanceAdjustmentMeters' | 'previousShotUseFlagAdjustment'>
+    | null
+    | undefined,
+) => {
+  if (!followingShot) {
+    return getActualDistanceFromStart(shot.distanceStartMeters, shot.remainingDistanceMeters);
+  }
+
+  if (followingShot.actionType === 'putting' && (shot.outcomeSelection === 'girHit' || shot.outcomeSelection === 'chipOnGreen')) {
+    return getAdjustedMeasuredDistanceMeters(shot.plannedDistanceMeters, followingShot.previousShotDistanceAdjustmentMeters ?? 0);
+  }
+
+  if (followingShot.actionType === 'chipping') {
+    if (shot.outcomeSelection === 'girLong') {
+      return Math.max(0, Math.round(shot.plannedDistanceMeters) + Math.round(followingShot.distanceStartMeters));
+    }
+
+    if (
+      (shot.outcomeSelection === 'girLeft' || shot.outcomeSelection === 'girRight') &&
+      followingShot.previousShotUseFlagAdjustment
+    ) {
+      return getAdjustedMeasuredDistanceMeters(shot.plannedDistanceMeters, followingShot.previousShotDistanceAdjustmentMeters ?? 0);
+    }
+  }
+
+  return getActualDistanceFromStart(shot.distanceStartMeters, followingShot.distanceStartMeters);
+};
+
 export const isOopSurface = (surface: NonNullable<VirtualCaddyInputs['surface']>) => surface !== 'tee' && surface !== 'fairway';
 
 export const isGreenHitOutcome = (outcomeSelection: VirtualCaddyOutcomeSelection | null) =>

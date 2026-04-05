@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { PENALTY_STROKE_OPTIONS, PUTT_COUNT_OPTIONS, PUTTING_DETAIL_OPTIONS } from '../constants';
-import { clampPreviousShotDistanceAdjustmentMeters, getAdjustedMeasuredDistanceMeters, getOutcomePositionClass } from '../domain/planner';
+import { clampPreviousShotDistanceAdjustmentMeters, getOutcomePositionClass, getRecordedDistanceFromFollowingShot } from '../domain/planner';
 import type { PlannerShot, VirtualCaddyState } from '../types';
 
 type ExecuteStepProps = {
@@ -80,19 +80,30 @@ export function ExecuteStep({
   onSetOutcomeSelection,
   onSetPenaltyStrokes,
 }: ExecuteStepProps) {
+  const firstPuttDistanceMeters = Math.max(0, Math.round(state.firstPuttDistanceMeters ?? 0));
+  const firstPuttDistanceLabel = firstPuttDistanceMeters > 0 ? `${firstPuttDistanceMeters}m` : 'Not set';
   const getPuttDetailValue = (statKey: 'puttMissLong' | 'puttMissShort' | 'puttMissWithin2m') => {
     if (statKey === 'puttMissLong') return state.puttMissLong;
     if (statKey === 'puttMissShort') return state.puttMissShort;
     return state.puttMissWithin2m;
   };
-  const previousShot = isPutting ? state.trail[state.trail.length - 1] ?? null : null;
-  const canAdjustPreviousShotDistance =
+  const previousShot = isPutting || isChipping ? state.trail[state.trail.length - 1] ?? null : null;
+  const canAdjustPuttingPreviousShotDistance =
     isPutting && previousShot != null && (previousShot.outcomeSelection === 'girHit' || previousShot.outcomeSelection === 'chipOnGreen');
+  const canAdjustChipPreviousShotDistance =
+    isChipping && previousShot != null && (previousShot.outcomeSelection === 'girLeft' || previousShot.outcomeSelection === 'girRight');
+  const hasAutoLongChipRecovery = isChipping && previousShot?.outcomeSelection === 'girLong';
   const previousShotDistanceAdjustmentMeters = clampPreviousShotDistanceAdjustmentMeters(state.previousShotDistanceAdjustmentMeters);
-  const adjustedPreviousShotDistanceMeters =
-    previousShot && canAdjustPreviousShotDistance
-      ? getAdjustedMeasuredDistanceMeters(previousShot.plannedDistanceMeters, previousShotDistanceAdjustmentMeters)
-      : null;
+  const showingChipFlagAdjustment = canAdjustChipPreviousShotDistance && state.previousShotUseFlagAdjustment;
+  const canShowPreviousShotCard = canAdjustPuttingPreviousShotDistance || canAdjustChipPreviousShotDistance || hasAutoLongChipRecovery;
+  const recordedPreviousShotDistanceMeters = previousShot
+    ? getRecordedDistanceFromFollowingShot(previousShot, {
+        actionType: state.actionType,
+        distanceStartMeters: state.distanceToHoleMeters,
+        previousShotDistanceAdjustmentMeters,
+        previousShotUseFlagAdjustment: showingChipFlagAdjustment,
+      })
+    : null;
   const [showPreviousShotAdjustment, setShowPreviousShotAdjustment] = useState(false);
 
   return (
@@ -215,27 +226,55 @@ export function ExecuteStep({
               </ul>
             </div>
           ) : null}
-          {isPutting ? (
+          {isPutting || isChipping ? (
             <>
-              {canAdjustPreviousShotDistance && previousShot && adjustedPreviousShotDistanceMeters != null ? (
+              {canShowPreviousShotCard && previousShot && recordedPreviousShotDistanceMeters != null ? (
                 <div className="prototype-block">
                   <div className="virtual-caddy-adjust-blurb">
                     <div className="virtual-caddy-adjust-blurb-copy">
                       <span className="quick-select-label">Previous shot vs flag</span>
-                      <p className="hint">
-                        Recorded {adjustedPreviousShotDistanceMeters}m from a {previousShot.plannedDistanceMeters}m flag measurement.
-                      </p>
+                      {hasAutoLongChipRecovery ? (
+                        <p className="hint">
+                          Recorded {recordedPreviousShotDistanceMeters}m from a {previousShot.plannedDistanceMeters}m flag measurement because the miss finished {state.distanceToHoleMeters}m long.
+                        </p>
+                      ) : canAdjustChipPreviousShotDistance ? (
+                        <p className="hint">
+                          {showingChipFlagAdjustment
+                            ? `Using the flag as the reference instead of the ${state.distanceToHoleMeters}m chip leave.`
+                            : `Keeping the ${recordedPreviousShotDistanceMeters}m chip-based distance. Switch to flag adjustment if the miss was pin-high or long/short of the hole.`}
+                        </p>
+                      ) : (
+                        <p className="hint">
+                          Recorded {recordedPreviousShotDistanceMeters}m from a {previousShot.plannedDistanceMeters}m flag measurement.
+                        </p>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      className="setup-toggle"
-                      onClick={() => setShowPreviousShotAdjustment((value) => !value)}
-                      aria-expanded={showPreviousShotAdjustment}
-                    >
-                      {showPreviousShotAdjustment ? 'Hide adjust' : 'Adjust'}
-                    </button>
+                    {canAdjustChipPreviousShotDistance ? (
+                      <button
+                        type="button"
+                        className={showingChipFlagAdjustment ? 'setup-toggle active' : 'setup-toggle'}
+                        onClick={() =>
+                          onPatch({
+                            previousShotUseFlagAdjustment: !showingChipFlagAdjustment,
+                            previousShotDistanceAdjustmentMeters: 0,
+                          })
+                        }
+                        aria-pressed={showingChipFlagAdjustment}
+                      >
+                        {showingChipFlagAdjustment ? 'Use chip distance' : 'Adjust to flag'}
+                      </button>
+                    ) : !hasAutoLongChipRecovery ? (
+                      <button
+                        type="button"
+                        className="setup-toggle"
+                        onClick={() => setShowPreviousShotAdjustment((value) => !value)}
+                        aria-expanded={showPreviousShotAdjustment}
+                      >
+                        {showPreviousShotAdjustment ? 'Hide adjust' : 'Adjust'}
+                      </button>
+                    ) : null}
                   </div>
-                  {showPreviousShotAdjustment ? (
+                  {(canAdjustPuttingPreviousShotDistance ? showPreviousShotAdjustment : showingChipFlagAdjustment) ? (
                     <>
                       <div className="distance-header">
                         <span className="quick-select-label">Adjustment</span>
@@ -275,29 +314,38 @@ export function ExecuteStep({
                         <div className="virtual-caddy-distance-summary-label">
                           <span>Recorded previous shot</span>
                         </div>
-                        <strong>{adjustedPreviousShotDistanceMeters}m</strong>
+                        <strong>{recordedPreviousShotDistanceMeters}m</strong>
                       </div>
                     </>
+                  ) : hasAutoLongChipRecovery ? (
+                    <div className="virtual-caddy-distance-summary">
+                      <div className="virtual-caddy-distance-summary-label">
+                        <span>Recorded previous shot</span>
+                      </div>
+                      <strong>{recordedPreviousShotDistanceMeters}m</strong>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
-              <div className="prototype-block virtual-caddy-putting-distance-block">
-                <div className="distance-header">
-                  <span className="quick-select-label">1st putt distance</span>
-                  <strong>{state.firstPuttDistanceMeters ?? 10}m</strong>
-                </div>
-                <div className="virtual-caddy-slider-stack">
-                  <div className="virtual-caddy-slider-only-row">
-                    <input type="range" min={1} max={60} step={1} value={state.firstPuttDistanceMeters ?? 10} aria-label="Virtual caddy first putt distance" onChange={(event) => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, Math.round(Number(event.target.value)))) })} />
+              {isPutting ? (
+                <div className="prototype-block virtual-caddy-putting-distance-block">
+                  <div className="distance-header">
+                    <span className="quick-select-label">1st putt distance</span>
+                    <strong>{firstPuttDistanceLabel}</strong>
                   </div>
-                  <div className="virtual-caddy-slider-row">
-                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) - 5)) })}>-5m</button>
-                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) - 1)) })}>-1m</button>
-                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) + 1)) })}>+1m</button>
-                    <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(1, (state.firstPuttDistanceMeters ?? 10) + 5)) })}>+5m</button>
+                  <div className="virtual-caddy-slider-stack">
+                    <div className="virtual-caddy-slider-only-row">
+                      <input type="range" min={0} max={60} step={1} value={firstPuttDistanceMeters} aria-label="Virtual caddy first putt distance" onChange={(event) => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(0, Math.round(Number(event.target.value)))) })} />
+                    </div>
+                    <div className="virtual-caddy-slider-row">
+                      <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(0, firstPuttDistanceMeters - 5)) })}>-5m</button>
+                      <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(0, firstPuttDistanceMeters - 1)) })}>-1m</button>
+                      <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(0, firstPuttDistanceMeters + 1)) })}>+1m</button>
+                      <button type="button" className="choice-chip" onClick={() => onPatch({ firstPuttDistanceMeters: Math.min(60, Math.max(0, firstPuttDistanceMeters + 5)) })}>+5m</button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
             </>
           ) : null}
           <div className="prototype-block virtual-caddy-inline-result">

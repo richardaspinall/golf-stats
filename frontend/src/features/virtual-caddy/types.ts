@@ -43,6 +43,7 @@ export type PlannerShot = VirtualCaddyExecutedShot & {
   actionType: PlannerActionType;
   firstPuttDistanceMeters?: number | null;
   previousShotDistanceAdjustmentMeters?: number | null;
+  previousShotUseFlagAdjustment?: boolean | null;
   distanceStartMeters: number;
   plannedDistanceMeters: number;
   remainingDistanceMeters: number;
@@ -88,6 +89,7 @@ export type PersistedPlannerDraft = {
   outcomeSelection: VirtualCaddyOutcomeSelection | null;
   firstPuttDistanceMeters: number | null;
   previousShotDistanceAdjustmentMeters: number;
+  previousShotUseFlagAdjustment: boolean;
   puttCount: number | null;
   penaltyStrokes: number;
   puttMissLong: number;
