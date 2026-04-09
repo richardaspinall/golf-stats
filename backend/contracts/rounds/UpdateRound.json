@@ -1,0 +1,35 @@
+{
+  "handlerName": "UpdateRound",
+  "domainName": "rounds",
+  "apiVerb": "update",
+  "httpMethod": "put",
+  "authRequired": true,
+  "payload": {
+    "properties": [
+      { "name": "name", "type": "unknown", "required": false },
+      { "name": "roundDate", "type": "unknown", "required": false },
+      { "name": "handicap", "type": "unknown", "required": false },
+      { "name": "courseId", "type": "unknown", "required": false },
+      { "name": "statsByHole", "type": "unknown", "required": false },
+      { "name": "notes", "type": "unknown", "required": false }
+    ]
+  },
+  "output": {
+    "properties": [
+      { "name": "ok", "type": "boolean", "required": true },
+      { "name": "round", "type": "Round", "required": true }
+    ]
+  },
+  "errors": [
+    {
+      "errorName": "RoundNotFoundError",
+      "errorCode": "ROUND_NOT_FOUND",
+      "message": "Round not found"
+    },
+    {
+      "errorName": "RoundUpdateError",
+      "errorCode": "ROUND_UPDATE_ERROR",
+      "message": "Round was not updated"
+    }
+  ]
+}

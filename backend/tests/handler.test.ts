@@ -679,6 +679,50 @@ describe('handler', () => {
     });
   });
 
+  it('updates a round score through the action endpoint', async () => {
+    const { handleRequest, signToken, updateRound } = await loadHandler();
+    updateRound.mockResolvedValueOnce({
+      id: '1',
+      userId: 'user-1',
+      name: 'Round 1',
+      roundDate: '2026-04-09',
+      handicap: 12,
+      courseId: null,
+      statsByHole: { 1: { score: 3 } },
+      notes: [],
+      createdAt: 'now',
+      updatedAt: 'later',
+    });
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/rounds.updateScore',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { round: '1', hole: 1, score: 3 },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(updateRound).toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      round: {
+        id: '1',
+        userId: 'user-1',
+        name: 'Round 1',
+        roundDate: '2026-04-09',
+        handicap: 12,
+        courseId: null,
+        statsByHole: { 1: { score: 3 } },
+        notes: [],
+        createdAt: 'now',
+        updatedAt: 'later',
+      },
+    });
+  });
+
   it('deletes a round with a normalized success envelope', async () => {
     const { handleRequest, signToken, deleteRoundById } = await loadHandler();
     deleteRoundById.mockResolvedValueOnce(true);

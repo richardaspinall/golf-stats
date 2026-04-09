@@ -1,0 +1,37 @@
+{
+  "handlerName": "UpdateRoundScore",
+  "domainName": "rounds",
+  "apiVerb": "updateScore",
+  "httpMethod": "post",
+  "authRequired": true,
+  "payload": {
+    "properties": [
+      { "name": "round", "type": "string", "required": true },
+      { "name": "hole", "type": "number", "required": true },
+      { "name": "score", "type": "number", "required": true }
+    ]
+  },
+  "output": {
+    "properties": [
+      { "name": "ok", "type": "boolean", "required": true },
+      { "name": "round", "type": "Round", "required": true }
+    ]
+  },
+  "errors": [
+    {
+      "errorName": "RoundNotFoundError",
+      "errorCode": "ROUND_NOT_FOUND",
+      "message": "Round not found"
+    },
+    {
+      "errorName": "RoundInvalidHoleError",
+      "errorCode": "ROUND_INVALID_HOLE",
+      "message": "Hole is invalid"
+    },
+    {
+      "errorName": "RoundInvalidScoreError",
+      "errorCode": "ROUND_INVALID_SCORE",
+      "message": "Score is invalid"
+    }
+  ]
+}

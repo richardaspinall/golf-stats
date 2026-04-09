@@ -1,0 +1,17 @@
+{
+  "handlerName": "ListRounds",
+  "domainName": "rounds",
+  "apiVerb": "list",
+  "httpMethod": "get",
+  "authRequired": true,
+  "payload": {
+    "properties": []
+  },
+  "output": {
+    "properties": [
+      { "name": "ok", "type": "boolean", "required": true },
+      { "name": "rounds", "type": "RoundListItem[]", "required": true }
+    ]
+  },
+  "errors": []
+}

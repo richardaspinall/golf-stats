@@ -1,4 +1,5 @@
 import {
+  API_BASE_URL,
   API_CLUB_ACTUALS_URL,
   API_CLUB_CARRY_URL,
   API_COURSES_URL,
@@ -251,6 +252,28 @@ export const saveRoundToApi = async (
 
   if (!response.ok) {
     throw new ApiError(`Failed to save round (${response.status})`, response.status, await getErrorDetails(response));
+  }
+
+  const data = await response.json();
+  if (!data?.round) {
+    return null;
+  }
+
+  return normalizeRoundFromApi(data.round);
+};
+
+export const updateRoundScoreInApi = async (
+  payload: { round: string; hole: number; score: number },
+  token: string,
+): Promise<Round | null> => {
+  const response = await requestApi(`${API_BASE_URL}/api/rounds.updateScore`, {
+    method: 'POST',
+    body: payload,
+    token,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Failed to update round score (${response.status})`, response.status, await getErrorDetails(response));
   }
 
   const data = await response.json();
