@@ -1,12 +1,17 @@
 import type { AppError } from '../../../app/http/AppError.js';
 import { UnauthorizedError, ValidationError } from '../../../app/http/AppError.js';
 import type { ResultError, ResultSuccess } from '../../../app/http/HandlerResult.js';
-import type { CreateRoundOutput as CreateRoundResponse, CreateRoundPayload } from '../../../api/gen/rounds/types/CreateRound.js';
+import type {
+  CreateRoundOutput as CreateRoundResponse,
+  CreateRoundPayload,
+} from '../../../api/gen/rounds/types/CreateRound.js';
 import { RoundsService } from '../RoundsService.js';
 import { AbstractCreateRoundHandler } from './gen/AbstractCreateRoundHandler.js';
 
 class CreateRoundHandler extends AbstractCreateRoundHandler {
-  protected async getResult(payload: CreateRoundPayload): Promise<ResultSuccess<CreateRoundResponse> | ResultError<AppError>> {
+  protected async getResult(
+    payload: CreateRoundPayload,
+  ): Promise<ResultSuccess<CreateRoundResponse> | ResultError<AppError>> {
     if (!this.ctx.authUser) {
       return this.fail(new UnauthorizedError('Unauthorized'));
     }

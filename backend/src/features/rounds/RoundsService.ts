@@ -74,4 +74,38 @@ export class RoundsService {
       updatedAt: new Date().toISOString(),
     });
   }
+
+  static async updateRoundScore(userId: string, roundId: string, hole: number, score: number) {
+    const current = await RoundRepository.findById(roundId, userId);
+    if (!current) {
+      return null;
+    }
+
+    const safeHole = Math.floor(Number(hole));
+    if (!Number.isFinite(safeHole) || safeHole < 1 || safeHole > 18) {
+      throw new ValidationError('Invalid hole');
+    }
+
+    const safeScore = Math.floor(Number(score));
+    if (!Number.isFinite(safeScore) || safeScore < 0 || safeScore > 20) {
+      throw new ValidationError('Invalid score');
+    }
+
+    const statsByHole = sanitizeStats(current.statsByHole);
+    statsByHole[safeHole] = {
+      ...statsByHole[safeHole],
+      score: safeScore,
+    };
+
+    return RoundRepository.update(roundId, {
+      userId,
+      name: current.name,
+      roundDate: current.roundDate,
+      handicap: current.handicap,
+      courseId: current.courseId,
+      statsByHole,
+      notes: current.notes,
+      updatedAt: new Date().toISOString(),
+    });
+  }
 }

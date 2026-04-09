@@ -17,6 +17,7 @@ import { CreateRoundHandler } from '../../features/rounds/handlers/CreateRoundHa
 import { DeleteRoundHandler } from '../../features/rounds/handlers/DeleteRoundHandler.js';
 import { GetRoundHandler } from '../../features/rounds/handlers/GetRoundHandler.js';
 import { ListRoundsHandler } from '../../features/rounds/handlers/ListRoundsHandler.js';
+import { UpdateRoundScoreHandler } from '../../features/rounds/handlers/UpdateRoundScoreHandler.js';
 import { UpdateRoundHandler } from '../../features/rounds/handlers/UpdateRoundHandler.js';
 import { DebugDbHandler } from '../../features/system/handlers/DebugDbHandler.js';
 import { HealthHandler } from '../../features/system/handlers/HealthHandler.js';
@@ -131,6 +132,13 @@ export const routes: RouteDefinition[] = [
     requiresAuth: true,
     ensureSchema: true,
     handler: UpdateRoundHandler,
+  },
+  {
+    method: 'POST',
+    path: '/api/rounds.updateScore',
+    requiresAuth: true,
+    ensureSchema: true,
+    handler: UpdateRoundScoreHandler,
   },
   {
     method: 'DELETE',
