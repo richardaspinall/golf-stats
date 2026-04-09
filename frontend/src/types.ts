@@ -74,7 +74,7 @@ export interface RoundListItem {
   name: string;
   handicap?: number;
   roundDate?: string;
-  courseId?: string;
+  courseId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -96,6 +96,13 @@ export interface ClubAverage {
   club: string;
   avgMeters: number | null;
   shots: number;
+}
+
+export interface ClubActualEntry {
+  id: number;
+  club: string;
+  actualMeters: number;
+  createdAt: string;
 }
 
 export interface WedgeEntry {

@@ -65,31 +65,102 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
   vi.doMock('../src/db/schema.js', () => ({
     ensureSchema: vi.fn().mockResolvedValue(undefined),
   }));
+  const updateRound = vi.fn().mockResolvedValue({
+    id: '1',
+    userId: 'user-1',
+    name: 'Round 1',
+    roundDate: '2026-04-09',
+    handicap: 8,
+    courseId: 'course-1',
+    statsByHole: {},
+    notes: ['Hit driver well'],
+    createdAt: 'now',
+    updatedAt: 'later',
+  });
+  const deleteRoundById = vi.fn();
   vi.doMock('../src/db/rounds.js', () => ({
-    listRounds: vi.fn().mockResolvedValue([{ id: '1', name: 'Round 1', courseId: '', createdAt: 'now', updatedAt: 'now' }]),
-    getRoundById: vi.fn().mockResolvedValue(null),
-    insertRound: vi.fn(),
-    updateRound: vi.fn(),
-    deleteRoundById: vi.fn(),
+    listRounds: vi.fn().mockResolvedValue([{ id: '1', name: 'Round 1', courseId: null, createdAt: 'now', updatedAt: 'now' }]),
+    getRoundById: vi.fn().mockResolvedValue({
+      id: '1',
+      userId: 'user-1',
+      name: 'Round 1',
+      roundDate: '2026-04-09',
+      handicap: 12,
+      courseId: null,
+      statsByHole: {},
+      notes: [],
+      createdAt: 'now',
+      updatedAt: 'now',
+    }),
+    insertRound: vi.fn().mockResolvedValue({
+      id: '2',
+      userId: 'user-1',
+      name: 'New Round',
+      roundDate: '2026-04-09',
+      handicap: 10,
+      courseId: null,
+      statsByHole: {},
+      notes: [],
+      createdAt: 'now',
+      updatedAt: 'now',
+    }),
+    updateRound,
+    deleteRoundById,
   }));
+  const updateCourse = vi.fn().mockResolvedValue({
+    id: 'course-1',
+    name: 'Royal Melbourne Composite',
+    markers: { 1: { teePosition: null, greenPosition: null, holeIndex: 1, par: 4, distanceMeters: 405 } },
+    createdAt: 'now',
+    updatedAt: 'later',
+  });
   vi.doMock('../src/db/courses.js', () => ({
-    listCourses: vi.fn().mockResolvedValue([]),
-    getCourseById: vi.fn().mockResolvedValue(null),
-    insertCourse: vi.fn(),
-    updateCourse: vi.fn(),
+    listCourses: vi.fn().mockResolvedValue([
+      {
+        id: 'course-1',
+        name: 'Royal Melbourne',
+        markers: { 1: { teePosition: null, greenPosition: null, holeIndex: 1, par: 4, distanceMeters: 402 } },
+        createdAt: 'now',
+        updatedAt: 'now',
+      },
+    ]),
+    getCourseById: vi.fn().mockResolvedValue({
+      id: 'course-1',
+      name: 'Royal Melbourne',
+      markers: { 1: { teePosition: null, greenPosition: null, holeIndex: 1, par: 4, distanceMeters: 402 } },
+      createdAt: 'now',
+      updatedAt: 'now',
+    }),
+    insertCourse: vi.fn().mockResolvedValue({
+      id: 'course-2',
+      name: 'Kingston Heath',
+      markers: {},
+      createdAt: 'now',
+      updatedAt: 'now',
+    }),
+    updateCourse,
   }));
+  const deleteClubActualEntry = vi.fn().mockResolvedValue(false);
+  const saveClubCarry = vi.fn().mockResolvedValue({ Driver: 250, '7i': 158 });
   vi.doMock('../src/db/club.js', () => ({
-    listClubCarry: vi.fn().mockResolvedValue({}),
-    saveClubCarry: vi.fn().mockResolvedValue({}),
-    listClubActualAverages: vi.fn().mockResolvedValue({}),
+    listClubCarry: vi.fn().mockResolvedValue({ Driver: 245, '7i': 155 }),
+    saveClubCarry,
+    listClubActualAverages: vi.fn().mockResolvedValue({ Driver: { shots: 3, avgMeters: 248 } }),
     insertClubActualDistance: vi.fn().mockResolvedValue({
       id: 123,
       club: 'Driver',
       actualMeters: 245,
       createdAt: 'now',
     }),
-    listClubActualEntries: vi.fn().mockResolvedValue([]),
-    deleteClubActualEntry: vi.fn().mockResolvedValue(false),
+    listClubActualEntries: vi.fn().mockResolvedValue([
+      {
+        id: 321,
+        club: 'Driver',
+        actualMeters: 251,
+        createdAt: 'now',
+      },
+    ]),
+    deleteClubActualEntry,
     replaceVirtualCaddyClubActuals: vi.fn().mockResolvedValue([
       {
         id: 201,
@@ -147,6 +218,22 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
       updatedAt: 'now',
     }),
   }));
+  const insertWedgeEntry = vi.fn().mockResolvedValue({
+    id: 10,
+    matrixId: 7,
+    club: '56w',
+    swingClock: '10:30',
+    distanceMeters: 70,
+    createdAt: 'now',
+  });
+  const updateWedgeEntry = vi.fn().mockResolvedValue({
+    id: 9,
+    matrixId: 7,
+    club: '50w',
+    swingClock: '10:30',
+    distanceMeters: 88,
+    createdAt: 'now',
+  });
   const updateWedgeMatrix = vi.fn().mockResolvedValue({
     id: 7,
     name: 'Flighted wedges',
@@ -158,15 +245,49 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
     swingClocks: ['7:30', '9:00', '10:30'],
     createdAt: 'now',
   });
+  const insertWedgeMatrix = vi.fn().mockResolvedValue({
+    id: 8,
+    name: 'Stock wedges',
+    stanceWidth: 'Narrow',
+    grip: 'Low',
+    ballPosition: 'Middle',
+    notes: 'Match tempo',
+    clubs: ['50w', '56w'],
+    swingClocks: ['7:30', '9:00', '10:30'],
+    createdAt: 'now',
+  });
+  const deleteWedgeMatrix = vi.fn().mockResolvedValue(true);
+  const deleteWedgeEntry = vi.fn().mockResolvedValue(true);
   vi.doMock('../src/db/wedge.js', () => ({
-    listWedgeEntries: vi.fn().mockResolvedValue([]),
-    insertWedgeEntry: vi.fn(),
-    updateWedgeEntry: vi.fn(),
-    deleteWedgeEntry: vi.fn(),
-    listWedgeMatrices: vi.fn().mockResolvedValue([]),
-    insertWedgeMatrix: vi.fn(),
+    listWedgeEntries: vi.fn().mockResolvedValue([
+      {
+        id: 9,
+        matrixId: 7,
+        club: '50w',
+        swingClock: '9:00',
+        distanceMeters: 82,
+        createdAt: 'now',
+      },
+    ]),
+    insertWedgeEntry,
+    updateWedgeEntry,
+    deleteWedgeEntry,
+    listWedgeMatrices: vi.fn().mockResolvedValue([
+      {
+        id: 7,
+        name: 'Flighted wedges',
+        stanceWidth: 'Medium',
+        grip: 'Mid',
+        ballPosition: 'Back',
+        notes: 'Keep hands quiet',
+        clubs: ['50w', '56w', '60w'],
+        swingClocks: ['7:30', '9:00', '10:30'],
+        createdAt: 'now',
+      },
+    ]),
+    insertWedgeMatrix,
     updateWedgeMatrix,
-    deleteWedgeMatrix: vi.fn(),
+    deleteWedgeMatrix,
   }));
   vi.doMock('../src/db/debug.js', () => ({
     getDbDebugStatus: vi.fn().mockResolvedValue({ ok: true, configured: true, message: 'ok' }),
@@ -174,7 +295,21 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
 
   const { handleRequest } = await import('../src/handler.js');
   const { signToken } = await import('../src/auth/jwt.js');
-  return { handleRequest, signToken, updateWedgeMatrix };
+  return {
+    handleRequest,
+    signToken,
+    updateWedgeMatrix,
+    deleteClubActualEntry,
+    updateCourse,
+    updateRound,
+    deleteRoundById,
+    saveClubCarry,
+    insertWedgeMatrix,
+    insertWedgeEntry,
+    updateWedgeEntry,
+    deleteWedgeMatrix,
+    deleteWedgeEntry,
+  };
 };
 
 describe('handler', () => {
@@ -299,6 +434,139 @@ describe('handler', () => {
     expect(payload.user.id).toBe('user-1');
   });
 
+  it('returns the current user with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/me',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      user: {
+        id: 'user-1',
+        username: 'demo',
+        displayName: 'Demo',
+        email: '',
+        authMethod: 'local',
+        googleLinked: false,
+        createdAt: 'now',
+        updatedAt: 'now',
+      },
+    });
+  });
+
+  it('returns courses with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/courses',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      courses: [
+        {
+          id: 'course-1',
+          name: 'Royal Melbourne',
+          markers: { 1: { teePosition: null, greenPosition: null, holeIndex: 1, par: 4, distanceMeters: 402 } },
+          createdAt: 'now',
+          updatedAt: 'now',
+        },
+      ],
+    });
+  });
+
+  it('returns a single course with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/courses/course-1',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      course: {
+        id: 'course-1',
+        name: 'Royal Melbourne',
+        markers: { 1: { teePosition: null, greenPosition: null, holeIndex: 1, par: 4, distanceMeters: 402 } },
+        createdAt: 'now',
+        updatedAt: 'now',
+      },
+    });
+  });
+
+  it('creates a course with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/courses',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { name: 'Kingston Heath' },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      course: {
+        id: 'course-2',
+        name: 'Kingston Heath',
+        markers: {},
+        createdAt: 'now',
+        updatedAt: 'now',
+      },
+    });
+  });
+
+  it('updates a course with a normalized success envelope', async () => {
+    const { handleRequest, signToken, updateCourse } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'PUT',
+      url: '/api/courses/course-1',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { name: 'Royal Melbourne Composite', markers: { 1: { holeIndex: 1, par: 4, teePosition: null, greenPosition: null, distanceMeters: 405 } } },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(updateCourse).toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      course: {
+        id: 'course-1',
+        name: 'Royal Melbourne Composite',
+        markers: { 1: { teePosition: null, greenPosition: null, holeIndex: 1, par: 4, distanceMeters: 405 } },
+        createdAt: 'now',
+        updatedAt: 'later',
+      },
+    });
+  });
+
   it('returns rounds with valid token', async () => {
     const { handleRequest, signToken } = await loadHandler();
     const token = signToken({ subject: 'demo', userId: 'user-1' });
@@ -313,7 +581,119 @@ describe('handler', () => {
 
     expect(res.statusCode).toBe(200);
     const payload = JSON.parse(getBody());
+    expect(payload.ok).toBe(true);
     expect(payload.rounds).toHaveLength(1);
+    expect(payload.rounds[0].courseId).toBeNull();
+  });
+
+  it('returns a single round with normalized nullable course id', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/rounds/1',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      round: {
+        id: '1',
+        userId: 'user-1',
+        name: 'Round 1',
+        roundDate: '2026-04-09',
+        handicap: 12,
+        courseId: null,
+        statsByHole: {},
+        notes: [],
+        createdAt: 'now',
+        updatedAt: 'now',
+      },
+    });
+  });
+
+  it('creates a round with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/rounds',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { name: 'New Round', roundDate: '2026-04-09', handicap: 10, courseId: '' },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      round: {
+        id: '2',
+        userId: 'user-1',
+        name: 'New Round',
+        roundDate: '2026-04-09',
+        handicap: 10,
+        courseId: null,
+        statsByHole: {},
+        notes: [],
+        createdAt: 'now',
+        updatedAt: 'now',
+      },
+    });
+  });
+
+  it('updates a round with a normalized success envelope', async () => {
+    const { handleRequest, signToken, updateRound } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'PUT',
+      url: '/api/rounds/1',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { handicap: 8, courseId: 'course-1', notes: ['Hit driver well'] },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(updateRound).toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      round: {
+        id: '1',
+        userId: 'user-1',
+        name: 'Round 1',
+        roundDate: '2026-04-09',
+        handicap: 8,
+        courseId: 'course-1',
+        statsByHole: {},
+        notes: ['Hit driver well'],
+        createdAt: 'now',
+        updatedAt: 'later',
+      },
+    });
+  });
+
+  it('deletes a round with a normalized success envelope', async () => {
+    const { handleRequest, signToken, deleteRoundById } = await loadHandler();
+    deleteRoundById.mockResolvedValueOnce(true);
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'DELETE',
+      url: '/api/rounds/1',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({ ok: true });
   });
 
   it('creates a club actual entry and returns it', async () => {
@@ -339,6 +719,117 @@ describe('handler', () => {
         createdAt: 'now',
       },
     });
+  });
+
+  it('returns club carry with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/club-carry',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      carryByClub: { Driver: 245, '7i': 155 },
+    });
+  });
+
+  it('saves club carry with a normalized success envelope', async () => {
+    const { handleRequest, signToken, saveClubCarry } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'PUT',
+      url: '/api/club-carry',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { carryByClub: { Driver: 250, '7i': 158 } },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(saveClubCarry).toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      carryByClub: { Driver: 250, '7i': 158 },
+    });
+  });
+
+  it('returns club actual entries with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/club-actuals/entries',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      entries: [{ id: 321, club: 'Driver', actualMeters: 251, createdAt: 'now' }],
+    });
+  });
+
+  it('returns club actual averages with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/club-actuals',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      averagesByClub: { Driver: { shots: 3, avgMeters: 248 } },
+    });
+  });
+
+  it('returns a standard error envelope when deleting a missing club actual entry', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'DELETE',
+      url: '/api/club-actuals/entries/123',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(404);
+    expect(JSON.parse(getBody())).toEqual({ ok: false, error: 'Entry not found' });
+  });
+
+  it('returns ok when deleting an existing club actual entry', async () => {
+    const { handleRequest, signToken, deleteClubActualEntry } = await loadHandler();
+    deleteClubActualEntry.mockResolvedValueOnce(true);
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'DELETE',
+      url: '/api/club-actuals/entries/123',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({ ok: true });
   });
 
   it('updates wedge matrix metadata with valid token', async () => {
@@ -380,6 +871,194 @@ describe('handler', () => {
         id: 7,
         name: 'Flighted wedges',
       },
+    });
+  });
+
+  it('creates a wedge matrix with a normalized success envelope', async () => {
+    const { handleRequest, signToken, insertWedgeMatrix } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/wedge-matrices',
+      headers: { Authorization: `Bearer ${token}` },
+      body: {
+        name: 'Stock wedges',
+        stanceWidth: 'Narrow',
+        grip: 'Low',
+        ballPosition: 'Middle',
+        notes: 'Match tempo',
+        clubs: ['50w', '56w'],
+        swingClocks: ['7:30', '9:00', '10:30'],
+      },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(insertWedgeMatrix).toHaveBeenCalled();
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      matrix: {
+        id: 8,
+        name: 'Stock wedges',
+        stanceWidth: 'Narrow',
+        grip: 'Low',
+        ballPosition: 'Middle',
+        notes: 'Match tempo',
+        clubs: ['50w', '56w'],
+        swingClocks: ['7:30', '9:00', '10:30'],
+        createdAt: 'now',
+      },
+    });
+  });
+
+  it('creates a wedge entry with a normalized success envelope', async () => {
+    const { handleRequest, signToken, insertWedgeEntry } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/wedge-entries',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { matrixId: 7, club: '56w', swingClock: '10:30', distanceMeters: 70 },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(insertWedgeEntry).toHaveBeenCalled();
+    expect(res.statusCode).toBe(201);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      entry: {
+        id: 10,
+        matrixId: 7,
+        club: '56w',
+        swingClock: '10:30',
+        distanceMeters: 70,
+        createdAt: 'now',
+      },
+    });
+  });
+
+  it('updates a wedge entry with a normalized success envelope', async () => {
+    const { handleRequest, signToken, updateWedgeEntry } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'PUT',
+      url: '/api/wedge-entries/9',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { matrixId: 7, club: '50w', swingClock: '10:30', distanceMeters: 88 },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(updateWedgeEntry).toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      entry: {
+        id: 9,
+        matrixId: 7,
+        club: '50w',
+        swingClock: '10:30',
+        distanceMeters: 88,
+        createdAt: 'now',
+      },
+    });
+  });
+
+  it('deletes a wedge matrix with a normalized success envelope', async () => {
+    const { handleRequest, signToken, deleteWedgeMatrix } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'DELETE',
+      url: '/api/wedge-matrices/7',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(deleteWedgeMatrix).toHaveBeenCalledWith(7, 'user-1');
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({ ok: true });
+  });
+
+  it('deletes a wedge entry with a normalized success envelope', async () => {
+    const { handleRequest, signToken, deleteWedgeEntry } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'DELETE',
+      url: '/api/wedge-entries/9',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(deleteWedgeEntry).toHaveBeenCalledWith(9, 'user-1');
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({ ok: true });
+  });
+
+  it('returns wedge matrices with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/wedge-matrices',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      matrices: [
+        {
+          id: 7,
+          name: 'Flighted wedges',
+          stanceWidth: 'Medium',
+          grip: 'Mid',
+          ballPosition: 'Back',
+          notes: 'Keep hands quiet',
+          clubs: ['50w', '56w', '60w'],
+          swingClocks: ['7:30', '9:00', '10:30'],
+          createdAt: 'now',
+        },
+      ],
+    });
+  });
+
+  it('returns wedge entries with a normalized success envelope', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'GET',
+      url: '/api/wedge-entries?matrixId=7',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: true,
+      entries: [
+        {
+          id: 9,
+          matrixId: 7,
+          club: '50w',
+          swingClock: '9:00',
+          distanceMeters: 82,
+          createdAt: 'now',
+        },
+      ],
     });
   });
 });

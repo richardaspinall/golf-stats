@@ -36,7 +36,7 @@ import {
   saveRoundToApi,
   syncVirtualCaddyClubActualsInApi,
 } from './lib/api';
-import type { UserProfile } from './types';
+import type { ClubActualEntry, UserProfile, WedgeEntry, WedgeMatrix } from './types';
 import {
   CLUB_OPTIONS,
   CLUB_OPTION_SET,
@@ -167,7 +167,7 @@ export default function App() {
   const [isLoadingClubAverages, setIsLoadingClubAverages] = useState(false);
   const [clubAveragesError, setClubAveragesError] = useState('');
   const [clubAveragesDirty, setClubAveragesDirty] = useState(true);
-  const [clubActualEntries, setClubActualEntries] = useState([]);
+  const [clubActualEntries, setClubActualEntries] = useState<ClubActualEntry[]>([]);
   const [isLoadingClubActualEntries, setIsLoadingClubActualEntries] = useState(false);
   const [clubActualEntriesError, setClubActualEntriesError] = useState('');
   const [clubActualEntriesDirty, setClubActualEntriesDirty] = useState(true);
@@ -191,7 +191,7 @@ export default function App() {
   const [wedgeMatrixSaveState, setWedgeMatrixSaveState] = useState('idle');
   const [wedgeMatricesError, setWedgeMatricesError] = useState('');
   const [isLoadingWedgeMatrices, setIsLoadingWedgeMatrices] = useState(false);
-  const [wedgeMatrices, setWedgeMatrices] = useState([]);
+  const [wedgeMatrices, setWedgeMatrices] = useState<WedgeMatrix[]>([]);
   const [wedgeClubSelection, setWedgeClubSelection] = useState('');
   const [wedgeSwingClock, setWedgeSwingClock] = useState('');
   const [wedgeDistanceMeters, setWedgeDistanceMeters] = useState(60);
@@ -201,7 +201,7 @@ export default function App() {
   const [wedgeEntrySaveState, setWedgeEntrySaveState] = useState('idle');
   const [wedgeEntriesError, setWedgeEntriesError] = useState('');
   const [isLoadingWedgeEntries, setIsLoadingWedgeEntries] = useState(false);
-  const [wedgeEntriesByMatrix, setWedgeEntriesByMatrix] = useState({});
+  const [wedgeEntriesByMatrix, setWedgeEntriesByMatrix] = useState<Record<number, WedgeEntry[]>>({});
   const [editingWedgeEntryId, setEditingWedgeEntryId] = useState(null);
   const [recentEntriesMatrixId, setRecentEntriesMatrixId] = useState(null);
   const [mapSetupHole, setMapSetupHole] = useState(1);
@@ -1521,23 +1521,7 @@ export default function App() {
           return;
         }
 
-        const sanitized = entries
-          .map((entry) => ({
-            id: Number(entry.id),
-            club: String(entry.club || ''),
-            actualMeters: Number(entry.actualMeters),
-            createdAt: entry.createdAt,
-          }))
-          .filter(
-            (entry) =>
-              Number.isFinite(entry.id) &&
-              entry.id > 0 &&
-              entry.club &&
-              Number.isFinite(entry.actualMeters) &&
-              entry.actualMeters > 0,
-          );
-
-        setClubActualEntries(sanitized);
+        setClubActualEntries(entries);
         setClubActualEntriesDirty(false);
       } catch (error) {
         if (!isActive) {

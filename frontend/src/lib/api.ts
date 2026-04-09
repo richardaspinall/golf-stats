@@ -12,14 +12,37 @@ import {
   API_WEDGE_MATRICES_URL,
 } from './config';
 import { CLUB_OPTIONS } from './constants';
-import { normalizeWedgeMatrix, sanitizeCarryByClub, sanitizeRoundHandicap, sanitizeWedgeEntry } from './rounds';
-import type { CarryByClub, ClubAverage, CourseMarkers, Round, RoundListItem, UserProfile, WedgeEntry, WedgeMatrix } from '../types';
+import { normalizeWedgeMatrix, sanitizeCarryByClub, sanitizeCourseMarkers, sanitizeRoundHandicap, sanitizeWedgeEntry } from './rounds';
+import type { CarryByClub, ClubActualEntry, ClubAverage, Course, CourseMarkers, Round, RoundListItem, UserProfile, WedgeEntry, WedgeMatrix } from '../types';
 
 type RequestOptions = {
   method?: string;
   body?: unknown;
   token?: string;
 };
+
+const normalizeRoundCourseId = (courseId: unknown): string | null => {
+  const trimmed = String(courseId ?? '').trim();
+  return trimmed ? trimmed : null;
+};
+
+const normalizeCourseFromApi = (course: any): Course => ({
+  id: String(course?.id || ''),
+  name: String(course?.name || ''),
+  markers: sanitizeCourseMarkers(course?.markers),
+  createdAt: String(course?.createdAt || ''),
+  updatedAt: String(course?.updatedAt || ''),
+});
+
+const normalizeWedgeEntryFromApi = (entry: unknown): WedgeEntry | null => sanitizeWedgeEntry(entry);
+
+const normalizeWedgeMatrixFromApi = (matrix: unknown): WedgeMatrix => normalizeWedgeMatrix(matrix);
+
+const normalizeRoundFromApi = <TRound extends { handicap?: unknown; courseId?: unknown }>(round: TRound): TRound & { handicap: number; courseId: string | null } => ({
+  ...round,
+  handicap: sanitizeRoundHandicap(round?.handicap) || 0,
+  courseId: normalizeRoundCourseId(round?.courseId),
+});
 
 export class ApiError extends Error {
   status: number;
@@ -150,23 +173,20 @@ export const loadRoundsFromApi = async (token: string): Promise<RoundListItem[]>
     return [];
   }
 
-  return data.rounds.map((round) => ({
-    ...round,
-    handicap: sanitizeRoundHandicap(round?.handicap) || 0,
-  }));
+  return data.rounds.map((round) => normalizeRoundFromApi(round));
 };
 
-export const loadCoursesFromApi = async (token: string): Promise<Array<Record<string, unknown>>> => {
+export const loadCoursesFromApi = async (token: string): Promise<Course[]> => {
   const response = await requestApi(API_COURSES_URL, { token });
   if (!response.ok) {
     throw new ApiError(`Failed to load courses (${response.status})`, response.status, await getErrorDetails(response));
   }
 
   const data = await response.json();
-  return Array.isArray(data?.courses) ? data.courses : [];
+  return Array.isArray(data?.courses) ? data.courses.map((course) => normalizeCourseFromApi(course)) : [];
 };
 
-export const createCourseInApi = async (name: string, token: string): Promise<Record<string, unknown>> => {
+export const createCourseInApi = async (name: string, token: string): Promise<Course | null> => {
   const response = await requestApi(API_COURSES_URL, {
     method: 'POST',
     body: { name },
@@ -178,7 +198,7 @@ export const createCourseInApi = async (name: string, token: string): Promise<Re
   }
 
   const data = await response.json();
-  return data?.course;
+  return data?.course ? normalizeCourseFromApi(data.course) : null;
 };
 
 export const updateCourseInApi = async (
@@ -186,7 +206,7 @@ export const updateCourseInApi = async (
   name: string,
   markers: CourseMarkers,
   token: string,
-): Promise<Record<string, unknown>> => {
+): Promise<Course | null> => {
   const response = await requestApi(`${API_COURSES_URL}/${encodeURIComponent(courseId)}`, {
     method: 'PUT',
     body: { name, markers },
@@ -198,7 +218,7 @@ export const updateCourseInApi = async (
   }
 
   const data = await response.json();
-  return data?.course;
+  return data?.course ? normalizeCourseFromApi(data.course) : null;
 };
 
 export const loadRoundFromApi = async (roundId: string, token: string): Promise<Round | null> => {
@@ -212,10 +232,7 @@ export const loadRoundFromApi = async (roundId: string, token: string): Promise<
     return null;
   }
 
-  return {
-    ...data.round,
-    handicap: sanitizeRoundHandicap(data.round?.handicap) || 0,
-  };
+  return normalizeRoundFromApi(data.round);
 };
 
 export const saveRoundToApi = async (
@@ -223,7 +240,7 @@ export const saveRoundToApi = async (
   statsByHole: Round['statsByHole'],
   notes: string[],
   handicap: number,
-  courseId: string,
+  courseId: string | null,
   token: string,
 ): Promise<Round | null> => {
   const response = await requestApi(`${API_ROUNDS_URL}/${encodeURIComponent(roundId)}`, {
@@ -241,17 +258,14 @@ export const saveRoundToApi = async (
     return null;
   }
 
-  return {
-    ...data.round,
-    handicap: sanitizeRoundHandicap(data.round?.handicap) || 0,
-  };
+  return normalizeRoundFromApi(data.round);
 };
 
 export const createRoundInApi = async (
   name: string,
   roundDate: string,
   handicap: number,
-  courseId: string,
+  courseId: string | null,
   token: string,
 ): Promise<Round | null> => {
   const response = await requestApi(API_ROUNDS_URL, {
@@ -269,10 +283,7 @@ export const createRoundInApi = async (
     return null;
   }
 
-  return {
-    ...data.round,
-    handicap: sanitizeRoundHandicap(data.round?.handicap) || 0,
-  };
+  return normalizeRoundFromApi(data.round);
 };
 
 export const deleteRoundInApi = async (roundId: string, token: string): Promise<void> => {
@@ -435,7 +446,7 @@ export const loadWedgeEntriesFromApi = async (matrixId: number | string, token: 
     return [];
   }
 
-  return data.entries.map((entry: unknown) => sanitizeWedgeEntry(entry)).filter(Boolean);
+  return data.entries.map((entry: unknown) => normalizeWedgeEntryFromApi(entry)).filter(Boolean);
 };
 
 export const saveWedgeEntryToApi = async (
@@ -453,7 +464,7 @@ export const saveWedgeEntryToApi = async (
   }
 
   const data = await response.json();
-  return sanitizeWedgeEntry(data?.entry);
+  return normalizeWedgeEntryFromApi(data?.entry);
 };
 
 export const updateWedgeEntryInApi = async (
@@ -471,7 +482,7 @@ export const updateWedgeEntryInApi = async (
   }
 
   const data = await response.json();
-  return sanitizeWedgeEntry(data?.entry);
+  return normalizeWedgeEntryFromApi(data?.entry);
 };
 
 export const loadWedgeMatricesFromApi = async (token: string): Promise<WedgeMatrix[]> => {
@@ -485,7 +496,7 @@ export const loadWedgeMatricesFromApi = async (token: string): Promise<WedgeMatr
     return [];
   }
 
-  return data.matrices.map((matrix: unknown) => normalizeWedgeMatrix(matrix));
+  return data.matrices.map((matrix: unknown) => normalizeWedgeMatrixFromApi(matrix));
 };
 
 export const createWedgeMatrixInApi = async (
@@ -503,7 +514,7 @@ export const createWedgeMatrixInApi = async (
   }
 
   const data = await response.json();
-  return data?.matrix ? normalizeWedgeMatrix(data.matrix) : null;
+  return data?.matrix ? normalizeWedgeMatrixFromApi(data.matrix) : null;
 };
 
 export const updateWedgeMatrixInApi = async (
@@ -521,17 +532,41 @@ export const updateWedgeMatrixInApi = async (
   }
 
   const data = await response.json();
-  return data?.matrix ? normalizeWedgeMatrix(data.matrix) : null;
+  return data?.matrix ? normalizeWedgeMatrixFromApi(data.matrix) : null;
 };
 
-export const loadClubActualEntriesFromApi = async (token: string): Promise<Array<Record<string, unknown>>> => {
+export const loadClubActualEntriesFromApi = async (token: string): Promise<ClubActualEntry[]> => {
   const response = await requestApi(`${API_CLUB_ACTUALS_URL}/entries`, { token });
   if (!response.ok) {
     throw new ApiError(`Failed to load shot log (${response.status})`, response.status, await getErrorDetails(response));
   }
 
   const data = await response.json();
-  return Array.isArray(data?.entries) ? data.entries : [];
+  if (!Array.isArray(data?.entries)) {
+    return [];
+  }
+
+  return data.entries
+    .map((entry: any) => ({
+      id: Number(entry?.id),
+      club: String(entry?.club || ''),
+      actualMeters: Number(entry?.actualMeters),
+      createdAt: String(entry?.createdAt || ''),
+    }))
+    .filter(
+      (entry) =>
+        Number.isFinite(entry.id) &&
+        entry.id > 0 &&
+        entry.club &&
+        Number.isFinite(entry.actualMeters) &&
+        entry.actualMeters > 0 &&
+        entry.createdAt,
+    )
+    .map((entry) => ({
+      ...entry,
+      id: Math.floor(entry.id),
+      actualMeters: Math.floor(entry.actualMeters),
+    }));
 };
 
 export const deleteClubActualEntryInApi = async (entryId: number | string, token: string): Promise<void> => {

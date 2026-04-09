@@ -1,10 +1,4 @@
-import type { CarryByClub, ClubAverage } from '../../types';
-
-type ClubActualEntry = {
-  id: number;
-  club: string;
-  actualMeters: number;
-};
+import type { CarryByClub, ClubActualEntry, ClubAverage } from '../../types';
 
 type DistancePageProps = {
   state: {

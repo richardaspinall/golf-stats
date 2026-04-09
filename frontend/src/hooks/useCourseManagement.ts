@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 
 import { ApiError, createCourseInApi, updateCourseInApi } from '../lib/api';
 import { HOLES } from '../lib/constants';
-import { sanitizeCourseMarkers } from '../lib/rounds';
 import type { Course } from '../types';
 
 type UseCourseManagementArgs = {
@@ -53,16 +52,9 @@ export function useCourseManagement({
     try {
       const course = await createCourseInApi(courseName, authToken);
       if (course) {
-        const sanitizedCourse = {
-          id: String(course.id),
-          name: String(course.name || ''),
-          markers: sanitizeCourseMarkers(course.markers),
-          createdAt: course.createdAt,
-          updatedAt: course.updatedAt,
-        };
-        setCourses((prev) => [sanitizedCourse, ...prev]);
-        setCourseEditorId(sanitizedCourse.id);
-        setSelectedCourseId(sanitizedCourse.id);
+        setCourses((prev) => [course, ...prev]);
+        setCourseEditorId(course.id);
+        setSelectedCourseId(course.id);
         setNewCourseName('');
         setCourseSaveState('saved');
       }
@@ -97,9 +89,7 @@ export function useCourseManagement({
             entry.id === course.id
               ? {
                   ...entry,
-                  name: savedCourse.name || entry.name,
-                  markers: sanitizeCourseMarkers(savedCourse.markers),
-                  updatedAt: savedCourse.updatedAt || entry.updatedAt,
+                  ...savedCourse,
                 }
               : entry,
           ),
