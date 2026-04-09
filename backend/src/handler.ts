@@ -151,7 +151,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         sendJson(res, 404, { ok: false, error: 'User not found' });
         return;
       }
-      sendJson(res, 200, { user });
+      sendJson(res, 200, { ok: true, user });
       return;
     }
 
@@ -215,7 +215,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/courses' && method === 'GET') {
-      sendJson(res, 200, { courses: await listCourses() });
+      sendJson(res, 200, { ok: true, courses: await listCourses() });
       return;
     }
 
@@ -226,7 +226,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         const courseName = sanitizeCourseName((body as any)?.name, existingCourses.length + 1);
         const newCourse = createCourse(courseName, (body as any)?.markers ?? buildInitialCourseMarkers());
         const inserted = await insertCourse(newCourse);
-        sendJson(res, 201, { course: inserted });
+        sendJson(res, 201, { ok: true, course: inserted });
       } catch (error: any) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
@@ -244,7 +244,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           return;
         }
 
-        sendJson(res, 200, { course });
+        sendJson(res, 200, { ok: true, course });
         return;
       }
 
@@ -272,7 +272,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/rounds' && method === 'GET') {
-      sendJson(res, 200, { rounds: await listRounds(currentUserId) });
+      sendJson(res, 200, { ok: true, rounds: await listRounds(currentUserId) });
       return;
     }
 
@@ -299,7 +299,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         );
         newRound.courseId = rawCourseId || null;
         const inserted = await insertRound(newRound);
-        sendJson(res, 201, { round: inserted });
+        sendJson(res, 201, { ok: true, round: inserted });
       } catch (error: any) {
         sendJson(res, 400, { ok: false, error: error.message || 'Invalid request' });
       }
@@ -317,7 +317,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           return;
         }
 
-        sendJson(res, 200, { round });
+        sendJson(res, 200, { ok: true, round });
         return;
       }
 
@@ -378,7 +378,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/club-carry' && method === 'GET') {
-      sendJson(res, 200, { carryByClub: await listClubCarry(currentUserId) });
+      sendJson(res, 200, { ok: true, carryByClub: await listClubCarry(currentUserId) });
       return;
     }
 
@@ -394,7 +394,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/club-actuals/entries' && method === 'GET') {
-      sendJson(res, 200, { entries: await listClubActualEntries(currentUserId) });
+      sendJson(res, 200, { ok: true, entries: await listClubActualEntries(currentUserId) });
       return;
     }
 
@@ -422,12 +422,16 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
         return;
       }
       const deleted = await deleteClubActualEntry(entryId, currentUserId);
-      sendJson(res, deleted ? 200 : 404, { ok: deleted });
+      if (!deleted) {
+        sendJson(res, 404, { ok: false, error: 'Entry not found' });
+        return;
+      }
+      sendJson(res, 200, { ok: true });
       return;
     }
 
     if (pathname === '/api/club-actuals' && method === 'GET') {
-      sendJson(res, 200, { averagesByClub: await listClubActualAverages(currentUserId) });
+      sendJson(res, 200, { ok: true, averagesByClub: await listClubActualAverages(currentUserId) });
       return;
     }
 
@@ -449,7 +453,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     if (pathname === '/api/wedge-entries' && method === 'GET') {
       const matrixIdRaw = requestUrl.searchParams.get('matrixId');
       const matrixId = matrixIdRaw ? Number(matrixIdRaw) : null;
-      sendJson(res, 200, { entries: await listWedgeEntries(currentUserId, matrixId) });
+      sendJson(res, 200, { ok: true, entries: await listWedgeEntries(currentUserId, matrixId) });
       return;
     }
 
@@ -516,7 +520,7 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     }
 
     if (pathname === '/api/wedge-matrices' && method === 'GET') {
-      sendJson(res, 200, { matrices: await listWedgeMatrices(currentUserId) });
+      sendJson(res, 200, { ok: true, matrices: await listWedgeMatrices(currentUserId) });
       return;
     }
 

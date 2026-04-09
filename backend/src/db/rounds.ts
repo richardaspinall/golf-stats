@@ -20,7 +20,7 @@ const mapDbRound = (row: any): Round => ({
   name: sanitizeRoundName(row.name),
   roundDate: sanitizeRoundDate(row.round_date),
   handicap: sanitizeRoundHandicap(row.handicap),
-  courseId: row.course_id ? String(row.course_id) : '',
+  courseId: row.course_id ? String(row.course_id) : null,
   statsByHole: sanitizeStats(row.stats_by_hole),
   notes: sanitizeRoundNotes(row.notes),
   createdAt: toIso(row.created_at),
@@ -40,7 +40,7 @@ export const listRounds = async (userId: string) => {
     name: sanitizeRoundName(row.name),
     roundDate: sanitizeRoundDate(row.round_date),
     handicap: sanitizeRoundHandicap(row.handicap),
-    courseId: row.course_id ? String(row.course_id) : '',
+    courseId: row.course_id ? String(row.course_id) : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }));

@@ -1,0 +1,1647 @@
+openapi: 3.1.0
+info:
+  title: Golf Stats API
+  version: 1.0.0-draft
+  summary: First-pass contract extracted from the current web and backend implementation.
+  description: |
+    This document describes the current API surface used by the web app.
+
+    It is a draft contract intended to become the shared backend boundary for both web and iOS clients.
+    Some response envelopes are currently inconsistent across endpoints. Those inconsistencies are recorded here
+    to match the live implementation, and should be normalized before this contract is treated as stable.
+servers:
+  - url: http://localhost:3001
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth
+  - name: User
+  - name: Courses
+  - name: Rounds
+  - name: Club Carry
+  - name: Club Actuals
+  - name: Wedge Matrices
+  - name: Wedge Entries
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: API is reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with local credentials
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedCredentials'
+        '500':
+          $ref: '#/components/responses/ServerMisconfigured'
+  /api/auth/google:
+    post:
+      tags: [Auth]
+      summary: Login with Google ID token
+      operationId: loginWithGoogle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleLoginRequest'
+      responses:
+        '200':
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Missing Google credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Invalid Google credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Google account is not linked to an existing user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          $ref: '#/components/responses/GoogleServerMisconfigured'
+  /api/users:
+    post:
+      tags: [User]
+      summary: Public signup endpoint
+      description: Present in the API but currently disabled.
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '403':
+          description: Public signup is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/me:
+    get:
+      tags: [User]
+      summary: Get current authenticated user
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, user]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  user:
+                    $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/me/google-link:
+    post:
+      tags: [User]
+      summary: Link a Google account to the current user
+      operationId: linkGoogleAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleLoginRequest'
+      responses:
+        '200':
+          description: Google account linked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, user]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  user:
+                    $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          $ref: '#/components/responses/GoogleServerMisconfigured'
+  /api/courses:
+    get:
+      tags: [Courses]
+      summary: List courses
+      operationId: listCourses
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Course list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, courses]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  courses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Courses]
+      summary: Create a course
+      operationId: createCourse
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCourseRequest'
+      responses:
+        '201':
+          description: Course created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, course]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  course:
+                    $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/courses/{courseId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      tags: [Courses]
+      summary: Get a course
+      operationId: getCourse
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Course found
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, course]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  course:
+                    $ref: '#/components/schemas/Course'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [Courses]
+      summary: Update a course
+      operationId: updateCourse
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCourseRequest'
+      responses:
+        '200':
+          description: Course updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, course]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  course:
+                    $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/rounds:
+    get:
+      tags: [Rounds]
+      summary: List rounds for the current user
+      operationId: listRounds
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Round summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, rounds]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  rounds:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RoundListItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Rounds]
+      summary: Create a round
+      operationId: createRound
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoundRequest'
+      responses:
+        '201':
+          description: Round created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, round]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  round:
+                    $ref: '#/components/schemas/Round'
+        '400':
+          description: Invalid request or referenced course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/rounds/{roundId}:
+    parameters:
+      - $ref: '#/components/parameters/RoundId'
+    get:
+      tags: [Rounds]
+      summary: Get a round
+      operationId: getRound
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Round found
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, round]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  round:
+                    $ref: '#/components/schemas/Round'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Round not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [Rounds]
+      summary: Update a round
+      operationId: updateRound
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoundRequest'
+      responses:
+        '200':
+          description: Round updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, round]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  round:
+                    $ref: '#/components/schemas/Round'
+        '400':
+          description: Invalid request or referenced course not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Round not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [Rounds]
+      summary: Delete a round
+      operationId: deleteRound
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Round deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Round not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/club-carry:
+    get:
+      tags: [Club Carry]
+      summary: Get saved carry distances by club
+      operationId: getClubCarry
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Carry values keyed by club
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, carryByClub]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  carryByClub:
+                    $ref: '#/components/schemas/CarryByClub'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags: [Club Carry]
+      summary: Replace saved carry distances by club
+      operationId: saveClubCarry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carryByClub]
+              properties:
+                carryByClub:
+                  $ref: '#/components/schemas/CarryByClub'
+      responses:
+        '200':
+          description: Carry values saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, carryByClub]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  carryByClub:
+                    $ref: '#/components/schemas/CarryByClub'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/club-actuals:
+    get:
+      tags: [Club Actuals]
+      summary: Get average actual distance by club
+      operationId: listClubActualAverages
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Averages keyed by club
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, averagesByClub]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  averagesByClub:
+                    $ref: '#/components/schemas/AveragesByClub'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Club Actuals]
+      summary: Save a club actual distance
+      operationId: createClubActual
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClubActualRequest'
+      responses:
+        '201':
+          description: Shot actual saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, entry]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  entry:
+                    $ref: '#/components/schemas/ClubActualEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/club-actuals/entries:
+    get:
+      tags: [Club Actuals]
+      summary: List recent club actual entries
+      operationId: listClubActualEntries
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recent entries, newest first, capped at 20
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, entries]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ClubActualEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/club-actuals/entries/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/ClubActualEntryId'
+    delete:
+      tags: [Club Actuals]
+      summary: Delete a club actual entry
+      operationId: deleteClubActualEntry
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Entry deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkEnvelope'
+        '400':
+          description: Invalid entry id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/club-actuals/virtual-caddy-sync:
+    post:
+      tags: [Club Actuals]
+      summary: Replace virtual caddy generated actuals for one round and hole
+      operationId: syncVirtualCaddyClubActuals
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VirtualCaddyClubActualSyncRequest'
+      responses:
+        '200':
+          description: Entries replaced successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, entries]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VirtualCaddyClubActualEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/wedge-matrices:
+    get:
+      tags: [Wedge Matrices]
+      summary: List wedge matrices
+      operationId: listWedgeMatrices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wedge matrix list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, matrices]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  matrices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WedgeMatrix'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Wedge Matrices]
+      summary: Create a wedge matrix
+      operationId: createWedgeMatrix
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertWedgeMatrixRequest'
+      responses:
+        '201':
+          description: Matrix created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, matrix]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  matrix:
+                    $ref: '#/components/schemas/WedgeMatrix'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/wedge-matrices/{matrixId}:
+    parameters:
+      - $ref: '#/components/parameters/MatrixId'
+    put:
+      tags: [Wedge Matrices]
+      summary: Update a wedge matrix
+      operationId: updateWedgeMatrix
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/UpsertWedgeMatrixRequest'
+                - type: object
+                  required: [id]
+                  properties:
+                    id:
+                      type: integer
+                      minimum: 1
+      responses:
+        '200':
+          description: Matrix updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, matrix]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  matrix:
+                    $ref: '#/components/schemas/WedgeMatrix'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Matrix not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [Wedge Matrices]
+      summary: Delete a wedge matrix and its entries
+      operationId: deleteWedgeMatrix
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Matrix deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Matrix not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/wedge-entries:
+    get:
+      tags: [Wedge Entries]
+      summary: List wedge entries
+      operationId: listWedgeEntries
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: matrixId
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Optional matrix filter
+      responses:
+        '200':
+          description: Wedge entries, newest first, capped at 500
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, entries]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WedgeEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Wedge Entries]
+      summary: Create a wedge entry
+      operationId: createWedgeEntry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertWedgeEntryRequest'
+      responses:
+        '201':
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, entry]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  entry:
+                    $ref: '#/components/schemas/WedgeEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/wedge-entries/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/WedgeEntryId'
+    put:
+      tags: [Wedge Entries]
+      summary: Update a wedge entry
+      operationId: updateWedgeEntry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/UpsertWedgeEntryRequest'
+                - type: object
+                  required: [id]
+                  properties:
+                    id:
+                      type: integer
+                      minimum: 1
+      responses:
+        '200':
+          description: Entry updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, entry]
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                  entry:
+                    $ref: '#/components/schemas/WedgeEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [Wedge Entries]
+      summary: Delete a wedge entry
+      operationId: deleteWedgeEntry
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Entry deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+    RoundId:
+      name: roundId
+      in: path
+      required: true
+      schema:
+        type: string
+    MatrixId:
+      name: matrixId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    WedgeEntryId:
+      name: entryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ClubActualEntryId:
+      name: entryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    Unauthorized:
+      description: Missing, invalid, or expired bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    UnauthorizedCredentials:
+      description: Invalid login credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    BadRequest:
+      description: Request body or parameters failed validation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ServerMisconfigured:
+      description: Server auth is not configured
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    GoogleServerMisconfigured:
+      description: Google auth is not configured
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    OkEnvelope:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: string
+        detail:
+          type: string
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    GoogleLoginRequest:
+      type: object
+      required: [idToken]
+      properties:
+        idToken:
+          type: string
+    CreateUserRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        displayName:
+          type: string
+    LoginResponse:
+      type: object
+      required: [ok, token, user, expiresIn]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserProfile'
+        expiresIn:
+          type: integer
+          minimum: 60
+    UserProfile:
+      type: object
+      required: [id, username, displayName, authMethod, googleLinked, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        authMethod:
+          type: string
+          enum: [local, google]
+        googleLinked:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    LatLng:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+    HolePrepPlan:
+      type: object
+      required: [strategy, danger, aim, plannedTeeClub, plannedLayupClub, commitmentCue]
+      properties:
+        strategy:
+          type: string
+        danger:
+          type: string
+        aim:
+          type: string
+        plannedTeeClub:
+          type: string
+        plannedLayupClub:
+          type: string
+        commitmentCue:
+          type: string
+    HoleStats:
+      type: object
+      required:
+        - score
+        - holeIndex
+        - fairwaySelection
+        - girSelection
+        - bunkerSelection
+        - teePosition
+        - greenPosition
+        - prepPlan
+        - upAndDown
+        - inside100Over3
+        - inside100Bunkers
+        - inside100Wedges
+        - inside100ChipShots
+        - oopLook
+        - oopNoLook
+        - penalties
+        - totalPutts
+        - puttMissLong
+        - puttMissShort
+        - puttMissWithin2m
+      properties:
+        score:
+          type: integer
+          minimum: 0
+        holeIndex:
+          type: integer
+          minimum: 1
+          maximum: 18
+        fairwaySelection:
+          anyOf:
+            - type: 'null'
+            - type: string
+              enum: [fairwayHit, fairwayLeft, fairwayRight, fairwayLong, fairwayShort]
+        girSelection:
+          anyOf:
+            - type: 'null'
+            - type: string
+              enum: [girHit, girLeft, girRight, girLong, girShort, girNoChance]
+        bunkerSelection:
+          anyOf:
+            - type: 'null'
+            - type: string
+              enum: [bunkerLeft, bunkerRight, bunkerLong, bunkerShort]
+        teePosition:
+          anyOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/LatLng'
+        greenPosition:
+          anyOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/LatLng'
+        prepPlan:
+          $ref: '#/components/schemas/HolePrepPlan'
+        quickEntrySaved:
+          type: boolean
+        virtualCaddyState:
+          anyOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: true
+        upAndDown:
+          type: integer
+          minimum: 0
+        inside100Over3:
+          type: integer
+          minimum: 0
+        inside100Bunkers:
+          type: integer
+          minimum: 0
+        inside100Wedges:
+          type: integer
+          minimum: 0
+        inside100ChipShots:
+          type: integer
+          minimum: 0
+        oopLook:
+          type: integer
+          minimum: 0
+        oopNoLook:
+          type: integer
+          minimum: 0
+        penalties:
+          type: integer
+          minimum: 0
+        totalPutts:
+          type: integer
+          minimum: 0
+        puttMissLong:
+          type: integer
+          minimum: 0
+        puttMissShort:
+          type: integer
+          minimum: 0
+        puttMissWithin2m:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    StatsByHole:
+      type: object
+      description: Hole keyed object for holes 1-18.
+      propertyNames:
+        pattern: '^(?:[1-9]|1[0-8])$'
+      additionalProperties:
+        $ref: '#/components/schemas/HoleStats'
+    CourseMarker:
+      type: object
+      required: [teePosition, greenPosition, holeIndex, par]
+      properties:
+        teePosition:
+          anyOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/LatLng'
+        greenPosition:
+          anyOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/LatLng'
+        holeIndex:
+          type: integer
+          minimum: 1
+          maximum: 18
+        par:
+          type: integer
+          minimum: 3
+          maximum: 6
+        distanceMeters:
+          anyOf:
+            - type: 'null'
+            - type: integer
+              minimum: 1
+              maximum: 999
+      additionalProperties: false
+    CourseMarkers:
+      type: object
+      description: Hole keyed object for holes 1-18.
+      propertyNames:
+        pattern: '^(?:[1-9]|1[0-8])$'
+      additionalProperties:
+        $ref: '#/components/schemas/CourseMarker'
+    RoundListItem:
+      type: object
+      required: [id, userId, name, roundDate, handicap, courseId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        roundDate:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        handicap:
+          type: integer
+          minimum: 0
+          maximum: 54
+        courseId:
+          anyOf:
+            - type: 'null'
+            - type: string
+          description: Null indicates no linked course.
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    Round:
+      allOf:
+        - $ref: '#/components/schemas/RoundListItem'
+        - type: object
+          required: [statsByHole, notes]
+          properties:
+            statsByHole:
+              $ref: '#/components/schemas/StatsByHole'
+            notes:
+              type: array
+              maxItems: 300
+              items:
+                type: string
+                maxLength: 1000
+    CreateRoundRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        roundDate:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        handicap:
+          type: integer
+          minimum: 0
+          maximum: 54
+        courseId:
+          anyOf:
+            - type: 'null'
+            - type: string
+        statsByHole:
+          $ref: '#/components/schemas/StatsByHole'
+        notes:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+      additionalProperties: false
+    UpdateRoundRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        roundDate:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        handicap:
+          type: integer
+          minimum: 0
+          maximum: 54
+        courseId:
+          anyOf:
+            - type: 'null'
+            - type: string
+          description: Null or empty string clears the course link.
+        statsByHole:
+          $ref: '#/components/schemas/StatsByHole'
+        notes:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+      additionalProperties: false
+    Course:
+      type: object
+      required: [id, name, markers, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        markers:
+          $ref: '#/components/schemas/CourseMarkers'
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    CreateCourseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        markers:
+          $ref: '#/components/schemas/CourseMarkers'
+      additionalProperties: false
+    UpdateCourseRequest:
+      type: object
+      required: [name, markers]
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        markers:
+          $ref: '#/components/schemas/CourseMarkers'
+      additionalProperties: false
+    ClubName:
+      type: string
+      enum: [60w, 56w, 50w, PW, 9i, 8i, 7i, 6i, 5i, 4i, 5Hy, 5 wood, 3 wood, Mini Driver, Driver, Putter]
+    CarryByClub:
+      type: object
+      additionalProperties: false
+      properties:
+        60w:
+          type: integer
+          minimum: 0
+          maximum: 400
+        56w:
+          type: integer
+          minimum: 0
+          maximum: 400
+        50w:
+          type: integer
+          minimum: 0
+          maximum: 400
+        PW:
+          type: integer
+          minimum: 0
+          maximum: 400
+        9i:
+          type: integer
+          minimum: 0
+          maximum: 400
+        8i:
+          type: integer
+          minimum: 0
+          maximum: 400
+        7i:
+          type: integer
+          minimum: 0
+          maximum: 400
+        6i:
+          type: integer
+          minimum: 0
+          maximum: 400
+        5i:
+          type: integer
+          minimum: 0
+          maximum: 400
+        4i:
+          type: integer
+          minimum: 0
+          maximum: 400
+        5Hy:
+          type: integer
+          minimum: 0
+          maximum: 400
+        5 wood:
+          type: integer
+          minimum: 0
+          maximum: 400
+        3 wood:
+          type: integer
+          minimum: 0
+          maximum: 400
+        Mini Driver:
+          type: integer
+          minimum: 0
+          maximum: 400
+        Driver:
+          type: integer
+          minimum: 0
+          maximum: 400
+        Putter:
+          type: integer
+          minimum: 0
+          maximum: 400
+    ClubAverage:
+      type: object
+      required: [shots, avgMeters]
+      properties:
+        shots:
+          type: integer
+          minimum: 1
+        avgMeters:
+          type: integer
+          minimum: 1
+          maximum: 500
+    AveragesByClub:
+      type: object
+      additionalProperties: false
+      properties:
+        60w:
+          $ref: '#/components/schemas/ClubAverage'
+        56w:
+          $ref: '#/components/schemas/ClubAverage'
+        50w:
+          $ref: '#/components/schemas/ClubAverage'
+        PW:
+          $ref: '#/components/schemas/ClubAverage'
+        9i:
+          $ref: '#/components/schemas/ClubAverage'
+        8i:
+          $ref: '#/components/schemas/ClubAverage'
+        7i:
+          $ref: '#/components/schemas/ClubAverage'
+        6i:
+          $ref: '#/components/schemas/ClubAverage'
+        5i:
+          $ref: '#/components/schemas/ClubAverage'
+        4i:
+          $ref: '#/components/schemas/ClubAverage'
+        5Hy:
+          $ref: '#/components/schemas/ClubAverage'
+        5 wood:
+          $ref: '#/components/schemas/ClubAverage'
+        3 wood:
+          $ref: '#/components/schemas/ClubAverage'
+        Mini Driver:
+          $ref: '#/components/schemas/ClubAverage'
+        Driver:
+          $ref: '#/components/schemas/ClubAverage'
+        Putter:
+          $ref: '#/components/schemas/ClubAverage'
+    CreateClubActualRequest:
+      type: object
+      required: [club, actualMeters]
+      properties:
+        club:
+          $ref: '#/components/schemas/ClubName'
+        actualMeters:
+          type: integer
+          minimum: 1
+          maximum: 500
+      additionalProperties: false
+    ClubActualEntry:
+      type: object
+      required: [id, club, actualMeters, createdAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        club:
+          $ref: '#/components/schemas/ClubName'
+        actualMeters:
+          type: integer
+          minimum: 1
+          maximum: 500
+        createdAt:
+          type: string
+    VirtualCaddyClubActualSyncRequest:
+      type: object
+      required: [roundId, hole, shots]
+      properties:
+        roundId:
+          type: string
+        hole:
+          type: integer
+          minimum: 1
+          maximum: 18
+        shots:
+          type: array
+          items:
+            type: object
+            required: [shotId, club, actualMeters]
+            properties:
+              shotId:
+                type: integer
+                minimum: 1
+              club:
+                $ref: '#/components/schemas/ClubName'
+              actualMeters:
+                type: integer
+                minimum: 1
+                maximum: 500
+            additionalProperties: false
+      additionalProperties: false
+    VirtualCaddyClubActualEntry:
+      type: object
+      required: [id, shotId, club, actualMeters, createdAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        shotId:
+          type: integer
+          minimum: 1
+        club:
+          $ref: '#/components/schemas/ClubName'
+        actualMeters:
+          type: integer
+          minimum: 1
+          maximum: 500
+        createdAt:
+          type: string
+    SwingClock:
+      type: string
+      enum: ['7:30', '9:00', '10:30', Full]
+    WedgeMatrix:
+      type: object
+      required: [id, name, stanceWidth, grip, ballPosition, notes, clubs, swingClocks, createdAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        stanceWidth:
+          type: string
+        grip:
+          type: string
+        ballPosition:
+          type: string
+        notes:
+          type: string
+        clubs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClubName'
+        swingClocks:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+    UpsertWedgeMatrixRequest:
+      type: object
+      required: [name, stanceWidth, grip, ballPosition, notes, clubs, swingClocks]
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        stanceWidth:
+          type: string
+          maxLength: 120
+        grip:
+          type: string
+          maxLength: 120
+        ballPosition:
+          type: string
+          maxLength: 120
+        notes:
+          type: string
+          maxLength: 400
+        clubs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClubName'
+        swingClocks:
+          type: array
+          items:
+            type: string
+            maxLength: 40
+      additionalProperties: false
+    WedgeEntry:
+      type: object
+      required: [id, matrixId, club, swingClock, distanceMeters, createdAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        matrixId:
+          type: integer
+          minimum: 1
+        club:
+          $ref: '#/components/schemas/ClubName'
+        swingClock:
+          type: string
+        distanceMeters:
+          type: integer
+          minimum: 1
+          maximum: 200
+        createdAt:
+          type: string
+    UpsertWedgeEntryRequest:
+      type: object
+      required: [matrixId, club, swingClock, distanceMeters]
+      properties:
+        matrixId:
+          type: integer
+          minimum: 1
+        club:
+          $ref: '#/components/schemas/ClubName'
+        swingClock:
+          type: string
+          maxLength: 40
+        distanceMeters:
+          type: integer
+          minimum: 1
+          maximum: 200
+      additionalProperties: false

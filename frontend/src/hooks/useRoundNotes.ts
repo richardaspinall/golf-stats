@@ -21,7 +21,7 @@ type UseRoundNotesArgs = {
 
 const applySavedRoundSummary = (
   roundId: string,
-  savedRound: { name?: string; handicap?: number; courseId?: string; updatedAt?: string } | null,
+  savedRound: { name?: string; handicap?: number; courseId?: string | null; updatedAt?: string } | null,
   setRounds: Dispatch<SetStateAction<RoundListItem[]>>,
 ) => {
   setRounds((prev) =>
