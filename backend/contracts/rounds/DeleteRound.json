@@ -1,0 +1,22 @@
+{
+  "handlerName": "DeleteRound",
+  "domainName": "rounds",
+  "apiVerb": "delete",
+  "httpMethod": "delete",
+  "authRequired": true,
+  "payload": {
+    "properties": []
+  },
+  "output": {
+    "properties": [
+      { "name": "ok", "type": "boolean", "required": true }
+    ]
+  },
+  "errors": [
+    {
+      "errorName": "RoundNotFoundError",
+      "errorCode": "ROUND_NOT_FOUND",
+      "message": "Round not found"
+    }
+  ]
+}

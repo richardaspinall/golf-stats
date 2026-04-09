@@ -69,6 +69,9 @@ export type Round = {
   updatedAt: string;
 };
 
+export type RoundSummary = Pick<Round, 'id' | 'userId' | 'name' | 'roundDate' | 'handicap' | 'courseId' | 'createdAt' | 'updatedAt'>;
+export type RoundListItem = Pick<Round, 'id' | 'name' | 'courseId' | 'createdAt' | 'updatedAt'> & Partial<Pick<Round, 'userId' | 'roundDate' | 'handicap'>>;
+
 export type Course = {
   id: string;
   name: string;

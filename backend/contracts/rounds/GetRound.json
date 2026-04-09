@@ -1,0 +1,23 @@
+{
+  "handlerName": "GetRound",
+  "domainName": "rounds",
+  "apiVerb": "get",
+  "httpMethod": "get",
+  "authRequired": true,
+  "payload": {
+    "properties": []
+  },
+  "output": {
+    "properties": [
+      { "name": "ok", "type": "boolean", "required": true },
+      { "name": "round", "type": "Round", "required": true }
+    ]
+  },
+  "errors": [
+    {
+      "errorName": "RoundNotFoundError",
+      "errorCode": "ROUND_NOT_FOUND",
+      "message": "Round not found"
+    }
+  ]
+}
