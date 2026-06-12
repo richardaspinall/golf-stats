@@ -3,7 +3,7 @@ import { buildRoundExportCsv, buildRoundExportFilename, downloadRoundExportCsv }
 import type { RoundSummaryTotals } from '../../types';
 
 type TotalsPageProps = {
-  activeRoundName?: string;
+  activeRoundLabel?: string;
   activeRoundDate?: string;
   activeRoundHandicap?: number;
   activeCourseName?: string;
@@ -13,7 +13,7 @@ type TotalsPageProps = {
 };
 
 export function TotalsPage({
-  activeRoundName,
+  activeRoundLabel,
   activeRoundDate,
   activeRoundHandicap = 0,
   activeCourseName,
@@ -24,11 +24,10 @@ export function TotalsPage({
   const roundPar = totals.par || 0;
   const differential = totals.score - completedHolesPar;
   const differentialLabel = differential === 0 ? 'E' : differential > 0 ? `+${differential}` : String(differential);
-  const hasRoundToExport = Boolean(activeRoundName || activeRoundDate || completedHolesCount > 0);
+  const hasRoundToExport = Boolean(activeRoundDate || completedHolesCount > 0);
 
   const exportRound = () => {
     const csv = buildRoundExportCsv({
-      roundName: activeRoundName,
       roundDate: activeRoundDate,
       courseName: activeCourseName,
       handicap: activeRoundHandicap,
@@ -36,7 +35,7 @@ export function TotalsPage({
       completedHolesPar,
       completedHolesCount,
     });
-    const filename = buildRoundExportFilename(activeRoundName, activeRoundDate);
+    const filename = buildRoundExportFilename(activeRoundDate);
     downloadRoundExportCsv(filename, csv);
   };
 
@@ -44,12 +43,7 @@ export function TotalsPage({
     <section className="card" aria-label="round totals">
       <div className="totals-header">
         <div>
-          <h2>Round totals: {activeRoundName || '...'}</h2>
-          {activeCourseName || activeRoundDate ? (
-            <p className="hint">
-              {[activeCourseName, activeRoundDate].filter(Boolean).join(' | ')}
-            </p>
-          ) : null}
+          <h2>Round totals: {activeRoundLabel || '...'}</h2>
         </div>
         <button type="button" onClick={exportRound} disabled={!hasRoundToExport}>
           Export CSV

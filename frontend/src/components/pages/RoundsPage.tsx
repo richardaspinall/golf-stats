@@ -1,3 +1,4 @@
+import { formatRoundDisplayLabel } from '../../lib/roundDisplay';
 import type { RoundListItem, RoundSummaryData } from '../../types';
 
 type RoundsPageProps = {
@@ -11,6 +12,7 @@ type RoundsPageProps = {
   roundSummariesError: string;
   roundSummaries: Record<string, RoundSummaryData>;
   roundSummariesState: string;
+  coursesById: Record<string, string>;
 };
 
 export function RoundsPage({
@@ -24,6 +26,7 @@ export function RoundsPage({
   roundSummariesError,
   roundSummaries,
   roundSummariesState,
+  coursesById,
 }: RoundsPageProps) {
   return (
     <section className="card" aria-label="rounds overview">
@@ -50,7 +53,7 @@ export function RoundsPage({
             ) : (
               rounds.map((round) => (
                 <option key={round.id} value={round.id}>
-                  {round.name}
+                  {formatRoundDisplayLabel({ roundDate: round.roundDate, courseName: coursesById[round.courseId || ''] })}
                 </option>
               ))
             )}
@@ -95,7 +98,7 @@ export function RoundsPage({
 
                 return (
                   <tr key={round.id} className={round.id === selectedRoundId ? 'active' : ''}>
-                    <td data-label="Round">{round.name}</td>
+                    <td data-label="Round">{formatRoundDisplayLabel({ roundDate: round.roundDate, courseName: coursesById[round.courseId || ''] })}</td>
                     <td data-label="Total score" className="numeric">
                       {totals ? totals.score : fallback}
                     </td>

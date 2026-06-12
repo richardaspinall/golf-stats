@@ -3,7 +3,7 @@ import { useState } from 'react';
 type HolePickerProps = {
   holes: number[];
   selectedHole: number;
-  roundName?: string;
+  roundLabel?: string;
   holeScores?: Record<number, number>;
   selectedHoleMeta?: {
     holeIndex?: number | null;
@@ -13,7 +13,7 @@ type HolePickerProps = {
   onSelect: (hole: number) => void;
 };
 
-export function HolePicker({ holes, selectedHole, roundName, holeScores, selectedHoleMeta, onSelect }: HolePickerProps) {
+export function HolePicker({ holes, selectedHole, roundLabel, holeScores, selectedHoleMeta, onSelect }: HolePickerProps) {
   const [showAllHoles, setShowAllHoles] = useState(false);
   const selectedIndex = holes.indexOf(selectedHole);
   const previousHole = selectedIndex > 0 ? holes[selectedIndex - 1] : null;
@@ -36,7 +36,7 @@ export function HolePicker({ holes, selectedHole, roundName, holeScores, selecte
     <section className="card hole-picker" aria-label="hole picker">
       <div className="hole-picker-header">
         <div>
-          <p className="hint hole-picker-round">Round: {roundName || '...'}</p>
+          <p className="hint hole-picker-round">{roundLabel || '...'}</p>
           <h2>Select hole</h2>
         </div>
         <button

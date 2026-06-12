@@ -111,7 +111,7 @@ export const sanitizeRoundHandicap = (raw: unknown) => {
     return 0;
   }
 
-  return Math.min(54, Math.max(0, Math.round(value)));
+  return Math.min(54, Math.max(0, Math.round(value * 10) / 10));
 };
 
 export const sanitizeCourseName = (raw: unknown, fallbackIndex = 1) => {

@@ -70,7 +70,7 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
     userId: 'user-1',
     name: 'Round 1',
     roundDate: '2026-04-09',
-    handicap: 8,
+    handicap: 8.4,
     courseId: 'course-1',
     statsByHole: {},
     notes: ['Hit driver well'],
@@ -97,7 +97,7 @@ const loadHandler = async (envOverrides?: Partial<Record<string, string | number
       userId: 'user-1',
       name: 'New Round',
       roundDate: '2026-04-09',
-      handicap: 10,
+      handicap: 21.3,
       courseId: null,
       statsByHole: {},
       notes: [],
@@ -624,7 +624,7 @@ describe('handler', () => {
       method: 'POST',
       url: '/api/rounds',
       headers: { Authorization: `Bearer ${token}` },
-      body: { name: 'New Round', roundDate: '2026-04-09', handicap: 10, courseId: '' },
+      body: { name: 'New Round', roundDate: '2026-04-09', handicap: 21.3, courseId: '' },
     });
 
     await handleRequest(req as any, res as any);
@@ -637,13 +637,33 @@ describe('handler', () => {
         userId: 'user-1',
         name: 'New Round',
         roundDate: '2026-04-09',
-        handicap: 10,
+        handicap: 21.3,
         courseId: null,
         statsByHole: {},
         notes: [],
         createdAt: 'now',
         updatedAt: 'now',
       },
+    });
+  });
+
+  it('requires handicap when creating a round', async () => {
+    const { handleRequest, signToken } = await loadHandler();
+    const token = signToken({ subject: 'demo', userId: 'user-1' });
+    const { res, getBody } = createMockRes();
+    const req = createMockReq({
+      method: 'POST',
+      url: '/api/rounds',
+      headers: { Authorization: `Bearer ${token}` },
+      body: { roundDate: '2026-04-09', courseId: '' },
+    });
+
+    await handleRequest(req as any, res as any);
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(getBody())).toEqual({
+      ok: false,
+      error: 'Handicap is required',
     });
   });
 
@@ -655,7 +675,7 @@ describe('handler', () => {
       method: 'PUT',
       url: '/api/rounds/1',
       headers: { Authorization: `Bearer ${token}` },
-      body: { handicap: 8, courseId: 'course-1', notes: ['Hit driver well'] },
+      body: { handicap: 8.4, courseId: 'course-1', notes: ['Hit driver well'] },
     });
 
     await handleRequest(req as any, res as any);
@@ -669,7 +689,7 @@ describe('handler', () => {
         userId: 'user-1',
         name: 'Round 1',
         roundDate: '2026-04-09',
-        handicap: 8,
+        handicap: 8.4,
         courseId: 'course-1',
         statsByHole: {},
         notes: ['Hit driver well'],

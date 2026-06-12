@@ -133,8 +133,9 @@ describe('sanitizeRoundName', () => {
 });
 
 describe('sanitizeRoundHandicap', () => {
-  it('rounds and clamps handicap values', () => {
-    expect(sanitizeRoundHandicap('11.6')).toBe(12);
+  it('keeps one decimal place and clamps handicap values', () => {
+    expect(sanitizeRoundHandicap('11.64')).toBe(11.6);
+    expect(sanitizeRoundHandicap('21.35')).toBe(21.4);
     expect(sanitizeRoundHandicap(-3)).toBe(0);
     expect(sanitizeRoundHandicap(99)).toBe(54);
     expect(sanitizeRoundHandicap('bad')).toBe(0);
