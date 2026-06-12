@@ -279,6 +279,11 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     if (pathname === '/api/rounds' && method === 'POST') {
       try {
         const body = await parseBody(req as BodyAwareRequest);
+        const hasHandicap = Object.prototype.hasOwnProperty.call(body || {}, 'handicap');
+        if (!hasHandicap) {
+          sendJson(res, 400, { ok: false, error: 'Handicap is required' });
+          return;
+        }
         const existingRounds = await listRounds(currentUserId);
         const roundName = sanitizeRoundName((body as any)?.name, existingRounds.length + 1);
         const rawCourseId = String((body as any)?.courseId || '').trim();

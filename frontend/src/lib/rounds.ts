@@ -61,16 +61,17 @@ export const sanitizeRoundHandicap = (rawValue: unknown): number | '' => {
     return '';
   }
 
-  return Math.min(54, Math.max(0, Math.round(value)));
+  return Math.min(54, Math.max(0, Math.round(value * 10) / 10));
 };
 
 const getHandicapStrokesForHole = (handicap: number, holeIndex: number): number => {
-  if (handicap <= 0) {
+  const wholeHandicap = Math.floor(handicap);
+  if (wholeHandicap <= 0) {
     return 0;
   }
 
-  const baseStrokes = Math.floor(handicap / 18);
-  const remainder = handicap % 18;
+  const baseStrokes = Math.floor(wholeHandicap / 18);
+  const remainder = wholeHandicap % 18;
   return baseStrokes + (remainder > 0 && holeIndex <= remainder ? 1 : 0);
 };
 

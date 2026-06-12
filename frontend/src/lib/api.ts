@@ -262,7 +262,6 @@ export const saveRoundToApi = async (
 };
 
 export const createRoundInApi = async (
-  name: string,
   roundDate: string,
   handicap: number,
   courseId: string | null,
@@ -270,7 +269,7 @@ export const createRoundInApi = async (
 ): Promise<Round | null> => {
   const response = await requestApi(API_ROUNDS_URL, {
     method: 'POST',
-    body: { name, roundDate, handicap, courseId },
+    body: { roundDate, handicap, courseId },
     token,
   });
 

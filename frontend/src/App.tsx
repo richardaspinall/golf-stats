@@ -48,6 +48,7 @@ import {
 import { GOOGLE_CLIENT_ID, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './lib/config';
 import { distanceMetersBetween, metersToPaces, pacesToMeters } from './lib/geometry';
 import { isGoogleAuthEnabled, loadGoogleIdentityScript } from './lib/googleAuth';
+import { formatRoundDisplayLabel } from './lib/roundDisplay';
 import { buildAllRoundsExportCsv, buildAllRoundsExportFilename, downloadRoundExportCsv } from './lib/roundExport';
 import {
   buildInitialByHole,
@@ -139,8 +140,8 @@ export default function App() {
   const [courseEditorId, setCourseEditorId] = useState('');
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [coursesError, setCoursesError] = useState('');
-  const [newRoundTitle, setNewRoundTitle] = useState('');
   const [newRoundHandicap, setNewRoundHandicap] = useState('');
+  const [newRoundFormError, setNewRoundFormError] = useState('');
   const [courseSaveState, setCourseSaveState] = useState('saved');
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
@@ -678,15 +679,19 @@ export default function App() {
 
   const createRound = async (event) => {
     event?.preventDefault();
+    if (newRoundHandicap === '') {
+      setNewRoundFormError('Handicap is required.');
+      return;
+    }
+
     const handicap = sanitizeRoundHandicap(newRoundHandicap);
-    const roundTitle = newRoundTitle.trim();
     const roundDate = newRoundDate || new Date().toISOString().slice(0, 10);
-    const roundName = roundTitle || 'Round';
 
     setIsSwitchingRound(true);
     setSaveState('loading');
+    setNewRoundFormError('');
     try {
-      const round = await createRoundInApi(roundName, roundDate, handicap === '' ? 0 : handicap, newRoundCourseId, authToken);
+      const round = await createRoundInApi(roundDate, handicap, newRoundCourseId, authToken);
       if (round) {
         const roundCourse = courses.find((course) => course.id === (round.courseId || ''));
         const summary = {
@@ -706,8 +711,8 @@ export default function App() {
             completedHolesPar: computeCompletedHolesPar(round.statsByHole, roundCourse?.markers),
           },
         }));
-        setNewRoundTitle('');
         setNewRoundHandicap('');
+        setNewRoundFormError('');
         setNewRoundCourseId('');
         setShowNewRoundForm(false);
         applyRoundToState(round);
@@ -718,6 +723,7 @@ export default function App() {
         return;
       }
 
+      setNewRoundFormError(error instanceof ApiError ? error.details || 'Unable to create round.' : 'Unable to create round.');
       setSaveState('error');
     } finally {
       setIsSwitchingRound(false);
@@ -729,13 +735,13 @@ export default function App() {
       return;
     }
 
-    const roundName = activeRound?.name || 'this round';
-    const firstPrompt = window.confirm(`Delete "${roundName}"? This cannot be undone.`);
+    const roundLabel = formatRoundDisplayLabel({ roundDate: activeRound?.roundDate, courseName: activeCourse?.name });
+    const firstPrompt = window.confirm(`Delete "${roundLabel}"? This cannot be undone.`);
     if (!firstPrompt) {
       return;
     }
 
-    const secondPrompt = window.confirm(`Final confirmation: permanently delete "${roundName}"?`);
+    const secondPrompt = window.confirm(`Final confirmation: permanently delete "${roundLabel}"?`);
     if (!secondPrompt) {
       return;
     }
@@ -821,7 +827,6 @@ export default function App() {
           const courseName = courses.find((course) => course.id === (round.courseId || ''))?.name || '';
 
           return {
-            roundName: round.name,
             roundDate: round.roundDate,
             courseName,
             handicap: round.handicap || 0,
@@ -1696,6 +1701,7 @@ export default function App() {
                 onClick={() => {
                   setNewRoundCourseId(selectedCourseId);
                   setNewRoundHandicap('');
+                  setNewRoundFormError('');
                   setShowNewRoundForm(true);
                 }}
                 disabled={isSwitchingRound}
@@ -1757,14 +1763,8 @@ export default function App() {
       {showNewRoundForm ? (
         <form className="new-round-form card" onSubmit={createRound}>
           <h2>Create round</h2>
+          {newRoundFormError ? <p className="hint">{newRoundFormError}</p> : null}
           <div className="new-round-fields">
-            <input
-              type="text"
-              value={newRoundTitle}
-              onChange={(event) => setNewRoundTitle(event.target.value)}
-              placeholder="Round name"
-              maxLength={80}
-            />
             <select
               value={newRoundCourseId}
               onChange={(event) => setNewRoundCourseId(event.target.value)}
@@ -1782,14 +1782,16 @@ export default function App() {
               type="number"
               min="0"
               max="54"
-              step="1"
+              step="0.1"
               value={newRoundHandicap}
               onChange={(event) => {
                 const nextHandicap = sanitizeRoundHandicap(event.target.value);
+                setNewRoundFormError('');
                 setNewRoundHandicap(nextHandicap === '' ? '' : String(nextHandicap));
               }}
               placeholder="Handicap"
               inputMode="numeric"
+              required
             />
           </div>
           <div className="new-round-actions">
@@ -1801,6 +1803,7 @@ export default function App() {
               onClick={() => {
                 setNewRoundCourseId('');
                 setNewRoundHandicap('');
+                setNewRoundFormError('');
                 setShowNewRoundForm(false);
               }}
               disabled={isSwitchingRound}
@@ -1971,7 +1974,7 @@ export default function App() {
             />
           ) : page === 'totals' ? (
             <TotalsPage
-              activeRoundName={activeRound?.name}
+              activeRoundLabel={formatRoundDisplayLabel({ roundDate: activeRound?.roundDate, courseName: activeCourse?.name })}
               activeRoundDate={activeRound?.roundDate}
               activeRoundHandicap={roundHandicap}
               activeCourseName={activeCourse?.name}
@@ -1991,6 +1994,7 @@ export default function App() {
               roundSummariesError={roundSummariesError}
               roundSummaries={roundSummaries}
               roundSummariesState={roundSummariesState}
+              coursesById={Object.fromEntries(courses.map((course) => [course.id, course.name]))}
             />
           ) : page === 'distance' ? (
             <DistancePage

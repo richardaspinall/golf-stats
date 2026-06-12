@@ -2,7 +2,6 @@ import { STAT_SECTIONS } from './constants';
 import type { RoundSummaryTotals } from '../types';
 
 export type RoundExportRow = {
-  roundName?: string;
   roundDate?: string;
   courseName?: string;
   handicap?: number;
@@ -51,9 +50,8 @@ const statColumns = STAT_SECTIONS.flatMap((section) =>
 
 const buildRoundExportHeaderRow = (): string =>
   buildCsvRow([
-    'Round',
-    'Course',
     'Date',
+    'Course',
     'Par',
     'Score',
     'Differential',
@@ -64,7 +62,6 @@ const buildRoundExportHeaderRow = (): string =>
   ]);
 
 const buildRoundExportValueRow = ({
-  roundName,
   roundDate,
   courseName,
   handicap = 0,
@@ -75,9 +72,8 @@ const buildRoundExportValueRow = ({
   const scoreDifferential = totals.score - completedHolesPar;
 
   return buildCsvRow([
-    roundName || 'Untitled round',
-    courseName || '',
     roundDate || '',
+    courseName || '',
     totals.par,
     totals.score,
     scoreDifferential,
@@ -98,17 +94,12 @@ export const buildRoundExportCsv = (row: RoundExportRow): string => {
 export const buildAllRoundsExportCsv = (rows: RoundExportRow[]): string =>
   [buildRoundExportHeaderRow(), ...rows.map((row) => buildRoundExportValueRow(row))].join('\n');
 
-export const buildRoundExportFilename = (roundName?: string, roundDate?: string): string => {
-  const safeName = String(roundName || 'round')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'round';
+export const buildRoundExportFilename = (roundDate?: string): string => {
   const safeDate = String(roundDate || '')
     .trim()
     .replace(/[^0-9-]+/g, '');
 
-  return `${safeName}${safeDate ? `-${safeDate}` : ''}.csv`;
+  return `round${safeDate ? `-${safeDate}` : ''}.csv`;
 };
 
 export const buildAllRoundsExportFilename = (): string => 'all-rounds-export.csv';

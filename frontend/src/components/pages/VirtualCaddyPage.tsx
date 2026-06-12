@@ -111,7 +111,7 @@ export function VirtualCaddyPage({ round, actions }: VirtualCaddyPageProps) {
       <HolePicker
         holes={HOLES}
         selectedHole={selectedHole}
-        roundName={activeRound?.name}
+        roundLabel={[activeRound?.roundDate, activeCourse?.name].filter(Boolean).join(' | ')}
         holeScores={Object.fromEntries(HOLES.map((hole) => [hole, Number(statsByHole[hole]?.score || 0)]))}
         selectedHoleMeta={{
           holeIndex: displayHoleIndex,

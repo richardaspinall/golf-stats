@@ -21,7 +21,6 @@ describe('round export helpers', () => {
     const completedHolesPar = computeCompletedHolesPar(statsByHole, courseMarkers);
 
     const csv = buildRoundExportCsv({
-      roundName: 'Saturday Medal',
       roundDate: '2026-06-12',
       courseName: 'Royal Park',
       handicap: 12,
@@ -31,20 +30,19 @@ describe('round export helpers', () => {
     });
 
     expect(csv).toBe(
-      'Round,Course,Date,Par,Score,Differential,Stableford,Handicap,Through holes,Fairway Long,Fairway Hit,Fairway Left,Fairway Right,Fairway Short,OOP Look,OOP No look,GIR Hit,GIR Left,GIR Right,GIR Long,GIR Short,Inside 100 Over 3,Inside 100 Bunkers,Inside 100 Wedges,Inside 100 Chip shots,Up & Down Up & down,Putting Total putts,Putting Miss long,Putting Miss short,Putting Miss within 2m,Penalties Penalties\n' +
-        'Saturday Medal,Royal Park,2026-06-12,72,5,1,2,12,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,2,0,0,0,1',
+      'Date,Course,Par,Score,Differential,Stableford,Handicap,Through holes,Fairway Long,Fairway Hit,Fairway Left,Fairway Right,Fairway Short,OOP Look,OOP No look,GIR Hit,GIR Left,GIR Right,GIR Long,GIR Short,Inside 100 Over 3,Inside 100 Bunkers,Inside 100 Wedges,Inside 100 Chip shots,Up & Down Up & down,Putting Total putts,Putting Miss long,Putting Miss short,Putting Miss within 2m,Penalties Penalties\n' +
+        '2026-06-12,Royal Park,72,5,1,2,12,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,2,0,0,0,1',
     );
   });
 
   it('builds a safe filename for download', () => {
-    expect(buildRoundExportFilename('Saturday Medal #2', '2026-06-12')).toBe('saturday-medal-2-2026-06-12.csv');
-    expect(buildRoundExportFilename('', '')).toBe('round.csv');
+    expect(buildRoundExportFilename('2026-06-12')).toBe('round-2026-06-12.csv');
+    expect(buildRoundExportFilename('')).toBe('round.csv');
   });
 
   it('builds a multi-round CSV export with one shared header row', () => {
     const csv = buildAllRoundsExportCsv([
       {
-        roundName: 'Round One',
         roundDate: '2026-06-01',
         courseName: 'Northcote',
         handicap: 3,
@@ -80,7 +78,6 @@ describe('round export helpers', () => {
         completedHolesCount: 18,
       },
       {
-        roundName: 'Round Two',
         roundDate: '2026-06-08',
         courseName: 'Ivanhoe',
         handicap: 2,
@@ -120,8 +117,8 @@ describe('round export helpers', () => {
     const lines = csv.split('\n');
     expect(lines).toHaveLength(3);
     expect(lines[0]).toContain('Fairway Hit');
-    expect(lines[1]).toContain('Round One,Northcote,2026-06-01,68,86,18,30,3,18');
-    expect(lines[2]).toContain('Round Two,Ivanhoe,2026-06-08,68,89,21,27,2,18');
+    expect(lines[1]).toContain('2026-06-01,Northcote,68,86,18,30,3,18');
+    expect(lines[2]).toContain('2026-06-08,Ivanhoe,68,89,21,27,2,18');
     expect(buildAllRoundsExportFilename()).toBe('all-rounds-export.csv');
   });
 });
