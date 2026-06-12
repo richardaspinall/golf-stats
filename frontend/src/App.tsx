@@ -48,6 +48,7 @@ import {
 import { GOOGLE_CLIENT_ID, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './lib/config';
 import { distanceMetersBetween, metersToPaces, pacesToMeters } from './lib/geometry';
 import { isGoogleAuthEnabled, loadGoogleIdentityScript } from './lib/googleAuth';
+import { buildAllRoundsExportCsv, buildAllRoundsExportFilename, downloadRoundExportCsv } from './lib/roundExport';
 import {
   buildInitialByHole,
   computeTotalsForStats,
@@ -129,6 +130,7 @@ export default function App() {
   const [roundSummaries, setRoundSummaries] = useState({});
   const [roundSummariesState, setRoundSummariesState] = useState('idle');
   const [roundSummariesError, setRoundSummariesError] = useState('');
+  const [isExportingAllRounds, setIsExportingAllRounds] = useState(false);
   const [isManageMenuOpen, setIsManageMenuOpen] = useState(false);
   const [showDistanceTracker, setShowDistanceTracker] = useState(false);
   const [courses, setCourses] = useState([]);
@@ -485,7 +487,14 @@ export default function App() {
             }
             const roundCourse = courses.find((course) => course.id === (full.courseId || ''));
             const totals = computeTotalsForStats(full.statsByHole, roundCourse?.markers, full.handicap || 0);
-            return [round.id, { totals, completedHolesPar: computeCompletedHolesPar(full.statsByHole, roundCourse?.markers) }];
+            return [
+              round.id,
+              {
+                totals,
+                completedHolesPar: computeCompletedHolesPar(full.statsByHole, roundCourse?.markers),
+                completedHolesCount: HOLES.filter((hole) => Number(full.statsByHole[hole]?.score || 0) > 0).length,
+              },
+            ];
           }),
         );
         if (!isActive) {
@@ -782,6 +791,66 @@ export default function App() {
   }, [activeCourse?.markers, roundHandicap, statsByHole]);
   const completedHolesPar = useMemo(() => computeCompletedHolesPar(statsByHole, activeCourse?.markers), [activeCourse?.markers, statsByHole]);
   const completedHolesCount = useMemo(() => HOLES.filter((hole) => Number(statsByHole[hole]?.score || 0) > 0).length, [statsByHole]);
+
+  const exportAllRounds = async () => {
+    if (!authToken || rounds.length === 0 || isExportingAllRounds) {
+      return;
+    }
+
+    setIsExportingAllRounds(true);
+    setRoundSummariesError('');
+    try {
+      const rows = await Promise.all(
+        rounds.map(async (round) => {
+          let summary = roundSummaries[round.id];
+
+          if (!summary) {
+            const full = await loadRoundFromApi(round.id, authToken);
+            if (!full) {
+              return null;
+            }
+
+            const roundCourse = courses.find((course) => course.id === (full.courseId || ''));
+            summary = {
+              totals: computeTotalsForStats(full.statsByHole, roundCourse?.markers, full.handicap || 0),
+              completedHolesPar: computeCompletedHolesPar(full.statsByHole, roundCourse?.markers),
+              completedHolesCount: HOLES.filter((hole) => Number(full.statsByHole[hole]?.score || 0) > 0).length,
+            };
+          }
+
+          const courseName = courses.find((course) => course.id === (round.courseId || ''))?.name || '';
+
+          return {
+            roundName: round.name,
+            roundDate: round.roundDate,
+            courseName,
+            handicap: round.handicap || 0,
+            totals: summary.totals,
+            completedHolesPar: summary.completedHolesPar,
+            completedHolesCount: summary.completedHolesCount,
+          };
+        }),
+      );
+
+      const completeRows = rows.filter(Boolean);
+      if (completeRows.length === 0) {
+        setRoundSummariesError('Unable to export rounds.');
+        return;
+      }
+
+      const csv = buildAllRoundsExportCsv(completeRows);
+      downloadRoundExportCsv(buildAllRoundsExportFilename(), csv);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+
+      setRoundSummariesError('Unable to export rounds.');
+    } finally {
+      setIsExportingAllRounds(false);
+    }
+  };
 
   const updateStats = (hole, statKey, delta) => {
     setStatsByHole((prev) => updateHoleCounter(prev, hole, statKey, delta));
@@ -1903,7 +1972,9 @@ export default function App() {
           ) : page === 'totals' ? (
             <TotalsPage
               activeRoundName={activeRound?.name}
+              activeRoundDate={activeRound?.roundDate}
               activeRoundHandicap={roundHandicap}
+              activeCourseName={activeCourse?.name}
               totals={totals}
               completedHolesPar={completedHolesPar}
               completedHolesCount={completedHolesCount}
@@ -1915,6 +1986,8 @@ export default function App() {
               isSwitchingRound={isSwitchingRound}
               rounds={rounds}
               deleteRound={deleteRound}
+              exportAllRounds={exportAllRounds}
+              isExportingAllRounds={isExportingAllRounds}
               roundSummariesError={roundSummariesError}
               roundSummaries={roundSummaries}
               roundSummariesState={roundSummariesState}

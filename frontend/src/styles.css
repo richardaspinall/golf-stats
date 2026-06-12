@@ -717,6 +717,18 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+.totals-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.totals-header h2 {
+  margin-bottom: 4px;
+}
+
 .totals-summary-card {
   display: grid;
   gap: 4px;

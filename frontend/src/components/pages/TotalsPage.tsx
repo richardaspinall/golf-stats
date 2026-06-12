@@ -1,21 +1,60 @@
 import { STAT_SECTIONS } from '../../lib/constants';
+import { buildRoundExportCsv, buildRoundExportFilename, downloadRoundExportCsv } from '../../lib/roundExport';
+import type { RoundSummaryTotals } from '../../types';
 
 type TotalsPageProps = {
   activeRoundName?: string;
+  activeRoundDate?: string;
   activeRoundHandicap?: number;
-  totals: Record<string, number>;
+  activeCourseName?: string;
+  totals: RoundSummaryTotals;
   completedHolesPar: number;
   completedHolesCount: number;
 };
 
-export function TotalsPage({ activeRoundName, activeRoundHandicap = 0, totals, completedHolesPar, completedHolesCount }: TotalsPageProps) {
+export function TotalsPage({
+  activeRoundName,
+  activeRoundDate,
+  activeRoundHandicap = 0,
+  activeCourseName,
+  totals,
+  completedHolesPar,
+  completedHolesCount,
+}: TotalsPageProps) {
   const roundPar = totals.par || 0;
   const differential = totals.score - completedHolesPar;
   const differentialLabel = differential === 0 ? 'E' : differential > 0 ? `+${differential}` : String(differential);
+  const hasRoundToExport = Boolean(activeRoundName || activeRoundDate || completedHolesCount > 0);
+
+  const exportRound = () => {
+    const csv = buildRoundExportCsv({
+      roundName: activeRoundName,
+      roundDate: activeRoundDate,
+      courseName: activeCourseName,
+      handicap: activeRoundHandicap,
+      totals,
+      completedHolesPar,
+      completedHolesCount,
+    });
+    const filename = buildRoundExportFilename(activeRoundName, activeRoundDate);
+    downloadRoundExportCsv(filename, csv);
+  };
 
   return (
     <section className="card" aria-label="round totals">
-      <h2>Round totals: {activeRoundName || '...'}</h2>
+      <div className="totals-header">
+        <div>
+          <h2>Round totals: {activeRoundName || '...'}</h2>
+          {activeCourseName || activeRoundDate ? (
+            <p className="hint">
+              {[activeCourseName, activeRoundDate].filter(Boolean).join(' | ')}
+            </p>
+          ) : null}
+        </div>
+        <button type="button" onClick={exportRound} disabled={!hasRoundToExport}>
+          Export CSV
+        </button>
+      </div>
       <p className="hint">
         Score {totals.score} | Stableford {totals.stableford} | Handicap {activeRoundHandicap} | Through {completedHolesCount} hole{completedHolesCount === 1 ? '' : 's'}
       </p>
