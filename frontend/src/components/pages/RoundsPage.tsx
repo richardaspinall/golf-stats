@@ -6,6 +6,8 @@ type RoundsPageProps = {
   isSwitchingRound: boolean;
   rounds: RoundListItem[];
   deleteRound: () => void;
+  exportAllRounds: () => void;
+  isExportingAllRounds: boolean;
   roundSummariesError: string;
   roundSummaries: Record<string, RoundSummaryData>;
   roundSummariesState: string;
@@ -17,13 +19,23 @@ export function RoundsPage({
   isSwitchingRound,
   rounds,
   deleteRound,
+  exportAllRounds,
+  isExportingAllRounds,
   roundSummariesError,
   roundSummaries,
   roundSummariesState,
 }: RoundsPageProps) {
   return (
     <section className="card" aria-label="rounds overview">
-      <h2>Rounds</h2>
+      <div className="totals-header">
+        <div>
+          <h2>Rounds</h2>
+          <p className="hint">Export every round as one CSV with the same summary columns used on the Round totals page.</p>
+        </div>
+        <button type="button" onClick={exportAllRounds} disabled={isExportingAllRounds || rounds.length === 0}>
+          {isExportingAllRounds ? 'Exporting...' : 'Export all CSV'}
+        </button>
+      </div>
       <div className="rounds-controls">
         <label className="rounds-field">
           <span>Active round</span>
