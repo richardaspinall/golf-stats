@@ -146,12 +146,14 @@ describe('sanitizeClubCarryPayload', () => {
   it('filters and clamps club carry values', () => {
     const payload = sanitizeClubCarryPayload({
       [CLUB_OPTIONS[0]]: 145.7,
+      '7 wood': 185,
       invalid: 200,
       [CLUB_OPTIONS[1]]: -2,
     });
 
     expect(payload).toEqual({
       [CLUB_OPTIONS[0]]: 146,
+      '7 wood': 185,
     });
   });
 });
