@@ -133,7 +133,7 @@ export const DEFAULT_WEDGE_MATRIX_GROUPS = ['Wedge matrixes', 'Full shots', 'Spe
 export const CLUB_GROUPS = [
   { label: 'Wedges', options: ['60w', '56w', '50w', 'PW'] },
   { label: 'Irons + Hybrid', options: ['9i', '8i', '7i', '6i', '5i', '4i', '5Hy'] },
-  { label: 'Woods', options: ['7 wood', '5 wood', '3 wood'] },
+  { label: 'Woods', options: ['7 wood', '3 wood'] },
   { label: 'Drivers', options: ['Mini Driver', 'Driver'] },
   { label: 'Putter', options: ['Putter'] },
 ];

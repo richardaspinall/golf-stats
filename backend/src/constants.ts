@@ -34,7 +34,6 @@ export const CLUB_OPTIONS = [
   '5i',
   '4i',
   '5Hy',
-  '5 wood',
   '3 wood',
   'Mini Driver',
   'Driver',

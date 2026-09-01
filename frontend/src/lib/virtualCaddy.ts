@@ -8,7 +8,6 @@ export const DEFAULT_CARRY_BY_CLUB: Record<string, number> = {
   Driver: 230,
   'Mini Driver': 215,
   '3 wood': 205,
-  '5 wood': 190,
   '5Hy': 180,
   '4i': 170,
   '5i': 160,
