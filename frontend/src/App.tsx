@@ -283,6 +283,18 @@ export default function App() {
       setActiveWedgeMatrixId(null);
     }
   };
+
+  const moveWedgeMatrixGroup = (groupNames: string[], groupName: string, direction: 'up' | 'down') => {
+    const orderedGroups = Array.from(new Set(groupNames.filter((group) => typeof group === 'string' && group.trim().length > 0)));
+    const currentIndex = orderedGroups.indexOf(groupName);
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= orderedGroups.length) {
+      return;
+    }
+
+    [orderedGroups[currentIndex], orderedGroups[targetIndex]] = [orderedGroups[targetIndex], orderedGroups[currentIndex]];
+    setWedgeMatrixGroups(orderedGroups);
+  };
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleLinkButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -2127,6 +2139,7 @@ export default function App() {
                 setWedgeMatrixGroupName,
                 addWedgeMatrixGroup,
                 deleteWedgeMatrixGroup,
+                moveWedgeMatrixGroup,
                 setSelectedWedgeMatrixGroup,
                 toggleWedgeMatrixClub,
                 setWedgeMatrixSwingClockValue,

@@ -53,6 +53,7 @@ type Props = {
     setWedgeMatrixGroupName: (value: string) => void;
     addWedgeMatrixGroup: (value: string) => void;
     deleteWedgeMatrixGroup: (value: string) => void;
+    moveWedgeMatrixGroup: (groups: string[], group: string, direction: 'up' | 'down') => void;
     setSelectedWedgeMatrixGroup: (value: string) => void;
     toggleWedgeMatrixClub: (club: string) => void;
     setWedgeMatrixSwingClockValue: (index: number, value: string) => void;
@@ -97,6 +98,7 @@ const renderMultiLine = (value: string) => (
 export function WedgeMatrixPage({ state, actions, helpers }: Props) {
   const [isAddingGroup, setIsAddingGroup] = useState(false);
   const [isGroupEditorOpen, setIsGroupEditorOpen] = useState(false);
+  const [isOrderingGroups, setIsOrderingGroups] = useState(false);
   const [isOrderingMatrices, setIsOrderingMatrices] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const wasMatrixFormOpen = useRef(state.isWedgeMatrixFormOpen);
@@ -159,6 +161,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                 if (isAddingGroup) {
                   setIsAddingGroup(false);
                   setIsGroupEditorOpen(false);
+                  setIsOrderingGroups(false);
                 } else {
                   setIsAddingGroup(true);
                 }
@@ -221,7 +224,10 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                 </button>
               <button
                 type="button"
-                onClick={() => setIsGroupEditorOpen(true)}
+                onClick={() => {
+                  setIsGroupEditorOpen(true);
+                  setIsOrderingGroups(false);
+                }}
               >
                 Edit groups
               </button>
@@ -239,12 +245,35 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                 Order matrixes
               </button>
               </div>
+            ) : isOrderingGroups ? (
+              <div className="matrix-order-editor">
+                <div className="wedge-matrix-header">
+                  <h3 className="section-title">Order groups</h3>
+                  <button type="button" className="icon-close-btn" aria-label="Close group ordering" onClick={() => setIsOrderingGroups(false)}>
+                    ×
+                  </button>
+                </div>
+                {groups.map((group, index) => (
+                  <div key={group} className="wedge-recent-row">
+                    <strong>{group}</strong>
+                    <div className="wedge-recent-actions">
+                      <button type="button" disabled={index === 0} onClick={() => actions.moveWedgeMatrixGroup(groups, group, 'up')}>Up</button>
+                      <button type="button" disabled={index === groups.length - 1} onClick={() => actions.moveWedgeMatrixGroup(groups, group, 'down')}>Down</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <>
                 <div className="wedge-matrix-header">
                   <h3 className="section-title">Edit groups</h3>
-                  <button type="button" className="icon-close-btn" aria-label="Close group editor" onClick={() => setIsGroupEditorOpen(false)}>
+                  <button type="button" className="icon-close-btn" aria-label="Close group editor" onClick={() => { setIsGroupEditorOpen(false); setIsOrderingGroups(false); }}>
                     ×
+                  </button>
+                </div>
+                <div className="manual-save-row">
+                  <button type="button" disabled={groups.length < 2} onClick={() => setIsOrderingGroups(true)}>
+                    Order groups
                   </button>
                 </div>
                 <div className="manual-save-row">
@@ -339,6 +368,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
             ))}
           </div>
           <div className="prototype-block">
+            <h3 className="section-title">Stance</h3>
             <div className="club-row">
               {['Short', 'Medium', 'Wide'].map((option) => (
                 <button key={option} type="button" className={state.wedgeMatrixStanceWidth === option ? 'club-btn active' : 'club-btn'} onClick={() => actions.setWedgeMatrixStanceWidth((prev) => (prev === option ? '' : option))}>
@@ -346,6 +376,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                 </button>
               ))}
             </div>
+            <h3 className="section-title">Grip</h3>
             <div className="club-row">
               {['Bottom', 'Mid', 'Normal'].map((option) => (
                 <button key={option} type="button" className={state.wedgeMatrixGrip === option ? 'club-btn active' : 'club-btn'} onClick={() => actions.setWedgeMatrixGrip((prev) => (prev === option ? '' : option))}>
@@ -353,6 +384,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                 </button>
               ))}
             </div>
+            <h3 className="section-title">Ball position</h3>
             <div className="club-row">
               {['Forward', 'Middle', 'Back'].map((option) => (
                 <button key={option} type="button" className={state.wedgeMatrixBallPosition === option ? 'club-btn active' : 'club-btn'} onClick={() => actions.setWedgeMatrixBallPosition((prev) => (prev === option ? '' : option))}>
