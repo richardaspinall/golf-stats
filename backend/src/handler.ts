@@ -532,13 +532,17 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
     if (pathname === '/api/wedge-matrices' && method === 'POST') {
       try {
         const body = await parseBody(req as BodyAwareRequest);
+        const sortOrder = Number((body as any)?.sortOrder);
         const matrix = await insertWedgeMatrix({
           userId: currentUserId,
           name: String((body as any)?.name || '').trim(),
+          groupName: String((body as any)?.groupName || '').trim(),
+          sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
           stanceWidth: String((body as any)?.stanceWidth || '').trim(),
           grip: String((body as any)?.grip || '').trim(),
           ballPosition: String((body as any)?.ballPosition || '').trim(),
           notes: String((body as any)?.notes || '').trim(),
+          currentRoundAdjustments: String((body as any)?.currentRoundAdjustments || ''),
           clubs: Array.isArray((body as any)?.clubs) ? (body as any).clubs : [],
           swingClocks: Array.isArray((body as any)?.swingClocks) ? (body as any).swingClocks : [],
         });
@@ -560,14 +564,18 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
       if (method === 'PUT') {
         try {
           const body = await parseBody(req as BodyAwareRequest);
+          const sortOrder = Number((body as any)?.sortOrder);
           const matrix = await updateWedgeMatrix({
             id: matrixId,
             userId: currentUserId,
             name: String((body as any)?.name || '').trim(),
+            groupName: String((body as any)?.groupName || '').trim(),
+            sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
             stanceWidth: String((body as any)?.stanceWidth || '').trim(),
             grip: String((body as any)?.grip || '').trim(),
             ballPosition: String((body as any)?.ballPosition || '').trim(),
             notes: String((body as any)?.notes || '').trim(),
+            currentRoundAdjustments: String((body as any)?.currentRoundAdjustments || ''),
             clubs: Array.isArray((body as any)?.clubs) ? (body as any).clubs : [],
             swingClocks: Array.isArray((body as any)?.swingClocks) ? (body as any).swingClocks : [],
           });

@@ -116,10 +116,13 @@ export type WedgeEntry = {
 export type WedgeMatrix = {
   id: number;
   name: string;
+  groupName: string;
+  sortOrder: number;
   stanceWidth: string;
   grip: string;
   ballPosition: string;
   notes: string;
+  currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
   createdAt: string;

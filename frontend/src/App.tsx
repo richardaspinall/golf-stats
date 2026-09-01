@@ -41,6 +41,7 @@ import {
   CLUB_OPTIONS,
   CLUB_OPTION_SET,
   COUNTER_OPTIONS,
+  DEFAULT_WEDGE_MATRIX_GROUPS,
   HOLES,
   HOLE_INDEX_OPTIONS,
   SWING_CLOCK_OPTIONS,
@@ -60,7 +61,16 @@ import {
   sanitizeRoundHandicap,
   sanitizeStats,
 } from './lib/rounds';
-import { clearAuthToken, clearStoredRoundDraft, loadStoredAuthToken, loadStoredRoundDraft, saveAuthToken, saveStoredRoundDraft } from './lib/storage';
+import {
+  clearAuthToken,
+  clearStoredRoundDraft,
+  loadStoredAuthToken,
+  loadStoredRoundDraft,
+  loadStoredWedgeHomeNotes,
+  saveAuthToken,
+  saveStoredRoundDraft,
+  saveStoredWedgeHomeNotes,
+} from './lib/storage';
 import { buildShotSummary, getDisplayHoleIndex, toggleHoleSelection, updateHoleCounter, updateHoleScoreValue } from './lib/track';
 import { buildWedgeMatrixRows, sortClubsByDefaultOrder } from './lib/wedgeMatrix';
 
@@ -126,7 +136,7 @@ export default function App() {
   const [googleLinkSuccess, setGoogleLinkSuccess] = useState('');
   const [isGoogleLinking, setIsGoogleLinking] = useState(false);
   const [selectedHole, setSelectedHole] = useState(1);
-  const [page, setPage] = useState('virtualCaddy');
+  const [page, setPage] = useState('wedgeMatrix');
   const [rounds, setRounds] = useState([]);
   const [roundSummaries, setRoundSummaries] = useState({});
   const [roundSummariesState, setRoundSummariesState] = useState('idle');
@@ -184,10 +194,14 @@ export default function App() {
   const [isWedgeMatrixFormOpen, setIsWedgeMatrixFormOpen] = useState(false);
   const [editingWedgeMatrixId, setEditingWedgeMatrixId] = useState(null);
   const [wedgeMatrixName, setWedgeMatrixName] = useState('');
+  const [wedgeMatrixGroupName, setWedgeMatrixGroupName] = useState('');
+  const [wedgeMatrixGroups, setWedgeMatrixGroups] = useState(() => [...DEFAULT_WEDGE_MATRIX_GROUPS]);
+  const [selectedWedgeMatrixGroup, setSelectedWedgeMatrixGroup] = useState(DEFAULT_WEDGE_MATRIX_GROUPS[0]);
   const [wedgeMatrixStanceWidth, setWedgeMatrixStanceWidth] = useState('');
   const [wedgeMatrixGrip, setWedgeMatrixGrip] = useState('');
   const [wedgeMatrixBallPosition, setWedgeMatrixBallPosition] = useState('');
   const [wedgeMatrixNotes, setWedgeMatrixNotes] = useState('');
+  const [wedgeMatrixCurrentRoundAdjustments, setWedgeMatrixCurrentRoundAdjustments] = useState('');
   const [wedgeMatrixClubs, setWedgeMatrixClubs] = useState([]);
   const [wedgeMatrixSwingClocks, setWedgeMatrixSwingClocks] = useState(() => [...SWING_CLOCK_OPTIONS]);
   const [wedgeMatrixEnabledColumns, setWedgeMatrixEnabledColumns] = useState([true, true, true, true]);
@@ -227,6 +241,48 @@ export default function App() {
   useEffect(() => {
     selectedRoundIdRef.current = selectedRoundId;
   }, [selectedRoundId]);
+  useEffect(() => {
+    const stored = loadStoredWedgeHomeNotes();
+    if (!stored) {
+      return;
+    }
+
+    if (Array.isArray(stored.matrixGroups)) {
+      const storedGroups = stored.matrixGroups.filter((group): group is string => typeof group === 'string' && group.trim().length > 0);
+      setWedgeMatrixGroups(Array.from(new Set(storedGroups)));
+    }
+  }, []);
+  useEffect(() => {
+    saveStoredWedgeHomeNotes({ matrixGroups: wedgeMatrixGroups });
+  }, [wedgeMatrixGroups]);
+
+  const addWedgeMatrixGroup = (groupName: string) => {
+    const trimmedGroupName = groupName.trim().slice(0, 80);
+    if (!trimmedGroupName) {
+      return;
+    }
+
+    setWedgeMatrixGroups((previousGroups) => {
+      const matchingGroup = previousGroups.find((group) => group.toLocaleLowerCase() === trimmedGroupName.toLocaleLowerCase());
+      return matchingGroup ? previousGroups : [...previousGroups, trimmedGroupName];
+    });
+    setSelectedWedgeMatrixGroup(trimmedGroupName);
+    setActiveWedgeMatrixId(null);
+  };
+
+  const deleteWedgeMatrixGroup = (groupName: string) => {
+    const groupHasMatrices = wedgeMatrices.some((matrix) => (matrix.groupName || 'Ungrouped') === groupName);
+    if (groupHasMatrices || !window.confirm(`Delete the ${groupName} group?`)) {
+      return;
+    }
+
+    setWedgeMatrixGroups((previousGroups) => previousGroups.filter((group) => group !== groupName));
+    if (selectedWedgeMatrixGroup === groupName) {
+      const nextGroup = [...wedgeMatrixGroups, ...wedgeMatrices.map((matrix) => matrix.groupName || 'Ungrouped')].find((group) => group !== groupName) || '';
+      setSelectedWedgeMatrixGroup(nextGroup);
+      setActiveWedgeMatrixId(null);
+    }
+  };
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleLinkButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -962,24 +1018,30 @@ export default function App() {
     startWedgeMatrixEdit,
     cancelWedgeMatrixEdit,
     deleteWedgeMatrix,
+    moveWedgeMatrix,
+    clearCurrentRoundAdjustments,
     deleteWedgeEntry,
     addWedgeEntry,
   } = useWedgeMatrix({
     authToken,
     wedgeMatrixName,
+    wedgeMatrixGroupName,
     wedgeMatrixStanceWidth,
     wedgeMatrixGrip,
     wedgeMatrixBallPosition,
     wedgeMatrixNotes,
+    wedgeMatrixCurrentRoundAdjustments,
     wedgeMatrixClubs,
     wedgeMatrixSwingClocks,
     wedgeMatrixEnabledColumns,
     setWedgeMatrices,
     setWedgeMatrixName,
+    setWedgeMatrixGroupName,
     setWedgeMatrixStanceWidth,
     setWedgeMatrixGrip,
     setWedgeMatrixBallPosition,
     setWedgeMatrixNotes,
+    setWedgeMatrixCurrentRoundAdjustments,
     setWedgeMatrixClubs,
     setWedgeMatrixSwingClocks,
     setWedgeMatrixEnabledColumns,
@@ -1836,7 +1898,7 @@ export default function App() {
                 { key: 'track', label: 'Track', icon: <DistanceTabIcon /> },
                 { key: 'virtualCaddy', label: 'Virtual caddy', icon: <VirtualCaddyTabIcon /> },
                 { key: 'distance', label: 'Distances', icon: <DistanceTabIcon /> },
-                { key: 'wedgeMatrix', label: 'Wedge matrix', icon: <WedgeMatrixTabIcon /> },
+                { key: 'wedgeMatrix', label: 'Matrixes', icon: <WedgeMatrixTabIcon /> },
                 { key: 'totals', label: 'Round totals', icon: <TotalsTabIcon /> },
               ]}
             />
@@ -2024,11 +2086,15 @@ export default function App() {
                 isWedgeMatrixFormOpen,
                 editingWedgeMatrixId,
                 wedgeMatrixName,
+                wedgeMatrixGroupName,
+                wedgeMatrixGroups,
+                selectedWedgeMatrixGroup,
                 wedgeMatrixClubs,
                 wedgeMatrixStanceWidth,
                 wedgeMatrixGrip,
                 wedgeMatrixBallPosition,
                 wedgeMatrixNotes,
+                wedgeMatrixCurrentRoundAdjustments,
                 wedgeMatrixSwingClocks,
                 wedgeMatrixEnabledColumns,
                 isLoadingWedgeMatrices,
@@ -2057,8 +2123,11 @@ export default function App() {
                 saveWedgeMatrix,
                 startWedgeMatrixEdit,
                 cancelWedgeMatrixEdit,
-                setEditingWedgeMatrixId,
                 setWedgeMatrixName,
+                setWedgeMatrixGroupName,
+                addWedgeMatrixGroup,
+                deleteWedgeMatrixGroup,
+                setSelectedWedgeMatrixGroup,
                 toggleWedgeMatrixClub,
                 setWedgeMatrixSwingClockValue,
                 setWedgeMatrixColumnEnabled,
@@ -2066,12 +2135,15 @@ export default function App() {
                 setWedgeMatrixGrip,
                 setWedgeMatrixBallPosition,
                 setWedgeMatrixNotes,
+                setWedgeMatrixCurrentRoundAdjustments,
                 setActiveWedgeMatrixId,
                 setIsWedgeFormOpen,
                 setEditingWedgeEntryId,
                 setRecentEntriesMatrixId,
                 setWedgeEntryError,
                 deleteWedgeMatrix,
+                moveWedgeMatrix,
+                clearCurrentRoundAdjustments,
                 addWedgeEntry,
                 toggleWedgeSelection,
                 toggleWedgeSwingClock,
@@ -2082,12 +2154,13 @@ export default function App() {
                 startWedgeEdit,
                 deleteWedgeEntry,
                 onBackToVirtualCaddy: closeWedgeMatrixBackToVirtualCaddy,
+                setWedgeMatrices,
               }}
               helpers={{ buildWedgeMatrixRows, sortClubsByDefaultOrder, metersToPaces, pacesToMeters }}
             />
           ) : null}
 
-          {!isVirtualCaddyFocusMode ? (
+          {!isVirtualCaddyFocusMode && page !== 'wedgeMatrix' ? (
             <NotesSection
               noteDraft={noteDraft}
               setNoteDraft={setNoteDraft}

@@ -27,19 +27,23 @@ type TempWedgeEntry = {
 type UseWedgeMatrixArgs = {
   authToken: string;
   wedgeMatrixName: string;
+  wedgeMatrixGroupName: string;
   wedgeMatrixStanceWidth: string;
   wedgeMatrixGrip: string;
   wedgeMatrixBallPosition: string;
   wedgeMatrixNotes: string;
+  wedgeMatrixCurrentRoundAdjustments: string;
   wedgeMatrixClubs: string[];
   wedgeMatrixSwingClocks: string[];
   wedgeMatrixEnabledColumns: boolean[];
   setWedgeMatrices: Dispatch<SetStateAction<WedgeMatrix[]>>;
   setWedgeMatrixName: Dispatch<SetStateAction<string>>;
+  setWedgeMatrixGroupName: Dispatch<SetStateAction<string>>;
   setWedgeMatrixStanceWidth: Dispatch<SetStateAction<string>>;
   setWedgeMatrixGrip: Dispatch<SetStateAction<string>>;
   setWedgeMatrixBallPosition: Dispatch<SetStateAction<string>>;
   setWedgeMatrixNotes: Dispatch<SetStateAction<string>>;
+  setWedgeMatrixCurrentRoundAdjustments: Dispatch<SetStateAction<string>>;
   setWedgeMatrixClubs: Dispatch<SetStateAction<string[]>>;
   setWedgeMatrixSwingClocks: Dispatch<SetStateAction<string[]>>;
   setWedgeMatrixEnabledColumns: Dispatch<SetStateAction<boolean[]>>;
@@ -76,19 +80,23 @@ type UseWedgeMatrixArgs = {
 export function useWedgeMatrix({
   authToken,
   wedgeMatrixName,
+  wedgeMatrixGroupName,
   wedgeMatrixStanceWidth,
   wedgeMatrixGrip,
   wedgeMatrixBallPosition,
   wedgeMatrixNotes,
+  wedgeMatrixCurrentRoundAdjustments,
   wedgeMatrixClubs,
   wedgeMatrixSwingClocks,
   wedgeMatrixEnabledColumns,
   setWedgeMatrices,
   setWedgeMatrixName,
+  setWedgeMatrixGroupName,
   setWedgeMatrixStanceWidth,
   setWedgeMatrixGrip,
   setWedgeMatrixBallPosition,
   setWedgeMatrixNotes,
+  setWedgeMatrixCurrentRoundAdjustments,
   setWedgeMatrixClubs,
   setWedgeMatrixSwingClocks,
   setWedgeMatrixEnabledColumns,
@@ -182,10 +190,12 @@ export function useWedgeMatrix({
 
   const resetWedgeMatrixForm = () => {
     setWedgeMatrixName('');
+    setWedgeMatrixGroupName('');
     setWedgeMatrixStanceWidth('');
     setWedgeMatrixGrip('');
     setWedgeMatrixBallPosition('');
     setWedgeMatrixNotes('');
+    setWedgeMatrixCurrentRoundAdjustments('');
     setWedgeMatrixClubs([]);
     setWedgeMatrixSwingClocks([...SWING_CLOCK_OPTIONS]);
     setWedgeMatrixEnabledColumns([true, true, true, true]);
@@ -198,10 +208,12 @@ export function useWedgeMatrix({
 
     setEditingWedgeMatrixId(matrix.id);
     setWedgeMatrixName(matrix.name || '');
+    setWedgeMatrixGroupName(matrix.groupName || '');
     setWedgeMatrixStanceWidth(matrix.stanceWidth || '');
     setWedgeMatrixGrip(matrix.grip || '');
     setWedgeMatrixBallPosition(matrix.ballPosition || '');
     setWedgeMatrixNotes(matrix.notes || '');
+    setWedgeMatrixCurrentRoundAdjustments(matrix.currentRoundAdjustments || '');
     setWedgeMatrixClubs(Array.isArray(matrix.clubs) ? matrix.clubs : []);
     setWedgeMatrixSwingClocks(nextSwingClocks);
     setWedgeMatrixEnabledColumns(
@@ -230,10 +242,16 @@ export function useWedgeMatrix({
     setWedgeMatrixSaveState('saving');
     const payload = {
       name: wedgeMatrixName || 'Wedge matrix',
+      groupName: wedgeMatrixGroupName,
+      sortOrder:
+        editingWedgeMatrixId
+          ? wedgeMatrices.find((matrix) => matrix.id === editingWedgeMatrixId)?.sortOrder ?? 0
+          : wedgeMatrices.filter((matrix) => (matrix.groupName || '') === wedgeMatrixGroupName).length,
       stanceWidth: wedgeMatrixStanceWidth,
       grip: wedgeMatrixGrip,
       ballPosition: wedgeMatrixBallPosition,
       notes: wedgeMatrixNotes,
+      currentRoundAdjustments: wedgeMatrixCurrentRoundAdjustments,
       clubs: wedgeMatrixClubs,
       swingClocks: wedgeMatrixSwingClocks.reduce<string[]>((acc, clock, index) => {
         if (index > 0 && !wedgeMatrixEnabledColumns[index]) {
@@ -310,6 +328,71 @@ export function useWedgeMatrix({
         setWedgeMatrixSaveState('error');
         setWedgeMatricesError('Unable to delete wedge matrix right now.');
       });
+  };
+
+  const moveWedgeMatrix = async (matrixId: number, direction: 'up' | 'down') => {
+    const source = wedgeMatrices.find((matrix) => matrix.id === matrixId);
+    if (!source || !authToken) {
+      return;
+    }
+
+    const groupMatrices = wedgeMatrices
+      .filter((matrix) => (matrix.groupName || '') === (source.groupName || ''))
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+    const index = groupMatrices.findIndex((matrix) => matrix.id === matrixId);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const target = groupMatrices[targetIndex];
+    if (index < 0 || !target) {
+      return;
+    }
+
+    const nextMatrices = wedgeMatrices.map((matrix) => {
+      if (matrix.id === source.id) {
+        return { ...matrix, sortOrder: target.sortOrder };
+      }
+      if (matrix.id === target.id) {
+        return { ...matrix, sortOrder: source.sortOrder };
+      }
+      return matrix;
+    });
+    setWedgeMatrices(nextMatrices);
+
+    try {
+      await Promise.all([
+        updateWedgeMatrixInApi({ ...source, sortOrder: target.sortOrder }, authToken),
+        updateWedgeMatrixInApi({ ...target, sortOrder: source.sortOrder }, authToken),
+      ]);
+    } catch (error) {
+      setWedgeMatrices(wedgeMatrices);
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+      setWedgeMatricesError('Unable to reorder matrixes right now.');
+    }
+  };
+
+  const clearCurrentRoundAdjustments = async (matrixId: number) => {
+    const matrix = wedgeMatrices.find((item) => item.id === matrixId);
+    if (!matrix || !authToken) {
+      return;
+    }
+
+    try {
+      const saved = await updateWedgeMatrixInApi({ ...matrix, currentRoundAdjustments: '' }, authToken);
+      if (!saved) {
+        setWedgeMatricesError('Unable to clear current round adjustments right now.');
+        return;
+      }
+      setWedgeMatrices((prev) => prev.map((item) => (item.id === matrixId ? saved : item)));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        handleAuthFailure('Session expired. Log in again.');
+        return;
+      }
+      setWedgeMatricesError('Unable to clear current round adjustments right now.');
+    }
   };
 
   const deleteWedgeEntry = (entryId: number, matrixId: number) => {
@@ -501,6 +584,8 @@ export function useWedgeMatrix({
     startWedgeMatrixEdit,
     cancelWedgeMatrixEdit,
     deleteWedgeMatrix,
+    moveWedgeMatrix,
+    clearCurrentRoundAdjustments,
     deleteWedgeEntry,
     addWedgeEntry,
   };

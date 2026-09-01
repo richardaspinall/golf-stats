@@ -118,10 +118,13 @@ export interface WedgeEntry {
 export interface WedgeMatrix {
   id: number;
   name: string;
+  groupName: string;
+  sortOrder: number;
   stanceWidth: string;
   grip: string;
   ballPosition: string;
   notes: string;
+  currentRoundAdjustments: string;
   clubs: string[];
   swingClocks: string[];
   createdAt: string;

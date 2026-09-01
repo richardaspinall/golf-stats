@@ -35,16 +35,19 @@ export const listWedgeMatrices = async (userId: string) => {
     `
       SELECT id,
              name,
+             group_name,
+             sort_order,
              stance_width,
              grip,
              ball_position,
              notes,
+             current_round_adjustments,
              clubs,
              swing_clocks,
              created_at
       FROM wedge_matrices
       WHERE user_id = $1
-      ORDER BY created_at DESC, id DESC
+      ORDER BY CASE WHEN group_name = '' THEN 1 ELSE 0 END, lower(group_name), sort_order ASC, created_at DESC, id DESC
     `,
     [userId],
   );
@@ -57,10 +60,13 @@ export const listWedgeMatrices = async (userId: string) => {
     acc.push({
       id: Math.floor(id),
       name: String(row.name || ''),
+      groupName: String(row.group_name || ''),
+      sortOrder: Number.isFinite(Number(row.sort_order)) ? Math.floor(Number(row.sort_order)) : 0,
       stanceWidth: String(row.stance_width || ''),
       grip: String(row.grip || ''),
       ballPosition: String(row.ball_position || ''),
       notes: String(row.notes || ''),
+      currentRoundAdjustments: String(row.current_round_adjustments || ''),
       clubs: sanitizeClubList(row.clubs),
       swingClocks: resolveSwingClockList(row.swing_clocks),
       createdAt: String(row.created_at || ''),
@@ -72,44 +78,58 @@ export const listWedgeMatrices = async (userId: string) => {
 export const insertWedgeMatrix = async ({
   userId,
   name,
+  groupName,
+  sortOrder,
   stanceWidth,
   grip,
   ballPosition,
   notes,
+  currentRoundAdjustments,
   clubs,
   swingClocks,
 }: {
   userId: string;
   name: string;
+  groupName: string;
+  sortOrder: number;
   stanceWidth: string;
   grip: string;
   ballPosition: string;
   notes: string;
+  currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
 }) => {
   const safeName = sanitizeTextField(name, 80) || 'Wedge matrix';
+  const safeGroupName = sanitizeTextField(groupName, 80);
+  const safeSortOrder = Number.isFinite(sortOrder) ? Math.max(0, Math.floor(sortOrder)) : 0;
   const safeStanceWidth = sanitizeTextField(stanceWidth, 120);
   const safeGrip = sanitizeTextField(grip, 120);
   const safeBallPosition = sanitizeTextField(ballPosition, 120);
   const safeNotes = sanitizeTextField(notes, 400);
+  const safeCurrentRoundAdjustments = sanitizeTextField(currentRoundAdjustments, 600);
   const safeClubs = sanitizeClubList(clubs);
   const resolvedSwingClocks = resolveSwingClockList(swingClocks);
 
   const db = getPool();
   const result = await db.query(
     `
-      INSERT INTO wedge_matrices (user_id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::timestamptz)
-      RETURNING id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at
+      INSERT INTO wedge_matrices (
+        user_id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::timestamptz)
+      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, created_at
     `,
     [
       userId,
       safeName,
+      safeGroupName,
+      safeSortOrder,
       safeStanceWidth,
       safeGrip,
       safeBallPosition,
       safeNotes,
+      safeCurrentRoundAdjustments,
       JSON.stringify(safeClubs),
       JSON.stringify(resolvedSwingClocks),
       new Date().toISOString(),
@@ -120,10 +140,13 @@ export const insertWedgeMatrix = async ({
   return {
     id: Number(row.id),
     name: String(row.name || ''),
+    groupName: String(row.group_name || ''),
+    sortOrder: Number.isFinite(Number(row.sort_order)) ? Math.floor(Number(row.sort_order)) : 0,
     stanceWidth: String(row.stance_width || ''),
     grip: String(row.grip || ''),
     ballPosition: String(row.ball_position || ''),
     notes: String(row.notes || ''),
+    currentRoundAdjustments: String(row.current_round_adjustments || ''),
     clubs: sanitizeClubList(row.clubs),
     swingClocks: resolveSwingClockList(row.swing_clocks),
     createdAt: String(row.created_at || ''),
@@ -134,20 +157,26 @@ export const updateWedgeMatrix = async ({
   id,
   userId,
   name,
+  groupName,
+  sortOrder,
   stanceWidth,
   grip,
   ballPosition,
   notes,
+  currentRoundAdjustments,
   clubs,
   swingClocks,
 }: {
   id: number;
   userId: string;
   name: string;
+  groupName: string;
+  sortOrder: number;
   stanceWidth: string;
   grip: string;
   ballPosition: string;
   notes: string;
+  currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
 }) => {
@@ -156,10 +185,13 @@ export const updateWedgeMatrix = async ({
   }
 
   const safeName = sanitizeTextField(name, 80) || 'Wedge matrix';
+  const safeGroupName = sanitizeTextField(groupName, 80);
+  const safeSortOrder = Number.isFinite(sortOrder) ? Math.max(0, Math.floor(sortOrder)) : 0;
   const safeStanceWidth = sanitizeTextField(stanceWidth, 120);
   const safeGrip = sanitizeTextField(grip, 120);
   const safeBallPosition = sanitizeTextField(ballPosition, 120);
   const safeNotes = sanitizeTextField(notes, 400);
+  const safeCurrentRoundAdjustments = sanitizeTextField(currentRoundAdjustments, 600);
   const safeClubs = sanitizeClubList(clubs);
   const resolvedSwingClocks = resolveSwingClockList(swingClocks);
 
@@ -168,16 +200,32 @@ export const updateWedgeMatrix = async ({
     `
       UPDATE wedge_matrices
       SET name = $1,
-          stance_width = $2,
-          grip = $3,
-          ball_position = $4,
-          notes = $5,
-          clubs = $6::jsonb,
-          swing_clocks = $7::jsonb
-      WHERE id = $8 AND user_id = $9
-      RETURNING id, name, stance_width, grip, ball_position, notes, clubs, swing_clocks, created_at
+          group_name = $2,
+          sort_order = $3,
+          stance_width = $4,
+          grip = $5,
+          ball_position = $6,
+          notes = $7,
+          current_round_adjustments = $8,
+          clubs = $9::jsonb,
+          swing_clocks = $10::jsonb
+      WHERE id = $11 AND user_id = $12
+      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, created_at
     `,
-    [safeName, safeStanceWidth, safeGrip, safeBallPosition, safeNotes, JSON.stringify(safeClubs), JSON.stringify(resolvedSwingClocks), id, userId],
+    [
+      safeName,
+      safeGroupName,
+      safeSortOrder,
+      safeStanceWidth,
+      safeGrip,
+      safeBallPosition,
+      safeNotes,
+      safeCurrentRoundAdjustments,
+      JSON.stringify(safeClubs),
+      JSON.stringify(resolvedSwingClocks),
+      id,
+      userId,
+    ],
   );
 
   const row = result.rows[0];
@@ -188,10 +236,13 @@ export const updateWedgeMatrix = async ({
   return {
     id: Number(row.id),
     name: String(row.name || ''),
+    groupName: String(row.group_name || ''),
+    sortOrder: Number.isFinite(Number(row.sort_order)) ? Math.floor(Number(row.sort_order)) : 0,
     stanceWidth: String(row.stance_width || ''),
     grip: String(row.grip || ''),
     ballPosition: String(row.ball_position || ''),
     notes: String(row.notes || ''),
+    currentRoundAdjustments: String(row.current_round_adjustments || ''),
     clubs: sanitizeClubList(row.clubs),
     swingClocks: resolveSwingClockList(row.swing_clocks),
     createdAt: String(row.created_at || ''),

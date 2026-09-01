@@ -2799,6 +2799,37 @@ button:disabled {
   gap: 8px;
 }
 
+.matrix-group-navigation {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.matrix-group-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.matrix-order-editor {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.matrix-group-list {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+
+.matrix-group-list .club-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 .offline-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(96px, 0.9fr) minmax(0, 1fr);
@@ -2941,6 +2972,13 @@ button:disabled {
   font-size: 0.95rem;
   color: #1d2a1f;
   background: #fff;
+}
+
+.matrix-identity-fields .wedge-distance-field input,
+.matrix-identity-fields .wedge-distance-field select {
+  width: 100%;
+  min-height: 46px;
+  font-size: 1rem;
 }
 
 .wedge-notes-input {

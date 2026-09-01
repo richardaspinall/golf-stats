@@ -63,10 +63,13 @@ export const ensureSchema = async () => {
           id BIGSERIAL PRIMARY KEY,
           user_id TEXT,
           name TEXT NOT NULL,
+          group_name TEXT NOT NULL DEFAULT '',
+          sort_order INTEGER NOT NULL DEFAULT 0,
           stance_width TEXT NOT NULL,
           grip TEXT NOT NULL,
           ball_position TEXT NOT NULL,
           notes TEXT NOT NULL,
+          current_round_adjustments TEXT NOT NULL DEFAULT '',
           clubs JSONB NOT NULL DEFAULT '[]'::jsonb,
           swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb,
           created_at TIMESTAMPTZ NOT NULL
@@ -77,6 +80,9 @@ export const ensureSchema = async () => {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS clubs JSONB NOT NULL DEFAULT '[]'::jsonb;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb;
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS group_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS current_round_adjustments TEXT NOT NULL DEFAULT '';
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS round_date TEXT NOT NULL DEFAULT '';
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS handicap NUMERIC(4,1) NOT NULL DEFAULT 0;
         ALTER TABLE rounds ALTER COLUMN handicap TYPE NUMERIC(4,1) USING handicap::numeric(4,1);
@@ -97,7 +103,7 @@ export const ensureSchema = async () => {
         CREATE INDEX IF NOT EXISTS club_actual_distances_user_created_idx ON club_actual_distances(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS club_actual_distances_virtual_caddy_idx
           ON club_actual_distances(user_id, source_kind, source_round_id, source_hole, source_shot_id);
-        CREATE INDEX IF NOT EXISTS wedge_matrices_user_created_idx ON wedge_matrices(user_id, created_at DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS wedge_matrices_user_created_idx ON wedge_matrices(user_id, group_name, sort_order, created_at DESC, id DESC);
         CREATE INDEX IF NOT EXISTS wedge_entries_user_matrix_created_idx ON wedge_entries(user_id, matrix_id, created_at DESC, id DESC);
         CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub_key ON users(google_sub) WHERE google_sub IS NOT NULL;
         DO $$

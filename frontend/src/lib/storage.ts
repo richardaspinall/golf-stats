@@ -1,6 +1,7 @@
 import { AUTH_TOKEN_STORAGE_KEY } from './config';
 
 const ROUND_DRAFT_STORAGE_PREFIX = 'golf-stats-round-draft:';
+const WEDGE_HOME_NOTES_STORAGE_KEY = 'golf-stats-wedge-home-notes';
 
 export const loadStoredAuthToken = (): string => {
   if (typeof window === 'undefined') {
@@ -67,4 +68,34 @@ export const clearStoredRoundDraft = (roundId: string): void => {
   }
 
   window.localStorage.removeItem(getRoundDraftStorageKey(roundId));
+};
+
+export type StoredWedgeHomeNotes = {
+  matrixGroups?: unknown;
+};
+
+export const loadStoredWedgeHomeNotes = (): StoredWedgeHomeNotes | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(WEDGE_HOME_NOTES_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as StoredWedgeHomeNotes) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveStoredWedgeHomeNotes = (notes: StoredWedgeHomeNotes): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(WEDGE_HOME_NOTES_STORAGE_KEY, JSON.stringify(notes));
 };

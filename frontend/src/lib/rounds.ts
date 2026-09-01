@@ -281,10 +281,13 @@ export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
   return {
     id: Number(raw.id),
     name: String(raw.name || ''),
+    groupName: String((raw as any).groupName || ''),
+    sortOrder: Number.isFinite(Number((raw as any).sortOrder)) ? Math.floor(Number((raw as any).sortOrder)) : 0,
     stanceWidth: String(raw.stanceWidth || ''),
     grip: String(raw.grip || ''),
     ballPosition: String(raw.ballPosition || ''),
     notes: String(raw.notes || ''),
+    currentRoundAdjustments: String((raw as any).currentRoundAdjustments || ''),
     clubs: Array.isArray(raw.clubs)
       ? raw.clubs
           .map((club) => normalizeClubLabel(club))

@@ -499,7 +499,18 @@ export const loadWedgeMatricesFromApi = async (token: string): Promise<WedgeMatr
 };
 
 export const createWedgeMatrixInApi = async (
-  payload: { name: string; stanceWidth: string; grip: string; ballPosition: string; notes: string; clubs: string[]; swingClocks: string[] },
+  payload: {
+    name: string;
+    groupName: string;
+    sortOrder: number;
+    stanceWidth: string;
+    grip: string;
+    ballPosition: string;
+    notes: string;
+    currentRoundAdjustments: string;
+    clubs: string[];
+    swingClocks: string[];
+  },
   token: string,
 ): Promise<WedgeMatrix | null> => {
   const response = await requestApi(API_WEDGE_MATRICES_URL, {
@@ -517,7 +528,19 @@ export const createWedgeMatrixInApi = async (
 };
 
 export const updateWedgeMatrixInApi = async (
-  payload: { id: number; name: string; stanceWidth: string; grip: string; ballPosition: string; notes: string; clubs: string[]; swingClocks: string[] },
+  payload: {
+    id: number;
+    name: string;
+    groupName: string;
+    sortOrder: number;
+    stanceWidth: string;
+    grip: string;
+    ballPosition: string;
+    notes: string;
+    currentRoundAdjustments: string;
+    clubs: string[];
+    swingClocks: string[];
+  },
   token: string,
 ): Promise<WedgeMatrix | null> => {
   const response = await requestApi(`${API_WEDGE_MATRICES_URL}/${encodeURIComponent(String(payload.id))}`, {
