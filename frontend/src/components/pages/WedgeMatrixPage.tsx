@@ -6,6 +6,8 @@ import type { WedgeEntry, WedgeMatrix } from '../../types';
 
 type WedgeEntriesByMatrix = Record<number, WedgeEntry[]>;
 
+const WEDGE_METER_PRESETS = [30, 50, 75, 100, 125, 150, 175, 200];
+
 type Props = {
   state: {
     wedgeMatrixMode: string;
@@ -86,6 +88,7 @@ type Props = {
     buildWedgeMatrixRows: (entries: WedgeEntry[], clubs: string[], swingClocks: string[]) => WedgeMatrixRow[];
     sortClubsByDefaultOrder: (clubs: string[]) => string[];
     metersToPaces: (meters: number) => number;
+    pacesToMeters: (paces: number) => number;
   };
 };
 
@@ -94,6 +97,14 @@ const renderMultiLine = (value: string) => (
     {value}
   </p>
 );
+
+const formatDistanceSummary = (meters: number, metersToPaces: (meters: number) => number) => {
+  if (!Number.isFinite(meters) || meters <= 0) {
+    return 'Choose a distance';
+  }
+
+  return `${meters}m • ${metersToPaces(meters)} paces`;
+};
 
 export function WedgeMatrixPage({ state, actions, helpers }: Props) {
   const [isAddingGroup, setIsAddingGroup] = useState(false);
@@ -109,6 +120,17 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
   const visibleMatrices = state.wedgeMatrices
     .filter((matrix) => (matrix.groupName || 'Ungrouped') === selectedGroup)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  const currentEntryDistanceMeters =
+    state.wedgeDistanceUnit === 'paces' ? helpers.pacesToMeters(state.wedgeDistancePaces) : state.wedgeDistanceMeters;
+  const wedgePacePresets = WEDGE_METER_PRESETS.map((meters) => helpers.metersToPaces(meters));
+  const adjustWedgeDistanceMeters = (delta: number) => {
+    actions.setWedgeDistanceMeters(Math.max(5, Math.min(300, state.wedgeDistanceMeters + delta)));
+  };
+  const adjustWedgeDistancePaces = (delta: number) => {
+    const minPaces = helpers.metersToPaces(5);
+    const maxPaces = helpers.metersToPaces(300);
+    actions.setWedgeDistancePaces(Math.max(minPaces, Math.min(maxPaces, state.wedgeDistancePaces + delta)));
+  };
 
   useEffect(() => {
     if (wasMatrixFormOpen.current && !state.isWedgeMatrixFormOpen) {
@@ -518,25 +540,99 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                     </div>
                   </div>
                   <div className="prototype-block">
-                    <div className="unit-toggle">
-                      <button type="button" className={state.wedgeDistanceUnit === 'meters' ? 'club-btn active' : 'club-btn'} onClick={() => actions.setWedgeDistanceUnit('meters')}>
+                    <h3 className="section-title">Actual distance</h3>
+                    <div className="unit-toggle" role="group" aria-label="Wedge distance unit">
+                      <button
+                        type="button"
+                        className={state.wedgeDistanceUnit === 'meters' ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => {
+                          actions.setWedgeDistanceUnit('meters');
+                          actions.setWedgeDistanceMeters(helpers.pacesToMeters(state.wedgeDistancePaces));
+                        }}
+                      >
                         Meters
                       </button>
-                      <button type="button" className={state.wedgeDistanceUnit === 'paces' ? 'club-btn active' : 'club-btn'} onClick={() => actions.setWedgeDistanceUnit('paces')}>
+                      <button
+                        type="button"
+                        className={state.wedgeDistanceUnit === 'paces' ? 'choice-chip active' : 'choice-chip'}
+                        onClick={() => {
+                          actions.setWedgeDistanceUnit('paces');
+                          actions.setWedgeDistancePaces(helpers.metersToPaces(state.wedgeDistanceMeters));
+                        }}
+                      >
                         Paces
                       </button>
                     </div>
                     {state.wedgeDistanceUnit === 'paces' ? (
-                      <input
-                        type="range"
-                        min={helpers.metersToPaces(5)}
-                        max={helpers.metersToPaces(150)}
-                        step={1}
-                        value={state.wedgeDistancePaces}
-                        onChange={(event) => actions.setWedgeDistancePaces(Number(event.target.value))}
-                      />
+                      <>
+                        <div className="preset-row" role="group" aria-label="Wedge pace presets">
+                          {wedgePacePresets.map((preset, index) => (
+                            <button
+                              key={`${preset}-${index}`}
+                              type="button"
+                              className={state.wedgeDistancePaces === preset ? 'choice-chip active' : 'choice-chip'}
+                              onClick={() => actions.setWedgeDistancePaces(preset)}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="distance-header">
+                          <span>Distance</span>
+                          <div className="distance-value-actions">
+                            <button type="button" onClick={() => adjustWedgeDistancePaces(-1)} aria-label="Decrease paces">
+                              -
+                            </button>
+                            <strong>{state.wedgeDistancePaces}</strong>
+                            <button type="button" onClick={() => adjustWedgeDistancePaces(1)} aria-label="Increase paces">
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={helpers.metersToPaces(5)}
+                          max={helpers.metersToPaces(300)}
+                          step={1}
+                          value={state.wedgeDistancePaces}
+                          onChange={(event) => actions.setWedgeDistancePaces(Number(event.target.value))}
+                        />
+                      </>
                     ) : (
-                      <input type="range" min={5} max={150} step={1} value={state.wedgeDistanceMeters} onChange={(event) => actions.setWedgeDistanceMeters(Number(event.target.value))} />
+                      <>
+                        <div className="preset-row" role="group" aria-label="Wedge meter presets">
+                          {WEDGE_METER_PRESETS.map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              className={state.wedgeDistanceMeters === preset ? 'choice-chip active' : 'choice-chip'}
+                              onClick={() => actions.setWedgeDistanceMeters(preset)}
+                            >
+                              {preset}m
+                            </button>
+                          ))}
+                        </div>
+                        <div className="distance-header">
+                          <span>Distance</span>
+                          <div className="distance-value-actions">
+                            <button type="button" onClick={() => adjustWedgeDistanceMeters(-1)} aria-label="Decrease meters">
+                              -
+                            </button>
+                            <strong>{state.wedgeDistanceMeters}m</strong>
+                            <button type="button" onClick={() => adjustWedgeDistanceMeters(1)} aria-label="Increase meters">
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={5}
+                          max={300}
+                          step={1}
+                          value={state.wedgeDistanceMeters}
+                          onChange={(event) => actions.setWedgeDistanceMeters(Number(event.target.value))}
+                        />
+                      </>
                     )}
                   </div>
                   <div className="manual-save-row">
@@ -592,7 +688,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                       <div className="wedge-recent-meta">
                         <strong>{entry.club}</strong>
                         <span>{entry.swingClock}</span>
-                        <span>{entry.distanceMeters}m</span>
+                        <span>{formatDistanceSummary(entry.distanceMeters, helpers.metersToPaces)}</span>
                       </div>
                       {state.wedgeMatrixMode === 'setup' ? (
                         <div className="wedge-recent-actions">
