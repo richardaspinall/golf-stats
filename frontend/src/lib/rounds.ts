@@ -294,6 +294,23 @@ export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
           .filter((club, index, arr) => CLUB_OPTIONS.includes(club) && arr.indexOf(club) === index)
       : [],
     swingClocks,
+    calculationMode: raw.calculationMode === 'setValues' ? 'setValues' : 'entries',
+    setValues: Object.entries((raw as any).setValues || {}).reduce<Record<string, Record<string, number>>>((values, [club, clocks]) => {
+      if (!CLUB_OPTIONS.includes(normalizeClubLabel(club)) || !clocks || typeof clocks !== 'object') {
+        return values;
+      }
+      const normalizedClocks = Object.entries(clocks as Record<string, unknown>).reduce<Record<string, number>>((clubValues, [clock, distance]) => {
+        const numericDistance = Number(distance);
+        if (clock.trim() && Number.isFinite(numericDistance) && numericDistance > 0) {
+          clubValues[clock.trim().slice(0, 40)] = Math.round(numericDistance);
+        }
+        return clubValues;
+      }, {});
+      if (Object.keys(normalizedClocks).length > 0) {
+        values[normalizeClubLabel(club)] = normalizedClocks;
+      }
+      return values;
+    }, {}),
     createdAt: String(raw.createdAt || ''),
   };
 };

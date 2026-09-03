@@ -321,7 +321,7 @@ export const getVirtualCaddyRecommendation = (inputs: VirtualCaddyInputs): Virtu
   const reasons = adjustments.map((item) => `${item.label} ${item.meters > 0 ? `+${item.meters}` : item.meters}m`);
   if (wedgeMatrixRecommendation) {
     reasons.push(
-      `Wedge matrix: ${wedgeMatrixRecommendation.club} ${wedgeMatrixRecommendation.swingClock} averages ${wedgeMatrixRecommendation.distanceMeters}m.`,
+      `Wedge matrix: ${wedgeMatrixRecommendation.club} ${wedgeMatrixRecommendation.swingClock} ${wedgeMatrixRecommendation.isSetValue ? 'is set to' : 'averages'} ${wedgeMatrixRecommendation.distanceMeters}m.`,
     );
   }
   reasons.push(...playTips);

@@ -28,6 +28,31 @@ const resolveSwingClockList = (value: unknown): string[] => {
   const sanitized = sanitizeSwingClockList(value);
   return sanitized.length > 0 ? sanitized : [...SWING_CLOCK_OPTIONS];
 };
+const sanitizeCalculationMode = (value: unknown): 'entries' | 'setValues' => (value === 'setValues' ? 'setValues' : 'entries');
+const sanitizeSetValues = (value: unknown): Record<string, Record<string, number>> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, Record<string, number>>>((values, [club, clocks]) => {
+    const normalizedClub = normalizeClubLabel(club);
+    if (!isClubOption(normalizedClub) || !clocks || typeof clocks !== 'object' || Array.isArray(clocks)) {
+      return values;
+    }
+    const sanitizedClocks = Object.entries(clocks as Record<string, unknown>).reduce<Record<string, number>>((clubValues, [clock, distance]) => {
+      const safeClock = sanitizeSwingClockLabel(clock);
+      const numericDistance = Number(distance);
+      if (safeClock && Number.isFinite(numericDistance) && numericDistance > 0) {
+        clubValues[safeClock] = Math.min(500, Math.round(numericDistance));
+      }
+      return clubValues;
+    }, {});
+    if (Object.keys(sanitizedClocks).length > 0) {
+      values[normalizedClub] = sanitizedClocks;
+    }
+    return values;
+  }, {});
+};
 
 export const listWedgeMatrices = async (userId: string) => {
   const db = getPool();
@@ -44,6 +69,8 @@ export const listWedgeMatrices = async (userId: string) => {
              current_round_adjustments,
              clubs,
              swing_clocks,
+             calculation_mode,
+             set_values,
              created_at
       FROM wedge_matrices
       WHERE user_id = $1
@@ -69,6 +96,8 @@ export const listWedgeMatrices = async (userId: string) => {
       currentRoundAdjustments: String(row.current_round_adjustments || ''),
       clubs: sanitizeClubList(row.clubs),
       swingClocks: resolveSwingClockList(row.swing_clocks),
+      calculationMode: sanitizeCalculationMode(row.calculation_mode),
+      setValues: sanitizeSetValues(row.set_values),
       createdAt: String(row.created_at || ''),
     });
     return acc;
@@ -87,6 +116,8 @@ export const insertWedgeMatrix = async ({
   currentRoundAdjustments,
   clubs,
   swingClocks,
+  calculationMode,
+  setValues,
 }: {
   userId: string;
   name: string;
@@ -99,6 +130,8 @@ export const insertWedgeMatrix = async ({
   currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
+  calculationMode: 'entries' | 'setValues';
+  setValues: Record<string, Record<string, number>>;
 }) => {
   const safeName = sanitizeTextField(name, 80) || 'Wedge matrix';
   const safeGroupName = sanitizeTextField(groupName, 80);
@@ -110,15 +143,17 @@ export const insertWedgeMatrix = async ({
   const safeCurrentRoundAdjustments = sanitizeTextField(currentRoundAdjustments, 600);
   const safeClubs = sanitizeClubList(clubs);
   const resolvedSwingClocks = resolveSwingClockList(swingClocks);
+  const safeCalculationMode = sanitizeCalculationMode(calculationMode);
+  const safeSetValues = sanitizeSetValues(setValues);
 
   const db = getPool();
   const result = await db.query(
     `
       INSERT INTO wedge_matrices (
-        user_id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, created_at
+        user_id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::timestamptz)
-      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, created_at
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14::timestamptz)
+      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
     `,
     [
       userId,
@@ -132,6 +167,8 @@ export const insertWedgeMatrix = async ({
       safeCurrentRoundAdjustments,
       JSON.stringify(safeClubs),
       JSON.stringify(resolvedSwingClocks),
+      safeCalculationMode,
+      JSON.stringify(safeSetValues),
       new Date().toISOString(),
     ],
   );
@@ -149,6 +186,8 @@ export const insertWedgeMatrix = async ({
     currentRoundAdjustments: String(row.current_round_adjustments || ''),
     clubs: sanitizeClubList(row.clubs),
     swingClocks: resolveSwingClockList(row.swing_clocks),
+    calculationMode: sanitizeCalculationMode(row.calculation_mode),
+    setValues: sanitizeSetValues(row.set_values),
     createdAt: String(row.created_at || ''),
   } satisfies WedgeMatrix;
 };
@@ -166,6 +205,8 @@ export const updateWedgeMatrix = async ({
   currentRoundAdjustments,
   clubs,
   swingClocks,
+  calculationMode,
+  setValues,
 }: {
   id: number;
   userId: string;
@@ -179,6 +220,8 @@ export const updateWedgeMatrix = async ({
   currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
+  calculationMode: 'entries' | 'setValues';
+  setValues: Record<string, Record<string, number>>;
 }) => {
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error('Invalid id');
@@ -194,6 +237,8 @@ export const updateWedgeMatrix = async ({
   const safeCurrentRoundAdjustments = sanitizeTextField(currentRoundAdjustments, 600);
   const safeClubs = sanitizeClubList(clubs);
   const resolvedSwingClocks = resolveSwingClockList(swingClocks);
+  const safeCalculationMode = sanitizeCalculationMode(calculationMode);
+  const safeSetValues = sanitizeSetValues(setValues);
 
   const db = getPool();
   const result = await db.query(
@@ -208,9 +253,11 @@ export const updateWedgeMatrix = async ({
           notes = $7,
           current_round_adjustments = $8,
           clubs = $9::jsonb,
-          swing_clocks = $10::jsonb
-      WHERE id = $11 AND user_id = $12
-      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, created_at
+          swing_clocks = $10::jsonb,
+          calculation_mode = $11,
+          set_values = $12::jsonb
+      WHERE id = $13 AND user_id = $14
+      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
     `,
     [
       safeName,
@@ -223,6 +270,8 @@ export const updateWedgeMatrix = async ({
       safeCurrentRoundAdjustments,
       JSON.stringify(safeClubs),
       JSON.stringify(resolvedSwingClocks),
+      safeCalculationMode,
+      JSON.stringify(safeSetValues),
       id,
       userId,
     ],
@@ -245,6 +294,8 @@ export const updateWedgeMatrix = async ({
     currentRoundAdjustments: String(row.current_round_adjustments || ''),
     clubs: sanitizeClubList(row.clubs),
     swingClocks: resolveSwingClockList(row.swing_clocks),
+    calculationMode: sanitizeCalculationMode(row.calculation_mode),
+    setValues: sanitizeSetValues(row.set_values),
     createdAt: String(row.created_at || ''),
   } satisfies WedgeMatrix;
 };

@@ -895,6 +895,8 @@ describe('handler', () => {
       currentRoundAdjustments: '',
       clubs: ['50', '54', '58'],
       swingClocks: ['7:30', '9:00', '10:30'],
+      calculationMode: 'entries',
+      setValues: {},
     });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(getBody())).toMatchObject({

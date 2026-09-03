@@ -205,6 +205,8 @@ export default function App() {
   const [wedgeMatrixClubs, setWedgeMatrixClubs] = useState([]);
   const [wedgeMatrixSwingClocks, setWedgeMatrixSwingClocks] = useState(() => [...SWING_CLOCK_OPTIONS]);
   const [wedgeMatrixEnabledColumns, setWedgeMatrixEnabledColumns] = useState([true, true, true, true]);
+  const [wedgeMatrixCalculationMode, setWedgeMatrixCalculationMode] = useState<'entries' | 'setValues'>('entries');
+  const [wedgeMatrixSetValues, setWedgeMatrixSetValues] = useState<Record<string, Record<string, number>>>({});
   const [wedgeMatrixSaveState, setWedgeMatrixSaveState] = useState('idle');
   const [wedgeMatricesError, setWedgeMatricesError] = useState('');
   const [isLoadingWedgeMatrices, setIsLoadingWedgeMatrices] = useState(false);
@@ -1026,6 +1028,7 @@ export default function App() {
     toggleWedgeMatrixClub,
     setWedgeMatrixSwingClockValue,
     setWedgeMatrixColumnEnabled,
+    changeWedgeMatrixCalculationMode,
     saveWedgeMatrix,
     startWedgeMatrixEdit,
     cancelWedgeMatrixEdit,
@@ -1034,6 +1037,7 @@ export default function App() {
     clearCurrentRoundAdjustments,
     deleteWedgeEntry,
     addWedgeEntry,
+    saveWedgeMatrixSetValue,
   } = useWedgeMatrix({
     authToken,
     wedgeMatrixName,
@@ -1046,6 +1050,8 @@ export default function App() {
     wedgeMatrixClubs,
     wedgeMatrixSwingClocks,
     wedgeMatrixEnabledColumns,
+    wedgeMatrixCalculationMode,
+    wedgeMatrixSetValues,
     setWedgeMatrices,
     setWedgeMatrixName,
     setWedgeMatrixGroupName,
@@ -1057,6 +1063,8 @@ export default function App() {
     setWedgeMatrixClubs,
     setWedgeMatrixSwingClocks,
     setWedgeMatrixEnabledColumns,
+    setWedgeMatrixCalculationMode,
+    setWedgeMatrixSetValues,
     setIsWedgeMatrixFormOpen,
     setWedgeMatrixSaveState,
     setWedgeMatricesError,
@@ -2109,6 +2117,8 @@ export default function App() {
                 wedgeMatrixCurrentRoundAdjustments,
                 wedgeMatrixSwingClocks,
                 wedgeMatrixEnabledColumns,
+                wedgeMatrixCalculationMode,
+                wedgeMatrixSetValues,
                 isLoadingWedgeMatrices,
                 wedgeMatricesError,
                 wedgeMatrices,
@@ -2144,6 +2154,8 @@ export default function App() {
                 toggleWedgeMatrixClub,
                 setWedgeMatrixSwingClockValue,
                 setWedgeMatrixColumnEnabled,
+                changeWedgeMatrixCalculationMode,
+                setWedgeMatrixSetValues,
                 setWedgeMatrixStanceWidth,
                 setWedgeMatrixGrip,
                 setWedgeMatrixBallPosition,
@@ -2158,6 +2170,7 @@ export default function App() {
                 moveWedgeMatrix,
                 clearCurrentRoundAdjustments,
                 addWedgeEntry,
+                saveWedgeMatrixSetValue,
                 toggleWedgeSelection,
                 toggleWedgeSwingClock,
                 setWedgeDistanceUnit,

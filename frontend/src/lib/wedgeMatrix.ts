@@ -12,10 +12,11 @@ export type WedgeMatrixRecommendation = {
   distanceMeters: number;
   sampleCount: number;
   distanceGapMeters: number;
+  isSetValue: boolean;
 };
 
 export type WedgeMatrixSource = {
-  matrix: Pick<WedgeMatrix, 'id' | 'name' | 'clubs' | 'swingClocks' | 'stanceWidth' | 'grip' | 'ballPosition'>;
+  matrix: Pick<WedgeMatrix, 'id' | 'name' | 'clubs' | 'swingClocks' | 'stanceWidth' | 'grip' | 'ballPosition' | 'calculationMode' | 'setValues'>;
   entries: WedgeEntry[];
 };
 
@@ -34,7 +35,13 @@ export const sortClubsByDefaultOrder = (clubs: string[]): string[] => {
   );
 };
 
-export const buildWedgeMatrixRows = (entries: WedgeEntry[], clubs: string[], swingClocks: string[]): WedgeMatrixRow[] => {
+export const buildWedgeMatrixRows = (
+  entries: WedgeEntry[],
+  clubs: string[],
+  swingClocks: string[],
+  calculationMode: WedgeMatrix['calculationMode'] = 'entries',
+  setValues: WedgeMatrix['setValues'] = {},
+): WedgeMatrixRow[] => {
   const clubsForMatrix = sortClubsByDefaultOrder(clubs);
   const clocksForMatrix =
     Array.isArray(swingClocks) && swingClocks.length > 0
@@ -66,6 +73,12 @@ export const buildWedgeMatrixRows = (entries: WedgeEntry[], clubs: string[], swi
   return clubsForMatrix.map((club) => ({
     club,
     cells: clocksForMatrix.map((clock) => {
+      const setValue = Number(setValues[club]?.[clock]);
+      if (calculationMode === 'setValues') {
+        return Number.isFinite(setValue) && setValue > 0
+          ? { clock, avgMeters: Math.round(setValue), count: 0 }
+          : { clock, avgMeters: null, count: 0 };
+      }
       const bucket = buckets[club][clock];
       if (!bucket || bucket.count === 0) {
         return { clock, avgMeters: null, count: 0 };
@@ -84,12 +97,14 @@ export const getClosestWedgeMatrixRecommendation = (
   clubs: string[],
   swingClocks: string[],
   targetDistanceMeters: number,
+  calculationMode: WedgeMatrix['calculationMode'] = 'entries',
+  setValues: WedgeMatrix['setValues'] = {},
 ): WedgeMatrixRecommendation | null => {
-  if (!Array.isArray(entries) || entries.length === 0 || !Number.isFinite(targetDistanceMeters) || targetDistanceMeters <= 0) {
+  if (!Number.isFinite(targetDistanceMeters) || targetDistanceMeters <= 0) {
     return null;
   }
 
-  const rows = buildWedgeMatrixRows(entries, clubs, swingClocks);
+  const rows = buildWedgeMatrixRows(entries, clubs, swingClocks, calculationMode, setValues);
   const candidates = rows.flatMap((row) =>
     row.cells
       .filter((cell) => typeof cell.avgMeters === 'number' && cell.avgMeters > 0 && cell.count > 0)
@@ -99,6 +114,7 @@ export const getClosestWedgeMatrixRecommendation = (
         distanceMeters: cell.avgMeters as number,
         sampleCount: cell.count,
         distanceGapMeters: Math.abs((cell.avgMeters as number) - targetDistanceMeters),
+        isSetValue: calculationMode === 'setValues',
       })),
   );
 
@@ -139,6 +155,8 @@ export const getClosestWedgeMatrixRecommendationAcrossMatrices = (
       source.matrix.clubs,
       source.matrix.swingClocks,
       targetDistanceMeters,
+      source.matrix.calculationMode,
+      source.matrix.setValues,
     );
 
     return recommendation ? [{ matrix: source.matrix, recommendation }] : [];

@@ -21,6 +21,7 @@ type Props = {
     wedgeMatrixClubs: string[];
     wedgeMatrixSwingClocks: string[];
     wedgeMatrixEnabledColumns: boolean[];
+    wedgeMatrixCalculationMode: 'entries' | 'setValues';
     wedgeMatrixStanceWidth: string;
     wedgeMatrixGrip: string;
     wedgeMatrixBallPosition: string;
@@ -61,6 +62,7 @@ type Props = {
     toggleWedgeMatrixClub: (club: string) => void;
     setWedgeMatrixSwingClockValue: (index: number, value: string) => void;
     setWedgeMatrixColumnEnabled: (index: number, enabled: boolean) => void;
+    changeWedgeMatrixCalculationMode: (value: 'entries' | 'setValues') => void;
     setWedgeMatrixStanceWidth: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixGrip: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixBallPosition: (value: string | ((prev: string) => string)) => void;
@@ -75,6 +77,7 @@ type Props = {
     moveWedgeMatrix: (matrixId: number, direction: 'up' | 'down') => void;
     clearCurrentRoundAdjustments: (matrixId: number) => void;
     addWedgeEntry: (event: FormEvent<HTMLFormElement>) => void;
+    saveWedgeMatrixSetValue: (event: FormEvent<HTMLFormElement>) => void;
     toggleWedgeSelection: (club: string) => void;
     toggleWedgeSwingClock: (clock: string) => void;
     setWedgeDistanceUnit: (value: string) => void;
@@ -86,7 +89,13 @@ type Props = {
     onBackToVirtualCaddy?: () => void;
   };
   helpers: {
-    buildWedgeMatrixRows: (entries: WedgeEntry[], clubs: string[], swingClocks: string[]) => WedgeMatrixRow[];
+    buildWedgeMatrixRows: (
+      entries: WedgeEntry[],
+      clubs: string[],
+      swingClocks: string[],
+      calculationMode?: WedgeMatrix['calculationMode'],
+      setValues?: WedgeMatrix['setValues'],
+    ) => WedgeMatrixRow[];
     sortClubsByDefaultOrder: (clubs: string[]) => string[];
     metersToPaces: (meters: number) => number;
     pacesToMeters: (paces: number) => number;
@@ -388,6 +397,22 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
             ))}
           </div>
           <div className="prototype-block">
+            <h3 className="section-title">Matrix values</h3>
+            <div className="unit-toggle" role="group" aria-label="Matrix value mode">
+              <button type="button" className={state.wedgeMatrixCalculationMode === 'entries' ? 'choice-chip active' : 'choice-chip'} onClick={() => actions.changeWedgeMatrixCalculationMode('entries')}>
+                Entries average
+              </button>
+              <button type="button" className={state.wedgeMatrixCalculationMode === 'setValues' ? 'choice-chip active' : 'choice-chip'} onClick={() => actions.changeWedgeMatrixCalculationMode('setValues')}>
+                Set values
+              </button>
+            </div>
+            <p className="hint">
+              {state.wedgeMatrixCalculationMode === 'setValues'
+                ? 'Use Add result to enter one fixed value for each club and clock.'
+                : 'Each cell shows the average of its saved entries.'}
+            </p>
+          </div>
+          <div className="prototype-block">
             <h3 className="section-title">Stance</h3>
             <div className="club-row">
               {['Short', 'Medium', 'Wide'].map((option) => (
@@ -459,7 +484,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
       {!state.isWedgeMatrixFormOpen && !isOrderingMatrices &&
         visibleMatrices.map((matrix) => {
           const entries = state.wedgeEntriesByMatrix[matrix.id] || [];
-          const rows = helpers.buildWedgeMatrixRows(entries, matrix.clubs, matrix.swingClocks);
+          const rows = helpers.buildWedgeMatrixRows(entries, matrix.clubs, matrix.swingClocks, matrix.calculationMode, matrix.setValues);
           const matrixClubs = helpers.sortClubsByDefaultOrder(matrix.clubs);
           const isPutterOnlyMatrix = matrixClubs.length === 1 && matrixClubs[0] === 'Putter';
           const minDistanceMeters = isPutterOnlyMatrix ? 1 : 5;
@@ -530,7 +555,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
               ) : null}
 
               {state.isWedgeFormOpen && isActive ? (
-                <form className="wedge-form active-panel" onSubmit={actions.addWedgeEntry}>
+                <form className="wedge-form active-panel" onSubmit={matrix.calculationMode === 'setValues' ? actions.saveWedgeMatrixSetValue : actions.addWedgeEntry}>
                   <div className="prototype-block">
                     <h3 className="section-title">Club</h3>
                     <div className="club-row">
@@ -648,7 +673,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                     )}
                   </div>
                   <div className="manual-save-row">
-                    <button type="submit" className="save-btn">Save result</button>
+                    <button type="submit" className="save-btn">{matrix.calculationMode === 'setValues' ? 'Save value' : 'Save result'}</button>
                     <button type="button" className="reset-btn" onClick={actions.cancelWedgeEdit}>Cancel</button>
                   </div>
                   {state.wedgeEntryError ? <p className="hint">{state.wedgeEntryError}</p> : null}

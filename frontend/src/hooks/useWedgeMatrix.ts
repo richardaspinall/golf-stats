@@ -36,6 +36,8 @@ type UseWedgeMatrixArgs = {
   wedgeMatrixClubs: string[];
   wedgeMatrixSwingClocks: string[];
   wedgeMatrixEnabledColumns: boolean[];
+  wedgeMatrixCalculationMode: 'entries' | 'setValues';
+  wedgeMatrixSetValues: Record<string, Record<string, number>>;
   setWedgeMatrices: Dispatch<SetStateAction<WedgeMatrix[]>>;
   setWedgeMatrixName: Dispatch<SetStateAction<string>>;
   setWedgeMatrixGroupName: Dispatch<SetStateAction<string>>;
@@ -47,6 +49,8 @@ type UseWedgeMatrixArgs = {
   setWedgeMatrixClubs: Dispatch<SetStateAction<string[]>>;
   setWedgeMatrixSwingClocks: Dispatch<SetStateAction<string[]>>;
   setWedgeMatrixEnabledColumns: Dispatch<SetStateAction<boolean[]>>;
+  setWedgeMatrixCalculationMode: Dispatch<SetStateAction<'entries' | 'setValues'>>;
+  setWedgeMatrixSetValues: Dispatch<SetStateAction<Record<string, Record<string, number>>>>;
   setIsWedgeMatrixFormOpen: Dispatch<SetStateAction<boolean>>;
   setWedgeMatrixSaveState: Dispatch<SetStateAction<string>>;
   setWedgeMatricesError: Dispatch<SetStateAction<string>>;
@@ -89,6 +93,8 @@ export function useWedgeMatrix({
   wedgeMatrixClubs,
   wedgeMatrixSwingClocks,
   wedgeMatrixEnabledColumns,
+  wedgeMatrixCalculationMode,
+  wedgeMatrixSetValues,
   setWedgeMatrices,
   setWedgeMatrixName,
   setWedgeMatrixGroupName,
@@ -100,6 +106,8 @@ export function useWedgeMatrix({
   setWedgeMatrixClubs,
   setWedgeMatrixSwingClocks,
   setWedgeMatrixEnabledColumns,
+  setWedgeMatrixCalculationMode,
+  setWedgeMatrixSetValues,
   setIsWedgeMatrixFormOpen,
   setWedgeMatrixSaveState,
   setWedgeMatricesError,
@@ -188,6 +196,36 @@ export function useWedgeMatrix({
     });
   };
 
+  const changeWedgeMatrixCalculationMode = (calculationMode: 'entries' | 'setValues') => {
+    setWedgeMatrixCalculationMode(calculationMode);
+    if (!editingWedgeMatrixId || !authToken) {
+      return;
+    }
+
+    const existingMatrix = wedgeMatrices.find((matrix) => matrix.id === editingWedgeMatrixId);
+    if (!existingMatrix) {
+      return;
+    }
+
+    updateWedgeMatrixInApi({ ...existingMatrix, calculationMode }, authToken)
+      .then((saved) => {
+        if (!saved) {
+          setWedgeMatrixCalculationMode(existingMatrix.calculationMode);
+          setWedgeMatricesError('Unable to update matrix value mode.');
+          return;
+        }
+        setWedgeMatrices((previous) => previous.map((matrix) => (matrix.id === saved.id ? saved : matrix)));
+      })
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+        setWedgeMatrixCalculationMode(existingMatrix.calculationMode);
+        setWedgeMatricesError('Unable to update matrix value mode.');
+      });
+  };
+
   const resetWedgeMatrixForm = () => {
     setWedgeMatrixName('');
     setWedgeMatrixGroupName('');
@@ -199,6 +237,8 @@ export function useWedgeMatrix({
     setWedgeMatrixClubs([]);
     setWedgeMatrixSwingClocks([...SWING_CLOCK_OPTIONS]);
     setWedgeMatrixEnabledColumns([true, true, true, true]);
+    setWedgeMatrixCalculationMode('entries');
+    setWedgeMatrixSetValues({});
     setEditingWedgeMatrixId(null);
   };
 
@@ -221,6 +261,8 @@ export function useWedgeMatrix({
         index === 0 ? true : Boolean(savedSwingClocks[index]),
       ),
     );
+    setWedgeMatrixCalculationMode(matrix.calculationMode);
+    setWedgeMatrixSetValues(matrix.setValues);
     setWedgeMatricesError('');
     setWedgeMatrixSaveState('idle');
     setIsWedgeMatrixFormOpen(true);
@@ -260,6 +302,8 @@ export function useWedgeMatrix({
         acc.push(clock.trim() ? clock : SWING_CLOCK_OPTIONS[index]);
         return acc;
       }, []),
+      calculationMode: wedgeMatrixCalculationMode,
+      setValues: wedgeMatrixSetValues,
     };
     const request = editingWedgeMatrixId
       ? updateWedgeMatrixInApi({ id: editingWedgeMatrixId, ...payload }, authToken)
@@ -572,6 +616,67 @@ export function useWedgeMatrix({
       });
   };
 
+  const saveWedgeMatrixSetValue = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    setWedgeEntryError('');
+
+    if (!Number.isFinite(activeWedgeMatrixId)) {
+      setWedgeEntryError('Select a wedge matrix.');
+      return;
+    }
+
+    const activeMatrix = wedgeMatrices.find((matrix) => matrix.id === activeWedgeMatrixId);
+    if (!activeMatrix || activeMatrix.calculationMode !== 'setValues') {
+      setWedgeEntryError('This matrix is not using set values.');
+      return;
+    }
+    if (!activeMatrix.clubs.includes(wedgeClubSelection)) {
+      setWedgeEntryError('Select a club.');
+      return;
+    }
+    if (!activeMatrix.swingClocks.includes(wedgeSwingClock)) {
+      setWedgeEntryError('Select a swing clock.');
+      return;
+    }
+
+    const rawDistance = wedgeDistanceUnit === 'paces' ? Number(wedgeDistancePaces) : Number(wedgeDistanceMeters);
+    const distanceMeters = wedgeDistanceUnit === 'paces' ? pacesToMeters(rawDistance) : Math.round(rawDistance);
+    if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+      setWedgeEntryError('Enter a distance.');
+      return;
+    }
+    if (!authToken) {
+      return;
+    }
+
+    const setValues = {
+      ...activeMatrix.setValues,
+      [wedgeClubSelection]: {
+        ...(activeMatrix.setValues[wedgeClubSelection] || {}),
+        [wedgeSwingClock]: distanceMeters,
+      },
+    };
+    setWedgeEntrySaveState('saving');
+    updateWedgeMatrixInApi({ ...activeMatrix, setValues }, authToken)
+      .then((saved) => {
+        if (!saved) {
+          setWedgeEntrySaveState('error');
+          setWedgeEntryError('Unable to save matrix value.');
+          return;
+        }
+        setWedgeMatrices((previous) => previous.map((matrix) => (matrix.id === saved.id ? saved : matrix)));
+        setWedgeEntrySaveState('saved');
+      })
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 401) {
+          handleAuthFailure('Session expired. Log in again.');
+          return;
+        }
+        setWedgeEntrySaveState('error');
+        setWedgeEntryError('Unable to save matrix value.');
+      });
+  };
+
   return {
     toggleWedgeSelection,
     toggleWedgeSwingClock,
@@ -580,6 +685,7 @@ export function useWedgeMatrix({
     toggleWedgeMatrixClub,
     setWedgeMatrixSwingClockValue,
     setWedgeMatrixColumnEnabled,
+    changeWedgeMatrixCalculationMode,
     saveWedgeMatrix,
     startWedgeMatrixEdit,
     cancelWedgeMatrixEdit,
@@ -588,5 +694,6 @@ export function useWedgeMatrix({
     clearCurrentRoundAdjustments,
     deleteWedgeEntry,
     addWedgeEntry,
+    saveWedgeMatrixSetValue,
   };
 }

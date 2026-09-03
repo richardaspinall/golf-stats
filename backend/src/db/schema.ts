@@ -72,6 +72,8 @@ export const ensureSchema = async () => {
           current_round_adjustments TEXT NOT NULL DEFAULT '',
           clubs JSONB NOT NULL DEFAULT '[]'::jsonb,
           swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb,
+          calculation_mode TEXT NOT NULL DEFAULT 'entries',
+          set_values JSONB NOT NULL DEFAULT '{}'::jsonb,
           created_at TIMESTAMPTZ NOT NULL
         );
         ALTER TABLE wedge_entries ADD COLUMN IF NOT EXISTS matrix_id BIGINT;
@@ -83,6 +85,8 @@ export const ensureSchema = async () => {
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS group_name TEXT NOT NULL DEFAULT '';
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS current_round_adjustments TEXT NOT NULL DEFAULT '';
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS calculation_mode TEXT NOT NULL DEFAULT 'entries';
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS set_values JSONB NOT NULL DEFAULT '{}'::jsonb;
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS round_date TEXT NOT NULL DEFAULT '';
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS handicap NUMERIC(4,1) NOT NULL DEFAULT 0;
         ALTER TABLE rounds ALTER COLUMN handicap TYPE NUMERIC(4,1) USING handicap::numeric(4,1);

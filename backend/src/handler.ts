@@ -545,6 +545,8 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
           currentRoundAdjustments: String((body as any)?.currentRoundAdjustments || ''),
           clubs: Array.isArray((body as any)?.clubs) ? (body as any).clubs : [],
           swingClocks: Array.isArray((body as any)?.swingClocks) ? (body as any).swingClocks : [],
+          calculationMode: (body as any)?.calculationMode === 'setValues' ? 'setValues' : 'entries',
+          setValues: (body as any)?.setValues && typeof (body as any).setValues === 'object' ? (body as any).setValues : {},
         });
         sendJson(res, 201, { ok: true, matrix });
       } catch (error: any) {
@@ -578,6 +580,8 @@ export const handleRequest = async (req: IncomingMessage, res: ServerResponse) =
             currentRoundAdjustments: String((body as any)?.currentRoundAdjustments || ''),
             clubs: Array.isArray((body as any)?.clubs) ? (body as any).clubs : [],
             swingClocks: Array.isArray((body as any)?.swingClocks) ? (body as any).swingClocks : [],
+            calculationMode: (body as any)?.calculationMode === 'setValues' ? 'setValues' : 'entries',
+            setValues: (body as any)?.setValues && typeof (body as any).setValues === 'object' ? (body as any).setValues : {},
           });
           if (!matrix) {
             sendJson(res, 404, { ok: false, error: 'Matrix not found' });

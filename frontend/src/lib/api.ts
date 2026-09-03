@@ -510,6 +510,8 @@ export const createWedgeMatrixInApi = async (
     currentRoundAdjustments: string;
     clubs: string[];
     swingClocks: string[];
+    calculationMode: 'entries' | 'setValues';
+    setValues: Record<string, Record<string, number>>;
   },
   token: string,
 ): Promise<WedgeMatrix | null> => {
@@ -540,6 +542,8 @@ export const updateWedgeMatrixInApi = async (
     currentRoundAdjustments: string;
     clubs: string[];
     swingClocks: string[];
+    calculationMode: 'entries' | 'setValues';
+    setValues: Record<string, Record<string, number>>;
   },
   token: string,
 ): Promise<WedgeMatrix | null> => {

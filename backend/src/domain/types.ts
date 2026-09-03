@@ -125,5 +125,7 @@ export type WedgeMatrix = {
   currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
+  calculationMode: 'entries' | 'setValues';
+  setValues: Record<string, Record<string, number>>;
   createdAt: string;
 };
