@@ -7,6 +7,7 @@ import type { WedgeEntry, WedgeMatrix } from '../../types';
 type WedgeEntriesByMatrix = Record<number, WedgeEntry[]>;
 
 const WEDGE_METER_PRESETS = [30, 50, 75, 100, 125, 150, 175, 200];
+const PUTTER_METER_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30];
 
 type Props = {
   state: {
@@ -120,15 +121,12 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
   const visibleMatrices = state.wedgeMatrices
     .filter((matrix) => (matrix.groupName || 'Ungrouped') === selectedGroup)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
-  const currentEntryDistanceMeters =
-    state.wedgeDistanceUnit === 'paces' ? helpers.pacesToMeters(state.wedgeDistancePaces) : state.wedgeDistanceMeters;
-  const wedgePacePresets = WEDGE_METER_PRESETS.map((meters) => helpers.metersToPaces(meters));
-  const adjustWedgeDistanceMeters = (delta: number) => {
-    actions.setWedgeDistanceMeters(Math.max(5, Math.min(300, state.wedgeDistanceMeters + delta)));
+  const adjustWedgeDistanceMeters = (delta: number, minMeters: number, maxMeters: number) => {
+    actions.setWedgeDistanceMeters(Math.max(minMeters, Math.min(maxMeters, state.wedgeDistanceMeters + delta)));
   };
-  const adjustWedgeDistancePaces = (delta: number) => {
-    const minPaces = helpers.metersToPaces(5);
-    const maxPaces = helpers.metersToPaces(300);
+  const adjustWedgeDistancePaces = (delta: number, minMeters: number, maxMeters: number) => {
+    const minPaces = helpers.metersToPaces(minMeters);
+    const maxPaces = helpers.metersToPaces(maxMeters);
     actions.setWedgeDistancePaces(Math.max(minPaces, Math.min(maxPaces, state.wedgeDistancePaces + delta)));
   };
 
@@ -463,6 +461,11 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
           const entries = state.wedgeEntriesByMatrix[matrix.id] || [];
           const rows = helpers.buildWedgeMatrixRows(entries, matrix.clubs, matrix.swingClocks);
           const matrixClubs = helpers.sortClubsByDefaultOrder(matrix.clubs);
+          const isPutterOnlyMatrix = matrixClubs.length === 1 && matrixClubs[0] === 'Putter';
+          const minDistanceMeters = isPutterOnlyMatrix ? 1 : 5;
+          const maxDistanceMeters = isPutterOnlyMatrix ? 30 : 300;
+          const meterPresets = isPutterOnlyMatrix ? PUTTER_METER_PRESETS : WEDGE_METER_PRESETS;
+          const pacePresets = meterPresets.map((meters) => helpers.metersToPaces(meters));
           const isActive = state.activeWedgeMatrixId === matrix.id;
           const isRecentOpen = state.recentEntriesMatrixId === matrix.id;
 
@@ -479,10 +482,19 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                   <button
                     type="button"
                     onClick={() => {
+                      const isOpening = !isActive || !state.isWedgeFormOpen;
                       actions.setActiveWedgeMatrixId(matrix.id);
                       actions.setIsWedgeFormOpen(!(isActive && state.isWedgeFormOpen));
                       actions.setEditingWedgeEntryId(null);
                       actions.setWedgeEntryError('');
+                      if (isOpening && state.wedgeDistanceUnit === 'meters') {
+                        actions.setWedgeDistanceMeters(Math.max(minDistanceMeters, Math.min(maxDistanceMeters, state.wedgeDistanceMeters)));
+                      }
+                      if (isOpening && state.wedgeDistanceUnit === 'paces') {
+                        const minPaces = helpers.metersToPaces(minDistanceMeters);
+                        const maxPaces = helpers.metersToPaces(maxDistanceMeters);
+                        actions.setWedgeDistancePaces(Math.max(minPaces, Math.min(maxPaces, state.wedgeDistancePaces)));
+                      }
                     }}
                   >
                     {isActive && state.isWedgeFormOpen ? 'Cancel' : 'Add result'}
@@ -566,7 +578,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                     {state.wedgeDistanceUnit === 'paces' ? (
                       <>
                         <div className="preset-row" role="group" aria-label="Wedge pace presets">
-                          {wedgePacePresets.map((preset, index) => (
+                          {pacePresets.map((preset, index) => (
                             <button
                               key={`${preset}-${index}`}
                               type="button"
@@ -580,19 +592,19 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                         <div className="distance-header">
                           <span>Distance</span>
                           <div className="distance-value-actions">
-                            <button type="button" onClick={() => adjustWedgeDistancePaces(-1)} aria-label="Decrease paces">
+                            <button type="button" onClick={() => adjustWedgeDistancePaces(-1, minDistanceMeters, maxDistanceMeters)} aria-label="Decrease paces">
                               -
                             </button>
                             <strong>{state.wedgeDistancePaces}</strong>
-                            <button type="button" onClick={() => adjustWedgeDistancePaces(1)} aria-label="Increase paces">
+                            <button type="button" onClick={() => adjustWedgeDistancePaces(1, minDistanceMeters, maxDistanceMeters)} aria-label="Increase paces">
                               +
                             </button>
                           </div>
                         </div>
                         <input
                           type="range"
-                          min={helpers.metersToPaces(5)}
-                          max={helpers.metersToPaces(300)}
+                          min={helpers.metersToPaces(minDistanceMeters)}
+                          max={helpers.metersToPaces(maxDistanceMeters)}
                           step={1}
                           value={state.wedgeDistancePaces}
                           onChange={(event) => actions.setWedgeDistancePaces(Number(event.target.value))}
@@ -601,7 +613,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                     ) : (
                       <>
                         <div className="preset-row" role="group" aria-label="Wedge meter presets">
-                          {WEDGE_METER_PRESETS.map((preset) => (
+                          {meterPresets.map((preset) => (
                             <button
                               key={preset}
                               type="button"
@@ -615,19 +627,19 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                         <div className="distance-header">
                           <span>Distance</span>
                           <div className="distance-value-actions">
-                            <button type="button" onClick={() => adjustWedgeDistanceMeters(-1)} aria-label="Decrease meters">
+                            <button type="button" onClick={() => adjustWedgeDistanceMeters(-1, minDistanceMeters, maxDistanceMeters)} aria-label="Decrease meters">
                               -
                             </button>
                             <strong>{state.wedgeDistanceMeters}m</strong>
-                            <button type="button" onClick={() => adjustWedgeDistanceMeters(1)} aria-label="Increase meters">
+                            <button type="button" onClick={() => adjustWedgeDistanceMeters(1, minDistanceMeters, maxDistanceMeters)} aria-label="Increase meters">
                               +
                             </button>
                           </div>
                         </div>
                         <input
                           type="range"
-                          min={5}
-                          max={300}
+                          min={minDistanceMeters}
+                          max={maxDistanceMeters}
                           step={1}
                           value={state.wedgeDistanceMeters}
                           onChange={(event) => actions.setWedgeDistanceMeters(Number(event.target.value))}
