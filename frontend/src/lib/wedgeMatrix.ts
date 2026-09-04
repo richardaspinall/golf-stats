@@ -3,7 +3,7 @@ import type { WedgeEntry, WedgeMatrix } from '../types';
 
 export type WedgeMatrixRow = {
   club: string;
-  cells: Array<{ clock: string; avgMeters: number | null; count: number }>;
+  cells: Array<{ clock: string; avgMeters: number | null; count: number; displayValue: string | null }>;
 };
 
 export type WedgeMatrixRecommendation = {
@@ -73,20 +73,29 @@ export const buildWedgeMatrixRows = (
   return clubsForMatrix.map((club) => ({
     club,
     cells: clocksForMatrix.map((clock) => {
-      const setValue = Number(setValues[club]?.[clock]);
+      const rawSetValue = setValues[club]?.[clock];
+      const setValue = Number(rawSetValue);
       if (calculationMode === 'setValues') {
         return Number.isFinite(setValue) && setValue > 0
-          ? { clock, avgMeters: Math.round(setValue), count: 0 }
-          : { clock, avgMeters: null, count: 0 };
+          ? { clock, avgMeters: Math.round(setValue), count: 0, displayValue: `${Math.round(setValue)}m` }
+          : { clock, avgMeters: null, count: 0, displayValue: null };
+      }
+      if (calculationMode === 'freeform') {
+        const displayValue = String(rawSetValue || '').trim();
+        return displayValue
+          ? { clock, avgMeters: null, count: 0, displayValue }
+          : { clock, avgMeters: null, count: 0, displayValue: null };
       }
       const bucket = buckets[club][clock];
       if (!bucket || bucket.count === 0) {
-        return { clock, avgMeters: null, count: 0 };
+        return { clock, avgMeters: null, count: 0, displayValue: null };
       }
+      const avgMeters = Math.round(bucket.total / bucket.count);
       return {
         clock,
-        avgMeters: Math.round(bucket.total / bucket.count),
+        avgMeters,
         count: bucket.count,
+        displayValue: `${avgMeters}m`,
       };
     }),
   }));
@@ -107,7 +116,15 @@ export const getClosestWedgeMatrixRecommendation = (
   const rows = buildWedgeMatrixRows(entries, clubs, swingClocks, calculationMode, setValues);
   const candidates = rows.flatMap((row) =>
     row.cells
-      .filter((cell) => typeof cell.avgMeters === 'number' && cell.avgMeters > 0 && cell.count > 0)
+      .filter((cell) => {
+        if (calculationMode === 'freeform') {
+          return false;
+        }
+        if (typeof cell.avgMeters !== 'number' || cell.avgMeters <= 0) {
+          return false;
+        }
+        return calculationMode === 'entries' ? cell.count > 0 : true;
+      })
       .map((cell) => ({
         club: row.club,
         swingClock: cell.clock,

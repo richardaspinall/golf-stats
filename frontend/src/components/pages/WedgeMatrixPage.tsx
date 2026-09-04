@@ -21,7 +21,7 @@ type Props = {
     wedgeMatrixClubs: string[];
     wedgeMatrixSwingClocks: string[];
     wedgeMatrixEnabledColumns: boolean[];
-    wedgeMatrixCalculationMode: 'entries' | 'setValues';
+    wedgeMatrixCalculationMode: 'entries' | 'setValues' | 'freeform';
     wedgeMatrixStanceWidth: string;
     wedgeMatrixGrip: string;
     wedgeMatrixBallPosition: string;
@@ -38,6 +38,7 @@ type Props = {
     wedgeDistanceUnit: string;
     wedgeDistancePaces: number;
     wedgeDistanceMeters: number;
+    wedgeFreeformValue: string;
     editingWedgeEntryId: number | null;
     recentEntriesMatrixId: number | null;
     wedgeEntryError: string;
@@ -62,7 +63,7 @@ type Props = {
     toggleWedgeMatrixClub: (club: string) => void;
     setWedgeMatrixSwingClockValue: (index: number, value: string) => void;
     setWedgeMatrixColumnEnabled: (index: number, enabled: boolean) => void;
-    changeWedgeMatrixCalculationMode: (value: 'entries' | 'setValues') => void;
+    changeWedgeMatrixCalculationMode: (value: 'entries' | 'setValues' | 'freeform') => void;
     setWedgeMatrixStanceWidth: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixGrip: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixBallPosition: (value: string | ((prev: string) => string)) => void;
@@ -83,6 +84,7 @@ type Props = {
     setWedgeDistanceUnit: (value: string) => void;
     setWedgeDistancePaces: (value: number) => void;
     setWedgeDistanceMeters: (value: number) => void;
+    setWedgeFreeformValue: (value: string) => void;
     cancelWedgeEdit: () => void;
     startWedgeEdit: (entry: WedgeEntry) => void;
     deleteWedgeEntry: (entryId: number, matrixId: number) => void;
@@ -405,10 +407,15 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
               <button type="button" className={state.wedgeMatrixCalculationMode === 'setValues' ? 'choice-chip active' : 'choice-chip'} onClick={() => actions.changeWedgeMatrixCalculationMode('setValues')}>
                 Set values
               </button>
+              <button type="button" className={state.wedgeMatrixCalculationMode === 'freeform' ? 'choice-chip active' : 'choice-chip'} onClick={() => actions.changeWedgeMatrixCalculationMode('freeform')}>
+                Free form
+              </button>
             </div>
             <p className="hint">
               {state.wedgeMatrixCalculationMode === 'setValues'
                 ? 'Use Add result to enter one fixed value for each club and clock.'
+                : state.wedgeMatrixCalculationMode === 'freeform'
+                  ? 'Use Add value to enter any value for each club and clock.'
                 : 'Each cell shows the average of its saved entries.'}
             </p>
           </div>
@@ -522,7 +529,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                       }
                     }}
                   >
-                    {isActive && state.isWedgeFormOpen ? 'Cancel' : 'Add result'}
+                    {isActive && state.isWedgeFormOpen ? 'Cancel' : matrix.calculationMode === 'freeform' ? 'Add value' : 'Add result'}
                   </button>
                   <button
                     type="button"
@@ -555,7 +562,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
               ) : null}
 
               {state.isWedgeFormOpen && isActive ? (
-                <form className="wedge-form active-panel" onSubmit={matrix.calculationMode === 'setValues' ? actions.saveWedgeMatrixSetValue : actions.addWedgeEntry}>
+                <form className="wedge-form active-panel" onSubmit={matrix.calculationMode === 'entries' ? actions.addWedgeEntry : actions.saveWedgeMatrixSetValue}>
                   <div className="prototype-block">
                     <h3 className="section-title">Club</h3>
                     <div className="club-row">
@@ -577,7 +584,19 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                     </div>
                   </div>
                   <div className="prototype-block">
-                    <h3 className="section-title">Actual distance</h3>
+                    <h3 className="section-title">{matrix.calculationMode === 'freeform' ? 'Value' : 'Actual distance'}</h3>
+                    {matrix.calculationMode === 'freeform' ? (
+                      <label className="wedge-distance-field">
+                        Value
+                        <input
+                          value={state.wedgeFreeformValue}
+                          onChange={(event) => actions.setWedgeFreeformValue(event.target.value)}
+                          placeholder="e.g. 1:2, Low, 12"
+                          maxLength={20}
+                        />
+                      </label>
+                    ) : (
+                      <>
                     <div className="unit-toggle" role="group" aria-label="Wedge distance unit">
                       <button
                         type="button"
@@ -671,9 +690,13 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                         />
                       </>
                     )}
+                      </>
+                    )}
                   </div>
                   <div className="manual-save-row">
-                    <button type="submit" className="save-btn">{matrix.calculationMode === 'setValues' ? 'Save value' : 'Save result'}</button>
+                    <button type="submit" className="save-btn">
+                      {matrix.calculationMode === 'freeform' ? 'Save value' : matrix.calculationMode === 'setValues' ? 'Save value' : 'Save result'}
+                    </button>
                     <button type="button" className="reset-btn" onClick={actions.cancelWedgeEdit}>Cancel</button>
                   </div>
                   {state.wedgeEntryError ? <p className="hint">{state.wedgeEntryError}</p> : null}
@@ -696,9 +719,9 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                         <td className="wedge-label">{row.club}</td>
                         {row.cells.map((cell) => (
                           <td key={`${row.club}-${cell.clock}`}>
-                            {cell.avgMeters !== null || cell.count > 0 ? (
+                            {cell.displayValue !== null || cell.count > 0 ? (
                               <div className="matrix-cell">
-                                {cell.avgMeters !== null ? <span>{cell.avgMeters}m</span> : null}
+                                {cell.displayValue !== null ? <span>{cell.displayValue}</span> : null}
                                 {cell.count > 0 ? <span className="matrix-count">{cell.count} shots</span> : null}
                               </div>
                             ) : null}

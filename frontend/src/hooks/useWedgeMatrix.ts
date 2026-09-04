@@ -36,8 +36,8 @@ type UseWedgeMatrixArgs = {
   wedgeMatrixClubs: string[];
   wedgeMatrixSwingClocks: string[];
   wedgeMatrixEnabledColumns: boolean[];
-  wedgeMatrixCalculationMode: 'entries' | 'setValues';
-  wedgeMatrixSetValues: Record<string, Record<string, number>>;
+  wedgeMatrixCalculationMode: 'entries' | 'setValues' | 'freeform';
+  wedgeMatrixSetValues: Record<string, Record<string, number | string>>;
   setWedgeMatrices: Dispatch<SetStateAction<WedgeMatrix[]>>;
   setWedgeMatrixName: Dispatch<SetStateAction<string>>;
   setWedgeMatrixGroupName: Dispatch<SetStateAction<string>>;
@@ -49,8 +49,8 @@ type UseWedgeMatrixArgs = {
   setWedgeMatrixClubs: Dispatch<SetStateAction<string[]>>;
   setWedgeMatrixSwingClocks: Dispatch<SetStateAction<string[]>>;
   setWedgeMatrixEnabledColumns: Dispatch<SetStateAction<boolean[]>>;
-  setWedgeMatrixCalculationMode: Dispatch<SetStateAction<'entries' | 'setValues'>>;
-  setWedgeMatrixSetValues: Dispatch<SetStateAction<Record<string, Record<string, number>>>>;
+  setWedgeMatrixCalculationMode: Dispatch<SetStateAction<'entries' | 'setValues' | 'freeform'>>;
+  setWedgeMatrixSetValues: Dispatch<SetStateAction<Record<string, Record<string, number | string>>>>;
   setIsWedgeMatrixFormOpen: Dispatch<SetStateAction<boolean>>;
   setWedgeMatrixSaveState: Dispatch<SetStateAction<string>>;
   setWedgeMatricesError: Dispatch<SetStateAction<string>>;
@@ -71,6 +71,8 @@ type UseWedgeMatrixArgs = {
   setWedgeDistancePaces: Dispatch<SetStateAction<number>>;
   wedgeDistanceUnit: string;
   setWedgeDistanceUnit: Dispatch<SetStateAction<string>>;
+  wedgeFreeformValue: string;
+  setWedgeFreeformValue: Dispatch<SetStateAction<string>>;
   wedgeEntriesByMatrix: WedgeEntriesState;
   setWedgeEntriesByMatrix: Dispatch<SetStateAction<WedgeEntriesState>>;
   editingWedgeEntryId: number | null;
@@ -127,6 +129,8 @@ export function useWedgeMatrix({
   setWedgeDistancePaces,
   wedgeDistanceUnit,
   setWedgeDistanceUnit,
+  wedgeFreeformValue,
+  setWedgeFreeformValue,
   setWedgeEntriesByMatrix,
   editingWedgeEntryId,
   setEditingWedgeEntryId,
@@ -151,6 +155,7 @@ export function useWedgeMatrix({
     setWedgeDistanceMeters(entry.distanceMeters);
     setWedgeDistancePaces(metersToPaces(entry.distanceMeters));
     setWedgeDistanceUnit('meters');
+    setWedgeFreeformValue('');
     setWedgeEntryError('');
     setWedgeEntrySaveState('idle');
     setIsWedgeFormOpen(true);
@@ -160,6 +165,7 @@ export function useWedgeMatrix({
     setEditingWedgeEntryId(null);
     setWedgeEntryError('');
     setIsWedgeFormOpen(false);
+    setWedgeFreeformValue('');
   };
 
   const toggleWedgeMatrixClub = (club: string) => {
@@ -196,7 +202,7 @@ export function useWedgeMatrix({
     });
   };
 
-  const changeWedgeMatrixCalculationMode = (calculationMode: 'entries' | 'setValues') => {
+  const changeWedgeMatrixCalculationMode = (calculationMode: 'entries' | 'setValues' | 'freeform') => {
     setWedgeMatrixCalculationMode(calculationMode);
     if (!editingWedgeMatrixId || !authToken) {
       return;
@@ -240,6 +246,7 @@ export function useWedgeMatrix({
     setWedgeMatrixCalculationMode('entries');
     setWedgeMatrixSetValues({});
     setEditingWedgeMatrixId(null);
+    setWedgeFreeformValue('');
   };
 
   const startWedgeMatrixEdit = (matrix: WedgeMatrix) => {
@@ -263,6 +270,7 @@ export function useWedgeMatrix({
     );
     setWedgeMatrixCalculationMode(matrix.calculationMode);
     setWedgeMatrixSetValues(matrix.setValues);
+    setWedgeFreeformValue('');
     setWedgeMatricesError('');
     setWedgeMatrixSaveState('idle');
     setIsWedgeMatrixFormOpen(true);
@@ -626,22 +634,34 @@ export function useWedgeMatrix({
     }
 
     const activeMatrix = wedgeMatrices.find((matrix) => matrix.id === activeWedgeMatrixId);
-    if (!activeMatrix || activeMatrix.calculationMode !== 'setValues') {
-      setWedgeEntryError('This matrix is not using set values.');
+    if (!activeMatrix || (activeMatrix.calculationMode !== 'setValues' && activeMatrix.calculationMode !== 'freeform')) {
+      setWedgeEntryError('This matrix is not using fixed values.');
       return;
     }
-    if (!activeMatrix.clubs.includes(wedgeClubSelection)) {
+    const activeMatrixClubs = Array.isArray(activeMatrix.clubs) && activeMatrix.clubs.length > 0 ? activeMatrix.clubs : CLUB_OPTIONS;
+    const activeMatrixSwingClocks =
+      Array.isArray(activeMatrix.swingClocks) && activeMatrix.swingClocks.length > 0 ? activeMatrix.swingClocks : SWING_CLOCK_OPTIONS;
+    if (!activeMatrixClubs.includes(wedgeClubSelection)) {
       setWedgeEntryError('Select a club.');
       return;
     }
-    if (!activeMatrix.swingClocks.includes(wedgeSwingClock)) {
+    if (!activeMatrixSwingClocks.includes(wedgeSwingClock)) {
       setWedgeEntryError('Select a swing clock.');
       return;
     }
 
-    const rawDistance = wedgeDistanceUnit === 'paces' ? Number(wedgeDistancePaces) : Number(wedgeDistanceMeters);
-    const distanceMeters = wedgeDistanceUnit === 'paces' ? pacesToMeters(rawDistance) : Math.round(rawDistance);
-    if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+    const nextValue =
+      activeMatrix.calculationMode === 'freeform'
+        ? wedgeFreeformValue.trim()
+        : wedgeDistanceUnit === 'paces'
+          ? pacesToMeters(Number(wedgeDistancePaces))
+          : Math.round(Number(wedgeDistanceMeters));
+    if (activeMatrix.calculationMode === 'freeform') {
+      if (!String(nextValue)) {
+        setWedgeEntryError('Enter a value.');
+        return;
+      }
+    } else if (!Number.isFinite(nextValue) || nextValue <= 0) {
       setWedgeEntryError('Enter a distance.');
       return;
     }
@@ -653,7 +673,7 @@ export function useWedgeMatrix({
       ...activeMatrix.setValues,
       [wedgeClubSelection]: {
         ...(activeMatrix.setValues[wedgeClubSelection] || {}),
-        [wedgeSwingClock]: distanceMeters,
+        [wedgeSwingClock]: nextValue,
       },
     };
     setWedgeEntrySaveState('saving');
@@ -665,6 +685,7 @@ export function useWedgeMatrix({
           return;
         }
         setWedgeMatrices((previous) => previous.map((matrix) => (matrix.id === saved.id ? saved : matrix)));
+        setWedgeFreeformValue('');
         setWedgeEntrySaveState('saved');
       })
       .catch((error) => {

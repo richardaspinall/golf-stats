@@ -294,15 +294,21 @@ export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
           .filter((club, index, arr) => CLUB_OPTIONS.includes(club) && arr.indexOf(club) === index)
       : [],
     swingClocks,
-    calculationMode: raw.calculationMode === 'setValues' ? 'setValues' : 'entries',
-    setValues: Object.entries((raw as any).setValues || {}).reduce<Record<string, Record<string, number>>>((values, [club, clocks]) => {
+    calculationMode: raw.calculationMode === 'setValues' ? raw.calculationMode : raw.calculationMode === 'freeform' || raw.calculationMode === 'ratios' ? 'freeform' : 'entries',
+    setValues: Object.entries((raw as any).setValues || {}).reduce<Record<string, Record<string, number | string>>>((values, [club, clocks]) => {
       if (!CLUB_OPTIONS.includes(normalizeClubLabel(club)) || !clocks || typeof clocks !== 'object') {
         return values;
       }
-      const normalizedClocks = Object.entries(clocks as Record<string, unknown>).reduce<Record<string, number>>((clubValues, [clock, distance]) => {
+      const normalizedClocks = Object.entries(clocks as Record<string, unknown>).reduce<Record<string, number | string>>((clubValues, [clock, distance]) => {
+        const safeClock = clock.trim().slice(0, 40);
+        const textValue = String(distance || '').trim();
         const numericDistance = Number(distance);
-        if (clock.trim() && Number.isFinite(numericDistance) && numericDistance > 0) {
-          clubValues[clock.trim().slice(0, 40)] = Math.round(numericDistance);
+        if (safeClock && textValue && typeof distance === 'string') {
+          clubValues[safeClock] = textValue.slice(0, 40);
+          return clubValues;
+        }
+        if (safeClock && Number.isFinite(numericDistance) && numericDistance > 0) {
+          clubValues[safeClock] = Math.round(numericDistance);
         }
         return clubValues;
       }, {});

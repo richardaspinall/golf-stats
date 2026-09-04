@@ -205,8 +205,8 @@ export default function App() {
   const [wedgeMatrixClubs, setWedgeMatrixClubs] = useState([]);
   const [wedgeMatrixSwingClocks, setWedgeMatrixSwingClocks] = useState(() => [...SWING_CLOCK_OPTIONS]);
   const [wedgeMatrixEnabledColumns, setWedgeMatrixEnabledColumns] = useState([true, true, true, true]);
-  const [wedgeMatrixCalculationMode, setWedgeMatrixCalculationMode] = useState<'entries' | 'setValues'>('entries');
-  const [wedgeMatrixSetValues, setWedgeMatrixSetValues] = useState<Record<string, Record<string, number>>>({});
+  const [wedgeMatrixCalculationMode, setWedgeMatrixCalculationMode] = useState<'entries' | 'setValues' | 'freeform'>('entries');
+  const [wedgeMatrixSetValues, setWedgeMatrixSetValues] = useState<Record<string, Record<string, number | string>>>({});
   const [wedgeMatrixSaveState, setWedgeMatrixSaveState] = useState('idle');
   const [wedgeMatricesError, setWedgeMatricesError] = useState('');
   const [isLoadingWedgeMatrices, setIsLoadingWedgeMatrices] = useState(false);
@@ -216,6 +216,7 @@ export default function App() {
   const [wedgeDistanceMeters, setWedgeDistanceMeters] = useState(60);
   const [wedgeDistancePaces, setWedgeDistancePaces] = useState(() => metersToPaces(60));
   const [wedgeDistanceUnit, setWedgeDistanceUnit] = useState('meters');
+  const [wedgeFreeformValue, setWedgeFreeformValue] = useState('');
   const [wedgeEntryError, setWedgeEntryError] = useState('');
   const [wedgeEntrySaveState, setWedgeEntrySaveState] = useState('idle');
   const [wedgeEntriesError, setWedgeEntriesError] = useState('');
@@ -1085,6 +1086,8 @@ export default function App() {
     setWedgeDistancePaces,
     wedgeDistanceUnit,
     setWedgeDistanceUnit,
+    wedgeFreeformValue,
+    setWedgeFreeformValue,
     wedgeEntriesByMatrix,
     setWedgeEntriesByMatrix,
     editingWedgeEntryId,
@@ -2130,6 +2133,7 @@ export default function App() {
                 wedgeDistanceUnit,
                 wedgeDistancePaces,
                 wedgeDistanceMeters,
+                wedgeFreeformValue,
                 editingWedgeEntryId,
                 recentEntriesMatrixId,
                 wedgeEntryError,
@@ -2176,6 +2180,7 @@ export default function App() {
                 setWedgeDistanceUnit,
                 setWedgeDistancePaces,
                 setWedgeDistanceMeters,
+                setWedgeFreeformValue,
                 cancelWedgeEdit,
                 startWedgeEdit,
                 deleteWedgeEntry,

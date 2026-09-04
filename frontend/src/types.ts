@@ -127,8 +127,8 @@ export interface WedgeMatrix {
   currentRoundAdjustments: string;
   clubs: string[];
   swingClocks: string[];
-  calculationMode: 'entries' | 'setValues';
-  setValues: Record<string, Record<string, number>>;
+  calculationMode: 'entries' | 'setValues' | 'freeform';
+  setValues: Record<string, Record<string, number | string>>;
   createdAt: string;
 }
 

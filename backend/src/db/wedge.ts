@@ -28,20 +28,26 @@ const resolveSwingClockList = (value: unknown): string[] => {
   const sanitized = sanitizeSwingClockList(value);
   return sanitized.length > 0 ? sanitized : [...SWING_CLOCK_OPTIONS];
 };
-const sanitizeCalculationMode = (value: unknown): 'entries' | 'setValues' => (value === 'setValues' ? 'setValues' : 'entries');
-const sanitizeSetValues = (value: unknown): Record<string, Record<string, number>> => {
+const sanitizeCalculationMode = (value: unknown): 'entries' | 'setValues' | 'freeform' =>
+  value === 'setValues' ? value : value === 'freeform' || value === 'ratios' ? 'freeform' : 'entries';
+const sanitizeSetValues = (value: unknown): Record<string, Record<string, number | string>> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
 
-  return Object.entries(value as Record<string, unknown>).reduce<Record<string, Record<string, number>>>((values, [club, clocks]) => {
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, Record<string, number | string>>>((values, [club, clocks]) => {
     const normalizedClub = normalizeClubLabel(club);
     if (!isClubOption(normalizedClub) || !clocks || typeof clocks !== 'object' || Array.isArray(clocks)) {
       return values;
     }
-    const sanitizedClocks = Object.entries(clocks as Record<string, unknown>).reduce<Record<string, number>>((clubValues, [clock, distance]) => {
+    const sanitizedClocks = Object.entries(clocks as Record<string, unknown>).reduce<Record<string, number | string>>((clubValues, [clock, distance]) => {
       const safeClock = sanitizeSwingClockLabel(clock);
+      const textValue = sanitizeTextField(distance, 40);
       const numericDistance = Number(distance);
+      if (safeClock && textValue && typeof distance === 'string') {
+        clubValues[safeClock] = textValue;
+        return clubValues;
+      }
       if (safeClock && Number.isFinite(numericDistance) && numericDistance > 0) {
         clubValues[safeClock] = Math.min(500, Math.round(numericDistance));
       }
@@ -130,8 +136,8 @@ export const insertWedgeMatrix = async ({
   currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
-  calculationMode: 'entries' | 'setValues';
-  setValues: Record<string, Record<string, number>>;
+  calculationMode: 'entries' | 'setValues' | 'freeform';
+  setValues: Record<string, Record<string, number | string>>;
 }) => {
   const safeName = sanitizeTextField(name, 80) || 'Wedge matrix';
   const safeGroupName = sanitizeTextField(groupName, 80);
@@ -220,8 +226,8 @@ export const updateWedgeMatrix = async ({
   currentRoundAdjustments: string;
   clubs: ClubOption[];
   swingClocks: string[];
-  calculationMode: 'entries' | 'setValues';
-  setValues: Record<string, Record<string, number>>;
+  calculationMode: 'entries' | 'setValues' | 'freeform';
+  setValues: Record<string, Record<string, number | string>>;
 }) => {
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error('Invalid id');
