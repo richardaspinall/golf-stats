@@ -233,6 +233,10 @@ export default function App() {
   const skipNextSaveRef = useRef(false);
   const hasLoadedClubCarryRef = useRef(false);
   const skipNextClubCarrySaveRef = useRef(false);
+  const wedgeMatrixIdsKey = useMemo(
+    () => wedgeMatrices.map((matrix) => matrix.id).sort((a, b) => a - b).join(','),
+    [wedgeMatrices],
+  );
   const hasLoadedClubAveragesRef = useRef(false);
   const statsByHoleRef = useRef(statsByHole);
   const selectedRoundIdRef = useRef(selectedRoundId);
@@ -1571,7 +1575,7 @@ export default function App() {
     return () => {
       isActive = false;
     };
-  }, [authToken, wedgeMatrices]);
+  }, [authToken, wedgeMatrixIdsKey]);
 
   useEffect(() => {
     if (!authToken || !hasLoadedClubCarryRef.current) {

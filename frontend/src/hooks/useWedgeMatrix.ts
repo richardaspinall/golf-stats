@@ -419,22 +419,23 @@ export function useWedgeMatrix({
       return;
     }
 
+    const reorderedGroupMatrices = [...groupMatrices];
+    [reorderedGroupMatrices[index], reorderedGroupMatrices[targetIndex]] = [
+      reorderedGroupMatrices[targetIndex],
+      reorderedGroupMatrices[index],
+    ];
+    const sortOrderById = new Map(reorderedGroupMatrices.map((matrix, order) => [matrix.id, order]));
+    const matricesToUpdate = reorderedGroupMatrices.filter((matrix, order) => matrix.sortOrder !== order);
     const nextMatrices = wedgeMatrices.map((matrix) => {
-      if (matrix.id === source.id) {
-        return { ...matrix, sortOrder: target.sortOrder };
-      }
-      if (matrix.id === target.id) {
-        return { ...matrix, sortOrder: source.sortOrder };
-      }
-      return matrix;
+      const sortOrder = sortOrderById.get(matrix.id);
+      return sortOrder === undefined ? matrix : { ...matrix, sortOrder };
     });
     setWedgeMatrices(nextMatrices);
 
     try {
-      await Promise.all([
-        updateWedgeMatrixInApi({ ...source, sortOrder: target.sortOrder }, authToken),
-        updateWedgeMatrixInApi({ ...target, sortOrder: source.sortOrder }, authToken),
-      ]);
+      await Promise.all(
+        matricesToUpdate.map((matrix) => updateWedgeMatrixInApi({ ...matrix, sortOrder: sortOrderById.get(matrix.id) ?? matrix.sortOrder }, authToken)),
+      );
     } catch (error) {
       setWedgeMatrices(wedgeMatrices);
       if (error instanceof ApiError && error.status === 401) {
