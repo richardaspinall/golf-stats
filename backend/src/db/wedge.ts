@@ -60,6 +60,27 @@ const sanitizeSetValues = (value: unknown): Record<string, Record<string, number
   }, {});
 };
 
+const renameSetValueColumns = (
+  setValues: Record<string, Record<string, number | string>>,
+  previousSwingClocks: string[],
+  nextSwingClocks: string[],
+) => {
+  const renamedColumns = (previousSwingClocks.length === nextSwingClocks.length ? previousSwingClocks : []).reduce<Record<string, string>>((renamed, clock, index) => {
+    const replacement = nextSwingClocks[index];
+    if (clock && replacement && clock !== replacement) {
+      renamed[clock] = replacement;
+    }
+    return renamed;
+  }, {});
+
+  return Object.fromEntries(
+    Object.entries(setValues).map(([club, values]) => [
+      club,
+      Object.fromEntries(Object.entries(values).map(([clock, value]) => [renamedColumns[clock] || clock, value])),
+    ]),
+  );
+};
+
 export const listWedgeMatrices = async (userId: string) => {
   const db = getPool();
   const result = await db.query(
@@ -247,6 +268,21 @@ export const updateWedgeMatrix = async ({
   const safeSetValues = sanitizeSetValues(setValues);
 
   const db = getPool();
+  const existingResult = await db.query(
+    'SELECT swing_clocks FROM wedge_matrices WHERE id = $1 AND user_id = $2',
+    [id, userId],
+  );
+  const existingRow = existingResult.rows[0];
+  if (!existingRow) return null;
+
+  const previousSwingClocks = resolveSwingClockList(existingRow.swing_clocks);
+  const renamedColumns = (previousSwingClocks.length === resolvedSwingClocks.length ? previousSwingClocks : []).reduce<Array<[string, string]>>((renamed, clock, index) => {
+    const replacement = resolvedSwingClocks[index];
+    if (clock && replacement && clock !== replacement) renamed.push([clock, replacement]);
+    return renamed;
+  }, []);
+  const migratedSetValues = renameSetValueColumns(safeSetValues, previousSwingClocks, resolvedSwingClocks);
+
   const result = await db.query(
     `
       UPDATE wedge_matrices
@@ -277,15 +313,27 @@ export const updateWedgeMatrix = async ({
       JSON.stringify(safeClubs),
       JSON.stringify(resolvedSwingClocks),
       safeCalculationMode,
-      JSON.stringify(safeSetValues),
+      JSON.stringify(migratedSetValues),
       id,
       userId,
     ],
   );
 
   const row = result.rows[0];
-  if (!row) {
-    return null;
+  if (!row) return null;
+
+  if (renamedColumns.length > 0) {
+    const caseClauses = renamedColumns.map((_, index) => `WHEN $${index * 2 + 1} THEN $${index * 2 + 2}`).join(' ');
+    const values = renamedColumns.flatMap(([previous, next]) => [previous, next]);
+    const matrixIdPlaceholder = values.length + 1;
+    const userIdPlaceholder = values.length + 2;
+    const clockPlaceholders = renamedColumns.map((_, index) => `$${values.length + 3 + index}`).join(', ');
+    await db.query(
+      `UPDATE wedge_entries
+       SET swing_clock = CASE swing_clock ${caseClauses} ELSE swing_clock END
+       WHERE matrix_id = $${matrixIdPlaceholder} AND user_id = $${userIdPlaceholder} AND swing_clock IN (${clockPlaceholders})`,
+      [...values, id, userId, ...renamedColumns.map(([previous]) => previous)],
+    );
   }
 
   return {

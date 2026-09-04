@@ -118,6 +118,16 @@ const formatDistanceSummary = (meters: number, metersToPaces: (meters: number) =
   return `${meters}m • ${metersToPaces(meters)} paces`;
 };
 
+const formatMatrixSetupSummary = (matrix: Pick<WedgeMatrix, 'stanceWidth' | 'grip' | 'ballPosition'>) => {
+  const parts = [
+    matrix.stanceWidth ? `Stance: ${matrix.stanceWidth}` : null,
+    matrix.grip ? `Grip: ${matrix.grip}` : null,
+    matrix.ballPosition ? `Ball position: ${matrix.ballPosition}` : null,
+  ].filter(Boolean);
+
+  return parts.join(' | ');
+};
+
 export function WedgeMatrixPage({ state, actions, helpers }: Props) {
   const [isAddingGroup, setIsAddingGroup] = useState(false);
   const [isGroupEditorOpen, setIsGroupEditorOpen] = useState(false);
@@ -506,8 +516,8 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
               <div className="wedge-matrix-header">
                 <div>
                   <h3 className="section-title">{matrix.name || 'Matrix'}</h3>
-                  {[matrix.stanceWidth, matrix.grip, matrix.ballPosition].some(Boolean) ? (
-                    <p className="hint">{[matrix.stanceWidth, matrix.grip, matrix.ballPosition].filter(Boolean).join(' | ')}</p>
+                  {formatMatrixSetupSummary(matrix) ? (
+                    <p className="hint">{formatMatrixSetupSummary(matrix)}</p>
                   ) : null}
                 </div>
                 <div className="wedge-matrix-actions">

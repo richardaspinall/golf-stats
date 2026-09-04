@@ -24,6 +24,15 @@ type TempWedgeEntry = {
   createdAt: string;
 };
 
+const getRenamedSwingClocks = (previous: string[], next: string[]) =>
+  (previous.length === next.length ? previous : []).reduce<Record<string, string>>((renamed, clock, index) => {
+    const replacement = next[index];
+    if (clock && replacement && clock !== replacement) {
+      renamed[clock] = replacement;
+    }
+    return renamed;
+  }, {});
+
 type UseWedgeMatrixArgs = {
   authToken: string;
   wedgeMatrixName: string;
@@ -316,6 +325,8 @@ export function useWedgeMatrix({
     const request = editingWedgeMatrixId
       ? updateWedgeMatrixInApi({ id: editingWedgeMatrixId, ...payload }, authToken)
       : createWedgeMatrixInApi(payload, authToken);
+    const existingMatrix = editingWedgeMatrixId ? wedgeMatrices.find((matrix) => matrix.id === editingWedgeMatrixId) : null;
+    const renamedSwingClocks = existingMatrix ? getRenamedSwingClocks(existingMatrix.swingClocks, payload.swingClocks) : {};
 
     request
       .then((matrix) => {
@@ -328,6 +339,15 @@ export function useWedgeMatrix({
         setWedgeMatrices((prev) =>
           editingWedgeMatrixId ? prev.map((item) => (item.id === editingWedgeMatrixId ? matrix : item)) : [matrix, ...prev],
         );
+        if (editingWedgeMatrixId && Object.keys(renamedSwingClocks).length > 0) {
+          setWedgeEntriesByMatrix((previous) => ({
+            ...previous,
+            [editingWedgeMatrixId]: (previous[editingWedgeMatrixId] || []).map((entry) => ({
+              ...entry,
+              swingClock: renamedSwingClocks[entry.swingClock] || entry.swingClock,
+            })),
+          }));
+        }
         resetWedgeMatrixForm();
         setIsWedgeMatrixFormOpen(false);
         setWedgeMatrixSaveState('saved');
