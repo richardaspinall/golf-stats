@@ -128,6 +128,7 @@ export const SHOT_SETUP_OPTIONS = [
 ];
 
 export const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'];
+export const DEFAULT_WEDGE_MATRIX_SWING_CLOCKS = ['8pm', '9pm', '10pm', 'Full'];
 export const DEFAULT_WEDGE_MATRIX_GROUPS = ['Wedge matrixes', 'Full shots', 'Speciality shots'];
 
 export const CLUB_GROUPS = [

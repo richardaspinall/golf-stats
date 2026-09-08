@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { CLUB_OPTIONS, SWING_CLOCK_OPTIONS } from '../../lib/constants';
+import { CLUB_OPTIONS, DEFAULT_WEDGE_MATRIX_SWING_CLOCKS } from '../../lib/constants';
 import type { WedgeMatrixRow } from '../../lib/wedgeMatrix';
+import {
+  buildAllWedgeMatricesExportCsv,
+  buildAllWedgeMatricesExportFilename,
+  downloadWedgeMatricesCsv,
+} from '../../lib/wedgeMatrixExport';
 import type { WedgeEntry, WedgeMatrix } from '../../types';
 
 type WedgeEntriesByMatrix = Record<number, WedgeEntry[]>;
@@ -25,6 +30,7 @@ type Props = {
     wedgeMatrixStanceWidth: string;
     wedgeMatrixGrip: string;
     wedgeMatrixBallPosition: string;
+    wedgeMatrixFlightAndLanding: string;
     wedgeMatrixNotes: string;
     wedgeMatrixCurrentRoundAdjustments: string;
     isLoadingWedgeMatrices: boolean;
@@ -67,6 +73,7 @@ type Props = {
     setWedgeMatrixStanceWidth: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixGrip: (value: string | ((prev: string) => string)) => void;
     setWedgeMatrixBallPosition: (value: string | ((prev: string) => string)) => void;
+    setWedgeMatrixFlightAndLanding: (value: string) => void;
     setWedgeMatrixNotes: (value: string) => void;
     setWedgeMatrixCurrentRoundAdjustments: (value: string) => void;
     setActiveWedgeMatrixId: (value: number | null) => void;
@@ -76,6 +83,7 @@ type Props = {
     setWedgeEntryError: (value: string) => void;
     deleteWedgeMatrix: (matrixId: number) => void;
     moveWedgeMatrix: (matrixId: number, direction: 'up' | 'down') => void;
+    saveCurrentRoundAdjustments: (matrixId: number, value: string) => Promise<boolean>;
     clearCurrentRoundAdjustments: (matrixId: number) => void;
     addWedgeEntry: (event: FormEvent<HTMLFormElement>) => void;
     saveWedgeMatrixSetValue: (event: FormEvent<HTMLFormElement>) => void;
@@ -134,6 +142,9 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
   const [isOrderingGroups, setIsOrderingGroups] = useState(false);
   const [isOrderingMatrices, setIsOrderingMatrices] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [adjustmentsEditorMatrixId, setAdjustmentsEditorMatrixId] = useState<number | null>(null);
+  const [adjustmentsDraft, setAdjustmentsDraft] = useState('');
+  const [isSavingAdjustments, setIsSavingAdjustments] = useState(false);
   const wasMatrixFormOpen = useRef(state.isWedgeMatrixFormOpen);
   const groups = Array.from(
     new Set([...state.wedgeMatrixGroups, ...state.wedgeMatrices.map((matrix) => matrix.groupName || 'Ungrouped')].filter(Boolean)),
@@ -149,6 +160,10 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
     const minPaces = helpers.metersToPaces(minMeters);
     const maxPaces = helpers.metersToPaces(maxMeters);
     actions.setWedgeDistancePaces(Math.max(minPaces, Math.min(maxPaces, state.wedgeDistancePaces + delta)));
+  };
+  const exportAllMatrices = () => {
+    const csv = buildAllWedgeMatricesExportCsv(state.wedgeMatrices, state.wedgeEntriesByMatrix);
+    downloadWedgeMatricesCsv(buildAllWedgeMatricesExportFilename(), csv);
   };
 
   useEffect(() => {
@@ -285,6 +300,14 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
               >
                 Order matrixes
               </button>
+              <button
+                type="button"
+                onClick={exportAllMatrices}
+                disabled={state.wedgeMatrices.length === 0 || state.isLoadingWedgeEntries || Boolean(state.wedgeEntriesError)}
+                title={state.wedgeEntriesError ? 'Matrix entries must load before they can be exported.' : undefined}
+              >
+                Export all CSV
+              </button>
               </div>
             ) : isOrderingGroups ? (
               <div className="matrix-order-editor">
@@ -398,7 +421,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                   maxLength={40}
                   disabled={index > 0 && !state.wedgeMatrixEnabledColumns[index]}
                   onChange={(event) => actions.setWedgeMatrixSwingClockValue(index, event.target.value)}
-                  placeholder={SWING_CLOCK_OPTIONS[index]}
+                  placeholder={DEFAULT_WEDGE_MATRIX_SWING_CLOCKS[index]}
                 />
                 {index > 0 ? (
                   <button type="button" className={state.wedgeMatrixEnabledColumns[index] ? 'club-btn active' : 'club-btn'} onClick={() => actions.setWedgeMatrixColumnEnabled(index, !state.wedgeMatrixEnabledColumns[index])}>
@@ -454,10 +477,18 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                 </button>
               ))}
             </div>
-          </div>
-          <div className="prototype-block">
             <label className="wedge-distance-field">
-              Current round adjustments
+              Ball flight / landing
+              <textarea
+                rows={2}
+                value={state.wedgeMatrixFlightAndLanding}
+                onChange={(event) => actions.setWedgeMatrixFlightAndLanding(event.target.value)}
+                placeholder="e.g. High and come to a quick stop / no roll out"
+                maxLength={240}
+              />
+            </label>
+            <label className="wedge-distance-field">
+              Round adjustments
               <textarea className="wedge-notes-input" rows={3} value={state.wedgeMatrixCurrentRoundAdjustments} onChange={(event) => actions.setWedgeMatrixCurrentRoundAdjustments(event.target.value)} placeholder="Greens running fast" />
             </label>
           </div>
@@ -510,6 +541,7 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
           const pacePresets = meterPresets.map((meters) => helpers.metersToPaces(meters));
           const isActive = state.activeWedgeMatrixId === matrix.id;
           const isRecentOpen = state.recentEntriesMatrixId === matrix.id;
+          const isAdjustmentsEditorOpen = adjustmentsEditorMatrixId === matrix.id;
 
           return (
             <div key={matrix.id} className="wedge-matrix-card">
@@ -518,6 +550,11 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                   <h3 className="section-title">{matrix.name || 'Matrix'}</h3>
                   {formatMatrixSetupSummary(matrix) ? (
                     <p className="hint">{formatMatrixSetupSummary(matrix)}</p>
+                  ) : null}
+                  {matrix.flightAndLanding ? (
+                    <p className="hint" style={{ whiteSpace: 'pre-wrap' }}>
+                      <strong>Result:</strong> {matrix.flightAndLanding}
+                    </p>
                   ) : null}
                 </div>
                 <div className="wedge-matrix-actions">
@@ -541,6 +578,17 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                   >
                     {isActive && state.isWedgeFormOpen ? 'Cancel' : matrix.calculationMode === 'freeform' ? 'Add value' : 'Add result'}
                   </button>
+                  {!matrix.currentRoundAdjustments && !isAdjustmentsEditorOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdjustmentsDraft('');
+                        setAdjustmentsEditorMatrixId(matrix.id);
+                      }}
+                    >
+                      Round adjustments
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="icon-action-btn"
@@ -559,15 +607,63 @@ export function WedgeMatrixPage({ state, actions, helpers }: Props) {
                 </div>
               </div>
 
-              {matrix.currentRoundAdjustments ? (
+              {matrix.currentRoundAdjustments || isAdjustmentsEditorOpen ? (
                 <div className="prototype-block">
-                  <div className="manual-save-row">
-                    <h3 className="section-title">Current round adjustments</h3>
-                    <button type="button" className="reset-btn" onClick={() => actions.clearCurrentRoundAdjustments(matrix.id)}>
-                      Clear
-                    </button>
+                <div className="wedge-matrix-header">
+                  <h3 className="section-title">Round adjustments</h3>
+                  {!isAdjustmentsEditorOpen && matrix.currentRoundAdjustments ? (
+                    <div className="wedge-matrix-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdjustmentsDraft(matrix.currentRoundAdjustments);
+                          setAdjustmentsEditorMatrixId(matrix.id);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button type="button" onClick={() => actions.clearCurrentRoundAdjustments(matrix.id)}>
+                        Clear
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                {isAdjustmentsEditorOpen ? (
+                  <div className="wedge-form">
+                    <label className="wedge-distance-field">
+                      Adjustments
+                      <textarea
+                        className="wedge-notes-input"
+                        rows={3}
+                        value={adjustmentsDraft}
+                        onChange={(event) => setAdjustmentsDraft(event.target.value)}
+                        placeholder="Greens running fast"
+                        maxLength={600}
+                        autoFocus
+                      />
+                    </label>
+                    <div className="wedge-matrix-actions">
+                      <button
+                        type="button"
+                        className="save-btn"
+                        disabled={isSavingAdjustments}
+                        onClick={async () => {
+                          setIsSavingAdjustments(true);
+                          const didSave = await actions.saveCurrentRoundAdjustments(matrix.id, adjustmentsDraft);
+                          setIsSavingAdjustments(false);
+                          if (didSave) {
+                            setAdjustmentsEditorMatrixId(null);
+                          }
+                        }}
+                      >
+                        {isSavingAdjustments ? 'Saving...' : 'Save adjustments'}
+                      </button>
+                      <button type="button" disabled={isSavingAdjustments} onClick={() => setAdjustmentsEditorMatrixId(null)}>
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                  {renderMultiLine(matrix.currentRoundAdjustments)}
+                ) : matrix.currentRoundAdjustments ? renderMultiLine(matrix.currentRoundAdjustments) : null}
                 </div>
               ) : null}
 

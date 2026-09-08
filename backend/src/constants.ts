@@ -56,5 +56,5 @@ export const normalizeClubLabel = (value: unknown): string => {
   return LEGACY_CLUB_ALIASES[club as keyof typeof LEGACY_CLUB_ALIASES] || club;
 };
 
-export const SWING_CLOCK_OPTIONS = ['7:30', '9:00', '10:30', 'Full'] as const;
+export const SWING_CLOCK_OPTIONS = ['8pm', '9pm', '10pm', 'Full'] as const;
 export const SWING_CLOCK_OPTION_SET = new Set(SWING_CLOCK_OPTIONS);

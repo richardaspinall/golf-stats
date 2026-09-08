@@ -2,7 +2,7 @@ import {
   CLUB_OPTIONS,
   COUNTER_OPTIONS,
   HOLES,
-  SWING_CLOCK_OPTIONS,
+  DEFAULT_WEDGE_MATRIX_SWING_CLOCKS,
   TOTAL_OPTIONS,
   normalizeClubLabel,
   VALID_FAIRWAY_KEYS,
@@ -277,7 +277,7 @@ export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
   const swingClocks =
     Array.isArray(raw.swingClocks) && raw.swingClocks.length > 0
       ? raw.swingClocks.map((clock) => String(clock || '').trim().slice(0, 40)).filter((clock, index, arr) => Boolean(clock) && arr.indexOf(clock) === index)
-      : SWING_CLOCK_OPTIONS;
+      : DEFAULT_WEDGE_MATRIX_SWING_CLOCKS;
   return {
     id: Number(raw.id),
     name: String(raw.name || ''),
@@ -286,6 +286,7 @@ export const normalizeWedgeMatrix = (matrix: unknown): WedgeMatrix => {
     stanceWidth: String(raw.stanceWidth || ''),
     grip: String(raw.grip || ''),
     ballPosition: String(raw.ballPosition || ''),
+    flightAndLanding: String((raw as any).flightAndLanding || ''),
     notes: String(raw.notes || ''),
     currentRoundAdjustments: String((raw as any).currentRoundAdjustments || ''),
     clubs: Array.isArray(raw.clubs)

@@ -506,6 +506,7 @@ export const createWedgeMatrixInApi = async (
     stanceWidth: string;
     grip: string;
     ballPosition: string;
+    flightAndLanding: string;
     notes: string;
     currentRoundAdjustments: string;
     clubs: string[];
@@ -538,6 +539,7 @@ export const updateWedgeMatrixInApi = async (
     stanceWidth: string;
     grip: string;
     ballPosition: string;
+    flightAndLanding: string;
     notes: string;
     currentRoundAdjustments: string;
     clubs: string[];

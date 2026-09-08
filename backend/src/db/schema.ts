@@ -68,10 +68,11 @@ export const ensureSchema = async () => {
           stance_width TEXT NOT NULL,
           grip TEXT NOT NULL,
           ball_position TEXT NOT NULL,
+          flight_and_landing TEXT NOT NULL DEFAULT '',
           notes TEXT NOT NULL,
           current_round_adjustments TEXT NOT NULL DEFAULT '',
           clubs JSONB NOT NULL DEFAULT '[]'::jsonb,
-          swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb,
+          swing_clocks JSONB NOT NULL DEFAULT '["8pm","9pm","10pm","Full"]'::jsonb,
           calculation_mode TEXT NOT NULL DEFAULT 'entries',
           set_values JSONB NOT NULL DEFAULT '{}'::jsonb,
           created_at TIMESTAMPTZ NOT NULL
@@ -81,10 +82,12 @@ export const ensureSchema = async () => {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
         ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS clubs JSONB NOT NULL DEFAULT '[]'::jsonb;
-        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS swing_clocks JSONB NOT NULL DEFAULT '["7:30","9:00","10:30","Full"]'::jsonb;
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS swing_clocks JSONB NOT NULL DEFAULT '["8pm","9pm","10pm","Full"]'::jsonb;
+        ALTER TABLE wedge_matrices ALTER COLUMN swing_clocks SET DEFAULT '["8pm","9pm","10pm","Full"]'::jsonb;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS group_name TEXT NOT NULL DEFAULT '';
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS current_round_adjustments TEXT NOT NULL DEFAULT '';
+        ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS flight_and_landing TEXT NOT NULL DEFAULT '';
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS calculation_mode TEXT NOT NULL DEFAULT 'entries';
         ALTER TABLE wedge_matrices ADD COLUMN IF NOT EXISTS set_values JSONB NOT NULL DEFAULT '{}'::jsonb;
         ALTER TABLE rounds ADD COLUMN IF NOT EXISTS round_date TEXT NOT NULL DEFAULT '';

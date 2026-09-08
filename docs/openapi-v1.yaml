@@ -1557,7 +1557,7 @@ components:
       enum: ['7:30', '9:00', '10:30', Full]
     WedgeMatrix:
       type: object
-      required: [id, name, stanceWidth, grip, ballPosition, notes, clubs, swingClocks, createdAt]
+      required: [id, name, stanceWidth, grip, ballPosition, flightAndLanding, notes, clubs, swingClocks, createdAt]
       properties:
         id:
           type: integer
@@ -1569,6 +1569,8 @@ components:
         grip:
           type: string
         ballPosition:
+          type: string
+        flightAndLanding:
           type: string
         notes:
           type: string
@@ -1598,6 +1600,9 @@ components:
         ballPosition:
           type: string
           maxLength: 120
+        flightAndLanding:
+          type: string
+          maxLength: 240
         notes:
           type: string
           maxLength: 400

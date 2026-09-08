@@ -44,7 +44,7 @@ import {
   DEFAULT_WEDGE_MATRIX_GROUPS,
   HOLES,
   HOLE_INDEX_OPTIONS,
-  SWING_CLOCK_OPTIONS,
+  DEFAULT_WEDGE_MATRIX_SWING_CLOCKS,
 } from './lib/constants';
 import { GOOGLE_CLIENT_ID, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './lib/config';
 import { distanceMetersBetween, metersToPaces, pacesToMeters } from './lib/geometry';
@@ -200,10 +200,11 @@ export default function App() {
   const [wedgeMatrixStanceWidth, setWedgeMatrixStanceWidth] = useState('');
   const [wedgeMatrixGrip, setWedgeMatrixGrip] = useState('');
   const [wedgeMatrixBallPosition, setWedgeMatrixBallPosition] = useState('');
+  const [wedgeMatrixFlightAndLanding, setWedgeMatrixFlightAndLanding] = useState('');
   const [wedgeMatrixNotes, setWedgeMatrixNotes] = useState('');
   const [wedgeMatrixCurrentRoundAdjustments, setWedgeMatrixCurrentRoundAdjustments] = useState('');
   const [wedgeMatrixClubs, setWedgeMatrixClubs] = useState([]);
-  const [wedgeMatrixSwingClocks, setWedgeMatrixSwingClocks] = useState(() => [...SWING_CLOCK_OPTIONS]);
+  const [wedgeMatrixSwingClocks, setWedgeMatrixSwingClocks] = useState(() => [...DEFAULT_WEDGE_MATRIX_SWING_CLOCKS]);
   const [wedgeMatrixEnabledColumns, setWedgeMatrixEnabledColumns] = useState([true, true, true, true]);
   const [wedgeMatrixCalculationMode, setWedgeMatrixCalculationMode] = useState<'entries' | 'setValues' | 'freeform'>('entries');
   const [wedgeMatrixSetValues, setWedgeMatrixSetValues] = useState<Record<string, Record<string, number | string>>>({});
@@ -394,9 +395,10 @@ export default function App() {
     setWedgeMatrixStanceWidth('');
     setWedgeMatrixGrip('');
     setWedgeMatrixBallPosition('');
+    setWedgeMatrixFlightAndLanding('');
     setWedgeMatrixNotes('');
     setWedgeMatrixClubs([]);
-    setWedgeMatrixSwingClocks([...SWING_CLOCK_OPTIONS]);
+    setWedgeMatrixSwingClocks([...DEFAULT_WEDGE_MATRIX_SWING_CLOCKS]);
     setWedgeMatrixEnabledColumns([true, true, true, true]);
     setWedgeMatrixSaveState('idle');
     setWedgeMatricesError('');
@@ -1039,6 +1041,7 @@ export default function App() {
     cancelWedgeMatrixEdit,
     deleteWedgeMatrix,
     moveWedgeMatrix,
+    saveCurrentRoundAdjustments,
     clearCurrentRoundAdjustments,
     deleteWedgeEntry,
     addWedgeEntry,
@@ -1050,6 +1053,7 @@ export default function App() {
     wedgeMatrixStanceWidth,
     wedgeMatrixGrip,
     wedgeMatrixBallPosition,
+    wedgeMatrixFlightAndLanding,
     wedgeMatrixNotes,
     wedgeMatrixCurrentRoundAdjustments,
     wedgeMatrixClubs,
@@ -1063,6 +1067,7 @@ export default function App() {
     setWedgeMatrixStanceWidth,
     setWedgeMatrixGrip,
     setWedgeMatrixBallPosition,
+    setWedgeMatrixFlightAndLanding,
     setWedgeMatrixNotes,
     setWedgeMatrixCurrentRoundAdjustments,
     setWedgeMatrixClubs,
@@ -2120,6 +2125,7 @@ export default function App() {
                 wedgeMatrixStanceWidth,
                 wedgeMatrixGrip,
                 wedgeMatrixBallPosition,
+                wedgeMatrixFlightAndLanding,
                 wedgeMatrixNotes,
                 wedgeMatrixCurrentRoundAdjustments,
                 wedgeMatrixSwingClocks,
@@ -2167,6 +2173,7 @@ export default function App() {
                 setWedgeMatrixStanceWidth,
                 setWedgeMatrixGrip,
                 setWedgeMatrixBallPosition,
+                setWedgeMatrixFlightAndLanding,
                 setWedgeMatrixNotes,
                 setWedgeMatrixCurrentRoundAdjustments,
                 setActiveWedgeMatrixId,
@@ -2176,6 +2183,7 @@ export default function App() {
                 setWedgeEntryError,
                 deleteWedgeMatrix,
                 moveWedgeMatrix,
+                saveCurrentRoundAdjustments,
                 clearCurrentRoundAdjustments,
                 addWedgeEntry,
                 saveWedgeMatrixSetValue,

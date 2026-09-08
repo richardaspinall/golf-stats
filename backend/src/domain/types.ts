@@ -121,6 +121,7 @@ export type WedgeMatrix = {
   stanceWidth: string;
   grip: string;
   ballPosition: string;
+  flightAndLanding: string;
   notes: string;
   currentRoundAdjustments: string;
   clubs: ClubOption[];

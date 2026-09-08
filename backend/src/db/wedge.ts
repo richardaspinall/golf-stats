@@ -92,6 +92,7 @@ export const listWedgeMatrices = async (userId: string) => {
              stance_width,
              grip,
              ball_position,
+             flight_and_landing,
              notes,
              current_round_adjustments,
              clubs,
@@ -119,6 +120,7 @@ export const listWedgeMatrices = async (userId: string) => {
       stanceWidth: String(row.stance_width || ''),
       grip: String(row.grip || ''),
       ballPosition: String(row.ball_position || ''),
+      flightAndLanding: String(row.flight_and_landing || ''),
       notes: String(row.notes || ''),
       currentRoundAdjustments: String(row.current_round_adjustments || ''),
       clubs: sanitizeClubList(row.clubs),
@@ -139,6 +141,7 @@ export const insertWedgeMatrix = async ({
   stanceWidth,
   grip,
   ballPosition,
+  flightAndLanding,
   notes,
   currentRoundAdjustments,
   clubs,
@@ -153,6 +156,7 @@ export const insertWedgeMatrix = async ({
   stanceWidth: string;
   grip: string;
   ballPosition: string;
+  flightAndLanding: string;
   notes: string;
   currentRoundAdjustments: string;
   clubs: ClubOption[];
@@ -166,6 +170,7 @@ export const insertWedgeMatrix = async ({
   const safeStanceWidth = sanitizeTextField(stanceWidth, 120);
   const safeGrip = sanitizeTextField(grip, 120);
   const safeBallPosition = sanitizeTextField(ballPosition, 120);
+  const safeFlightAndLanding = sanitizeTextField(flightAndLanding, 240);
   const safeNotes = sanitizeTextField(notes, 400);
   const safeCurrentRoundAdjustments = sanitizeTextField(currentRoundAdjustments, 600);
   const safeClubs = sanitizeClubList(clubs);
@@ -177,10 +182,10 @@ export const insertWedgeMatrix = async ({
   const result = await db.query(
     `
       INSERT INTO wedge_matrices (
-        user_id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
+        user_id, name, group_name, sort_order, stance_width, grip, ball_position, flight_and_landing, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14::timestamptz)
-      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14::jsonb, $15::timestamptz)
+      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, flight_and_landing, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
     `,
     [
       userId,
@@ -190,6 +195,7 @@ export const insertWedgeMatrix = async ({
       safeStanceWidth,
       safeGrip,
       safeBallPosition,
+      safeFlightAndLanding,
       safeNotes,
       safeCurrentRoundAdjustments,
       JSON.stringify(safeClubs),
@@ -209,6 +215,7 @@ export const insertWedgeMatrix = async ({
     stanceWidth: String(row.stance_width || ''),
     grip: String(row.grip || ''),
     ballPosition: String(row.ball_position || ''),
+    flightAndLanding: String(row.flight_and_landing || ''),
     notes: String(row.notes || ''),
     currentRoundAdjustments: String(row.current_round_adjustments || ''),
     clubs: sanitizeClubList(row.clubs),
@@ -228,6 +235,7 @@ export const updateWedgeMatrix = async ({
   stanceWidth,
   grip,
   ballPosition,
+  flightAndLanding,
   notes,
   currentRoundAdjustments,
   clubs,
@@ -243,6 +251,7 @@ export const updateWedgeMatrix = async ({
   stanceWidth: string;
   grip: string;
   ballPosition: string;
+  flightAndLanding: string;
   notes: string;
   currentRoundAdjustments: string;
   clubs: ClubOption[];
@@ -260,6 +269,7 @@ export const updateWedgeMatrix = async ({
   const safeStanceWidth = sanitizeTextField(stanceWidth, 120);
   const safeGrip = sanitizeTextField(grip, 120);
   const safeBallPosition = sanitizeTextField(ballPosition, 120);
+  const safeFlightAndLanding = sanitizeTextField(flightAndLanding, 240);
   const safeNotes = sanitizeTextField(notes, 400);
   const safeCurrentRoundAdjustments = sanitizeTextField(currentRoundAdjustments, 600);
   const safeClubs = sanitizeClubList(clubs);
@@ -292,14 +302,15 @@ export const updateWedgeMatrix = async ({
           stance_width = $4,
           grip = $5,
           ball_position = $6,
-          notes = $7,
-          current_round_adjustments = $8,
-          clubs = $9::jsonb,
-          swing_clocks = $10::jsonb,
-          calculation_mode = $11,
-          set_values = $12::jsonb
-      WHERE id = $13 AND user_id = $14
-      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
+          flight_and_landing = $7,
+          notes = $8,
+          current_round_adjustments = $9,
+          clubs = $10::jsonb,
+          swing_clocks = $11::jsonb,
+          calculation_mode = $12,
+          set_values = $13::jsonb
+      WHERE id = $14 AND user_id = $15
+      RETURNING id, name, group_name, sort_order, stance_width, grip, ball_position, flight_and_landing, notes, current_round_adjustments, clubs, swing_clocks, calculation_mode, set_values, created_at
     `,
     [
       safeName,
@@ -308,6 +319,7 @@ export const updateWedgeMatrix = async ({
       safeStanceWidth,
       safeGrip,
       safeBallPosition,
+      safeFlightAndLanding,
       safeNotes,
       safeCurrentRoundAdjustments,
       JSON.stringify(safeClubs),
@@ -344,6 +356,7 @@ export const updateWedgeMatrix = async ({
     stanceWidth: String(row.stance_width || ''),
     grip: String(row.grip || ''),
     ballPosition: String(row.ball_position || ''),
+    flightAndLanding: String(row.flight_and_landing || ''),
     notes: String(row.notes || ''),
     currentRoundAdjustments: String(row.current_round_adjustments || ''),
     clubs: sanitizeClubList(row.clubs),

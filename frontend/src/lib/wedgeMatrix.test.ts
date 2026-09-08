@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { buildWedgeMatrixRows, getClosestWedgeMatrixRecommendation } from './wedgeMatrix';
 
 describe('wedge matrix free-form values', () => {
+  it('uses the standard new-matrix column headers by default', () => {
+    const rows = buildWedgeMatrixRows([], ['56w'], []);
+
+    expect(rows[0].cells.map((cell) => cell.clock)).toEqual(['8pm', '9pm', '10pm', 'Full']);
+  });
+
   it('displays saved values without treating them as distances', () => {
     const rows = buildWedgeMatrixRows([], ['56w'], ['9:00'], 'freeform', {
       '56w': { '9:00': 'Low' },

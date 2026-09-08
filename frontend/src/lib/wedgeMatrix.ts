@@ -1,4 +1,4 @@
-import { CLUB_OPTIONS, SWING_CLOCK_OPTIONS } from './constants';
+import { CLUB_OPTIONS, DEFAULT_WEDGE_MATRIX_SWING_CLOCKS } from './constants';
 import type { WedgeEntry, WedgeMatrix } from '../types';
 
 export type WedgeMatrixRow = {
@@ -46,7 +46,7 @@ export const buildWedgeMatrixRows = (
   const clocksForMatrix =
     Array.isArray(swingClocks) && swingClocks.length > 0
       ? swingClocks.map((clock) => String(clock || '').trim()).filter((clock, index, arr) => Boolean(clock) && arr.indexOf(clock) === index)
-      : SWING_CLOCK_OPTIONS;
+      : DEFAULT_WEDGE_MATRIX_SWING_CLOCKS;
   const buckets = clubsForMatrix.reduce((acc, club) => {
     acc[club] = clocksForMatrix.reduce((clockAcc, clock) => {
       clockAcc[clock] = { total: 0, count: 0 };
